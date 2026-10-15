@@ -25,6 +25,7 @@ from app.settings.service import get_settings, today
 from app.shifts.models import Shift, ShiftStatus
 from app.shifts.service import current_shift
 from app.staff.models import Staff
+from app.stock import service as stock
 
 router = APIRouter(tags=["floor"])
 
@@ -202,7 +203,7 @@ def send(bill_id: uuid.UUID, body: SendIn, actor: CurrentActor, request: Request
 
     printing, sent_at = _printing(request), now()
     header = printing.header(db, bill, sent_at)
-    tickets = []
+    tickets, sent = [], []
     for station, kind, printer, layout in (
         (Station.bar, TicketKind.bar_slip, PrinterName.counter, layouts.bar_slip),
         (Station.kitchen, TicketKind.kitchen_ticket, PrinterName.kitchen, layouts.kitchen_ticket),
@@ -226,6 +227,10 @@ def send(bill_id: uuid.UUID, body: SendIn, actor: CurrentActor, request: Request
         db.add_all(lines)
         ticket.content = layout(header, number, group_items(lines))
         tickets.append(ticket)
+        sent.extend(lines)
+    db.flush()
+    stock.record_sale(db, sent, tot_size=get_settings(db, actor.business_id).tot_size_ml, actor_id=actor.staff.id,
+                      day=today(db, actor.business_id, request.app.state.tz))
     db.commit()
     request.app.state.printing.print_tickets(tickets)
     return bill_detail(db, bill)
@@ -254,7 +259,7 @@ class VoidIn(BaseModel):
 
 
 @router.post("/bills/{bill_id}/lines/{line_id}/void")
-def void_line(bill_id: uuid.UUID, line_id: uuid.UUID, body: VoidIn, actor: CurrentActor, db: Db) -> BillOut:
+def void_line(bill_id: uuid.UUID, line_id: uuid.UUID, body: VoidIn, actor: CurrentActor, request: Request, db: Db) -> BillOut:
     """Remove an item already sent. Waiters need an Owner or Supervisor PIN.
     "Not prepared" returns it to stock; "Already prepared" records it as waste (Phase 4)."""
     bill = load_bill(db, actor, bill_id, Action.void_item)
@@ -269,6 +274,8 @@ def void_line(bill_id: uuid.UUID, line_id: uuid.UUID, body: VoidIn, actor: Curre
     if amounts(db, bill).balance < 0:
         db.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, "Payments already taken are more than the new total.")
+    stock.reverse_sale(db, line, body.reason, actor_id=actor.staff.id,
+                       day=today(db, actor.business_id, request.app.state.tz), note=f"Void, bill #{bill.number:04d}")
     audit.record(
         db, business_id=actor.business_id, actor_id=actor.staff.id, action="bill_line.voided",
         entity_type="bill_line", entity_id=line.id, approval=approval,
@@ -469,7 +476,7 @@ class CancelIn(BaseModel):
 
 
 @router.post("/bills/{bill_id}/cancel")
-def cancel_paid(bill_id: uuid.UUID, body: CancelIn, actor: CurrentActor, db: Db) -> BillOut:
+def cancel_paid(bill_id: uuid.UUID, body: CancelIn, actor: CurrentActor, request: Request, db: Db) -> BillOut:
     """Cancel a paid (or credit) bill: its payments are reversed, the money goes back to
     the customer, and its sale no longer counts. Possible only while the shift that
     finished it is still open; after the hand-over a refund is a pay-out."""
@@ -486,6 +493,11 @@ def cancel_paid(bill_id: uuid.UUID, body: CancelIn, actor: CurrentActor, db: Db)
     for p in db.scalars(select(Payment).where(Payment.bill_id == bill.id, Payment.reversed_at.is_(None))):
         p.reversed_at = now()
         refunded[p.method.value] += p.amount
+    day = today(db, actor.business_id, request.app.state.tz)
+    for line in bill_lines(db, bill):
+        if line.voided_at is None:
+            stock.reverse_sale(db, line, body.reason, actor_id=actor.staff.id, day=day,
+                               note=f"Cancelled bill #{bill.number:04d}")
     was = bill.status
     bill.status, bill.cancel_reason = BillStatus.cancelled, body.reason
     audit.record(

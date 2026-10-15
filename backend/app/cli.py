@@ -2,6 +2,7 @@
 
     python -m app.cli init-business --name "Mama Njeri's Bar" --owner "Njeri"
     python -m app.cli load-menu ../docs/sample-menu.json
+    python -m app.cli load-stock ../docs/sample-menu.json   (stock and recipes only)
 
 The owner's PIN is asked for at the keyboard so it never appears in shell history.
 """
@@ -16,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.audit import service as audit
 from app.auth.pins import WeakPin, check_new_pin, pin_lookup
-from app.menu.importer import load_menu
+from app.menu.importer import load_menu, load_stock
 from app.settings.config import get_config
 from app.settings.models import Business, BusinessSettings
 from app.staff.models import Role, Staff
@@ -55,21 +56,22 @@ def main(argv: list[str] | None = None) -> None:
     init.add_argument("--owner", required=True, help="Owner's name")
     menu = commands.add_parser("load-menu", help="Load the menu and tables from a JSON file")
     menu.add_argument("file")
+    stock = commands.add_parser("load-stock", help="Add stock items and recipes to the menu already loaded")
+    stock.add_argument("file")
     args = parser.parse_args(argv)
 
     config = get_config()
     if config.mode != "local":
         raise SystemExit("These commands run on the counter (FAIDA_MODE=local).")
-    if args.command == "load-menu":
+    if args.command in ("load-menu", "load-stock"):
         with open(args.file, encoding="utf-8") as f:
             data = json.load(f)
         with Session(create_engine(config.database_url), expire_on_commit=False) as db:
             business_id = db.scalar(select(Business.id))
             if business_id is None:
                 raise SystemExit("Run init-business first.")
-            counts = load_menu(db, business_id, data)
-        print(f"Loaded {counts['tables']} tables, {counts['categories']} categories, "
-              f"{counts['items']} items.", file=sys.stderr)
+            counts = (load_menu if args.command == "load-menu" else load_stock)(db, business_id, data)
+        print("Loaded " + ", ".join(f"{n} {k.replace('_', ' ')}" for k, n in counts.items()) + ".", file=sys.stderr)
         return
     pin = getpass.getpass("Owner PIN (4-6 digits): ")
     if getpass.getpass("Type it again: ") != pin:

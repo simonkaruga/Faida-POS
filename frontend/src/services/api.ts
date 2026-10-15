@@ -307,3 +307,49 @@ export type CashBox = {
 export const getCashBox = () => api<CashBox>("/cashbox");
 export const recordPayout = (amount: number, reason: string) => api<CashBox>("/payouts", { body: { amount, reason } });
 export const ownerCash = (amount: number, note: string) => api<CashBox>("/cashbox/owner", { body: { amount, note } });
+
+// Stock
+export type StockUnit = "ml" | "bottle" | "g" | "piece";
+export type StockItem = {
+  id: string;
+  name: string;
+  station: "bar" | "kitchen";
+  unit: StockUnit;
+  counting_unit: string;
+  bottle_size: number | null;
+  pack_name: string | null;
+  pack_size: number | null;
+  level: string;
+  level_text: string;
+  reorder_level: string;
+  low: boolean;
+  check: boolean;
+  active: boolean;
+  buying_price: string | null;
+  value: number | null;
+};
+export type StockMovement = { kind: string; quantity: string; text: string; note: string | null; by: string | null; at: string };
+export type Variance = { stock_item_id: string; name: string; expected_text: string; counted_text: string; variance: string; message: string; value: number | null };
+export type RecipeLine = { stock_item_id: string; quantity: string; in_tots: boolean; stock_item?: string; text?: string };
+export type Recipe = { sell_option_id: string; item_name: string; option_label: string; station: "bar" | "kitchen"; lines: RecipeLine[] };
+export type Supplier = { id: string; name: string; phone: string | null };
+
+export const getStock = () => api<StockItem[]>("/stock");
+export const getMovements = (itemId: string) => api<StockMovement[]>(`/stock/items/${itemId}/movements`);
+export const createStockItem = (body: Record<string, unknown>) => api<StockItem>("/stock/items", { body });
+export const updateStockItem = (itemId: string, body: Record<string, unknown>) =>
+  api<StockItem>(`/stock/items/${itemId}`, { method: "PATCH", body });
+export const getSuppliers = () => api<Supplier[]>("/stock/suppliers");
+export const addSupplier = (name: string, phone: string | null) => api<Supplier>("/stock/suppliers", { body: { name, phone } });
+export const receiveDelivery = (body: {
+  supplier_id?: string;
+  note?: string;
+  lines: { stock_item_id: string; packs: number; units: number; cost?: number }[];
+}) => api<{ id: string; lines: string[] }>("/stock/deliveries", { body });
+export const recordWaste = (body: { stock_item_id: string; quantity: number; tots: number; reason: string; approval_id?: string }) =>
+  api<StockItem>("/stock/waste", { body });
+export const stockTake = (note: string | undefined, counts: { stock_item_id: string; full: number; open_tenths: number }[]) =>
+  api<{ id: string; lines: Variance[]; total_value: number | null }>("/stock/takes", { body: { note, counts } });
+export const getRecipes = () => api<Recipe[]>("/stock/recipes");
+export const setRecipe = (optionId: string, lines: RecipeLine[]) =>
+  api<Recipe>(`/stock/recipes/${optionId}`, { method: "PUT", body: { lines } });

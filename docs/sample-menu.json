@@ -1,65 +1,581 @@
 {
-  "tables": ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "Garden 1", "Garden 2"],
-  "note_presets": ["Well done", "Medium", "No onions", "No chilli", "Extra hot", "Takeaway"],
+  "tables": [
+    "T1",
+    "T2",
+    "T3",
+    "T4",
+    "T5",
+    "T6",
+    "T7",
+    "T8",
+    "T9",
+    "T10",
+    "Garden 1",
+    "Garden 2"
+  ],
+  "note_presets": [
+    "Well done",
+    "Medium",
+    "No onions",
+    "No chilli",
+    "Extra hot",
+    "Takeaway"
+  ],
+  "tot_size_ml": 25,
+  "stock": [
+    {
+      "name": "Tusker 500ml",
+      "station": "bar",
+      "unit": "bottle",
+      "pack_name": "crate",
+      "pack_size": 25,
+      "buying_price": 205,
+      "reorder_level": 25
+    },
+    {
+      "name": "Tusker Lite 500ml",
+      "station": "bar",
+      "unit": "bottle",
+      "pack_name": "crate",
+      "pack_size": 25,
+      "buying_price": 205,
+      "reorder_level": 10
+    },
+    {
+      "name": "Guinness 500ml",
+      "station": "bar",
+      "unit": "bottle",
+      "pack_name": "crate",
+      "pack_size": 25,
+      "buying_price": 225,
+      "reorder_level": 25
+    },
+    {
+      "name": "White Cap 500ml",
+      "station": "bar",
+      "unit": "bottle",
+      "pack_name": "crate",
+      "pack_size": 25,
+      "buying_price": 205,
+      "reorder_level": 25
+    },
+    {
+      "name": "Balozi 500ml",
+      "station": "bar",
+      "unit": "bottle",
+      "pack_name": "crate",
+      "pack_size": 25,
+      "buying_price": 190,
+      "reorder_level": 10
+    },
+    {
+      "name": "Pilsner 500ml",
+      "station": "bar",
+      "unit": "bottle",
+      "pack_name": "crate",
+      "pack_size": 25,
+      "buying_price": 190,
+      "reorder_level": 10
+    },
+    {
+      "name": "Smirnoff Ice 330ml",
+      "station": "bar",
+      "unit": "bottle",
+      "pack_name": "crate",
+      "pack_size": 24,
+      "buying_price": 200,
+      "reorder_level": 12
+    },
+    {
+      "name": "Johnnie Walker Red 750ml",
+      "station": "bar",
+      "unit": "ml",
+      "bottle_size": 750,
+      "pack_name": "carton",
+      "pack_size": 12,
+      "buying_price": 2400,
+      "reorder_level": 2
+    },
+    {
+      "name": "Gilbey's Gin 750ml",
+      "station": "bar",
+      "unit": "ml",
+      "bottle_size": 750,
+      "pack_name": "carton",
+      "pack_size": 12,
+      "buying_price": 1150,
+      "reorder_level": 2
+    },
+    {
+      "name": "Jameson 750ml",
+      "station": "bar",
+      "unit": "ml",
+      "bottle_size": 750,
+      "pack_name": "carton",
+      "pack_size": 12,
+      "buying_price": 2900,
+      "reorder_level": 1
+    },
+    {
+      "name": "Coke 500ml",
+      "station": "bar",
+      "unit": "bottle",
+      "pack_name": "crate",
+      "pack_size": 24,
+      "buying_price": 55,
+      "reorder_level": 24
+    },
+    {
+      "name": "Water 500ml",
+      "station": "bar",
+      "unit": "bottle",
+      "pack_name": "pack",
+      "pack_size": 24,
+      "buying_price": 35,
+      "reorder_level": 24
+    },
+    {
+      "name": "Soda water 300ml",
+      "station": "bar",
+      "unit": "bottle",
+      "pack_name": "crate",
+      "pack_size": 24,
+      "buying_price": 50,
+      "reorder_level": 12
+    },
+    {
+      "name": "Novida 500ml",
+      "station": "bar",
+      "unit": "bottle",
+      "pack_name": "crate",
+      "pack_size": 24,
+      "buying_price": 55,
+      "reorder_level": 12
+    },
+    {
+      "name": "Chicken (quarter)",
+      "station": "kitchen",
+      "unit": "piece",
+      "buying_price": 180,
+      "reorder_level": 8
+    },
+    {
+      "name": "Potatoes",
+      "station": "kitchen",
+      "unit": "g",
+      "pack_name": "sack",
+      "pack_size": 50,
+      "buying_price": 80,
+      "reorder_level": 10
+    },
+    {
+      "name": "Cooking oil",
+      "station": "kitchen",
+      "unit": "ml",
+      "pack_name": "jerrycan",
+      "pack_size": 20,
+      "buying_price": 300,
+      "reorder_level": 5
+    },
+    {
+      "name": "Goat meat",
+      "station": "kitchen",
+      "unit": "g",
+      "buying_price": 750,
+      "reorder_level": 5
+    },
+    {
+      "name": "Tilapia",
+      "station": "kitchen",
+      "unit": "piece",
+      "buying_price": 300,
+      "reorder_level": 5
+    },
+    {
+      "name": "Maize flour",
+      "station": "kitchen",
+      "unit": "g",
+      "pack_name": "bale",
+      "pack_size": 24,
+      "buying_price": 70,
+      "reorder_level": 5
+    },
+    {
+      "name": "Beef",
+      "station": "kitchen",
+      "unit": "g",
+      "buying_price": 650,
+      "reorder_level": 5
+    },
+    {
+      "name": "Rice",
+      "station": "kitchen",
+      "unit": "g",
+      "buying_price": 180,
+      "reorder_level": 5
+    },
+    {
+      "name": "Samosa",
+      "station": "kitchen",
+      "unit": "piece",
+      "buying_price": 25,
+      "reorder_level": 20
+    },
+    {
+      "name": "Smokie",
+      "station": "kitchen",
+      "unit": "piece",
+      "buying_price": 30,
+      "reorder_level": 20
+    }
+  ],
   "categories": [
     {
       "name": "Beers",
       "items": [
-        { "name": "Tusker", "station": "bar", "price": 300, "favourite": true },
-        { "name": "Tusker Lite", "station": "bar", "price": 300 },
-        { "name": "Guinness", "station": "bar", "price": 320, "favourite": true },
-        { "name": "White Cap", "station": "bar", "price": 300, "favourite": true },
-        { "name": "Balozi", "station": "bar", "price": 280 },
-        { "name": "Pilsner", "station": "bar", "price": 280 },
-        { "name": "Smirnoff Ice", "station": "bar", "price": 300 }
+        {
+          "name": "Tusker",
+          "station": "bar",
+          "price": 300,
+          "favourite": true,
+          "uses": [
+            {
+              "stock": "Tusker 500ml",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "name": "Tusker Lite",
+          "station": "bar",
+          "price": 300,
+          "uses": [
+            {
+              "stock": "Tusker Lite 500ml",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "name": "Guinness",
+          "station": "bar",
+          "price": 320,
+          "favourite": true,
+          "uses": [
+            {
+              "stock": "Guinness 500ml",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "name": "White Cap",
+          "station": "bar",
+          "price": 300,
+          "favourite": true,
+          "uses": [
+            {
+              "stock": "White Cap 500ml",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "name": "Balozi",
+          "station": "bar",
+          "price": 280,
+          "uses": [
+            {
+              "stock": "Balozi 500ml",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "name": "Pilsner",
+          "station": "bar",
+          "price": 280,
+          "uses": [
+            {
+              "stock": "Pilsner 500ml",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "name": "Smirnoff Ice",
+          "station": "bar",
+          "price": 300,
+          "uses": [
+            {
+              "stock": "Smirnoff Ice 330ml",
+              "quantity": 1
+            }
+          ]
+        }
       ]
     },
     {
       "name": "Spirits",
       "items": [
         {
-          "name": "Johnnie Walker Red", "station": "bar", "favourite": true,
+          "name": "Johnnie Walker Red",
+          "station": "bar",
+          "favourite": true,
           "options": [
-            { "label": "Single tot", "price": 250 },
-            { "label": "Double", "price": 450 },
-            { "label": "Bottle", "price": 3500 }
+            {
+              "label": "Single tot",
+              "price": 250,
+              "uses": [
+                {
+                  "stock": "Johnnie Walker Red 750ml",
+                  "tots": 1
+                }
+              ]
+            },
+            {
+              "label": "Double",
+              "price": 450,
+              "uses": [
+                {
+                  "stock": "Johnnie Walker Red 750ml",
+                  "tots": 2
+                }
+              ]
+            },
+            {
+              "label": "Bottle",
+              "price": 3500,
+              "uses": [
+                {
+                  "stock": "Johnnie Walker Red 750ml",
+                  "quantity": 750
+                }
+              ]
+            }
           ]
         },
         {
-          "name": "Gilbey's Gin", "station": "bar",
+          "name": "Gilbey's Gin",
+          "station": "bar",
           "options": [
-            { "label": "Single tot", "price": 150 },
-            { "label": "Double", "price": 280 },
-            { "label": "Bottle", "price": 1800 }
+            {
+              "label": "Single tot",
+              "price": 150,
+              "uses": [
+                {
+                  "stock": "Gilbey's Gin 750ml",
+                  "tots": 1
+                }
+              ]
+            },
+            {
+              "label": "Double",
+              "price": 280,
+              "uses": [
+                {
+                  "stock": "Gilbey's Gin 750ml",
+                  "tots": 2
+                }
+              ]
+            },
+            {
+              "label": "Bottle",
+              "price": 1800,
+              "uses": [
+                {
+                  "stock": "Gilbey's Gin 750ml",
+                  "quantity": 750
+                }
+              ]
+            }
           ]
         },
-        { "name": "Jameson", "station": "bar", "options": [{ "label": "Bottle", "price": 4200 }] }
+        {
+          "name": "Jameson",
+          "station": "bar",
+          "options": [
+            {
+              "label": "Bottle",
+              "price": 4200,
+              "uses": [
+                {
+                  "stock": "Jameson 750ml",
+                  "quantity": 750
+                }
+              ]
+            }
+          ]
+        }
       ]
     },
     {
       "name": "Soft drinks",
       "items": [
-        { "name": "Coke", "station": "bar", "price": 100, "favourite": true },
-        { "name": "Water 500ml", "station": "bar", "price": 80, "favourite": true },
-        { "name": "Soda water", "station": "bar", "price": 100 },
-        { "name": "Novida", "station": "bar", "price": 100 }
+        {
+          "name": "Coke",
+          "station": "bar",
+          "price": 100,
+          "favourite": true,
+          "uses": [
+            {
+              "stock": "Coke 500ml",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "name": "Water 500ml",
+          "station": "bar",
+          "price": 80,
+          "favourite": true,
+          "uses": [
+            {
+              "stock": "Water 500ml",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "name": "Soda water",
+          "station": "bar",
+          "price": 100,
+          "uses": [
+            {
+              "stock": "Soda water 300ml",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "name": "Novida",
+          "station": "bar",
+          "price": 100,
+          "uses": [
+            {
+              "stock": "Novida 500ml",
+              "quantity": 1
+            }
+          ]
+        }
       ]
     },
     {
       "name": "Mains",
       "items": [
-        { "name": "Chicken & chips", "station": "kitchen", "price": 650, "favourite": true },
-        { "name": "Nyama choma 1/2 kg", "station": "kitchen", "price": 800, "favourite": true },
-        { "name": "Fish & ugali", "station": "kitchen", "price": 700 },
-        { "name": "Beef stew & rice", "station": "kitchen", "price": 550 }
+        {
+          "name": "Chicken & chips",
+          "station": "kitchen",
+          "price": 650,
+          "favourite": true,
+          "uses": [
+            {
+              "stock": "Chicken (quarter)",
+              "quantity": 1
+            },
+            {
+              "stock": "Potatoes",
+              "quantity": 300
+            },
+            {
+              "stock": "Cooking oil",
+              "quantity": 40
+            }
+          ]
+        },
+        {
+          "name": "Nyama choma 1/2 kg",
+          "station": "kitchen",
+          "price": 800,
+          "favourite": true,
+          "uses": [
+            {
+              "stock": "Goat meat",
+              "quantity": 500
+            }
+          ]
+        },
+        {
+          "name": "Fish & ugali",
+          "station": "kitchen",
+          "price": 700,
+          "uses": [
+            {
+              "stock": "Tilapia",
+              "quantity": 1
+            },
+            {
+              "stock": "Maize flour",
+              "quantity": 250
+            },
+            {
+              "stock": "Cooking oil",
+              "quantity": 30
+            }
+          ]
+        },
+        {
+          "name": "Beef stew & rice",
+          "station": "kitchen",
+          "price": 550,
+          "uses": [
+            {
+              "stock": "Beef",
+              "quantity": 200
+            },
+            {
+              "stock": "Rice",
+              "quantity": 150
+            },
+            {
+              "stock": "Cooking oil",
+              "quantity": 15
+            }
+          ]
+        }
       ]
     },
     {
       "name": "Snacks",
       "items": [
-        { "name": "Chips", "station": "kitchen", "price": 250, "favourite": true },
-        { "name": "Samosa (2)", "station": "kitchen", "price": 100 },
-        { "name": "Smokie", "station": "kitchen", "price": 60 }
+        {
+          "name": "Chips",
+          "station": "kitchen",
+          "price": 250,
+          "favourite": true,
+          "uses": [
+            {
+              "stock": "Potatoes",
+              "quantity": 300
+            },
+            {
+              "stock": "Cooking oil",
+              "quantity": 40
+            }
+          ]
+        },
+        {
+          "name": "Samosa (2)",
+          "station": "kitchen",
+          "price": 100,
+          "uses": [
+            {
+              "stock": "Samosa",
+              "quantity": 2
+            }
+          ]
+        },
+        {
+          "name": "Smokie",
+          "station": "kitchen",
+          "price": 60,
+          "uses": [
+            {
+              "stock": "Smokie",
+              "quantity": 1
+            }
+          ]
+        }
       ]
     }
   ]

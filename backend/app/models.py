@@ -12,10 +12,14 @@ from app.sequences import Sequence
 from app.settings.models import Business, BusinessSettings
 from app.shifts.models import CashMovement, Handover, Shift, ShortageStatus
 from app.staff.models import Staff
+from app.stock.models import (
+    Delivery, DeliveryLine, RecipeLine, StockItem, StockMovement, StockTake, StockTakeLine, Supplier,
+)
 
 __all__ = [
     "Base", "AuditEntry", "Approval", "Bill", "BillHandover", "BillLine", "Business",
     "BusinessSettings", "Category", "MenuItem", "Payment", "SellOption", "Sequence",
     "Staff", "Table", "Ticket", "CreditCustomer", "CreditCollection", "Shift", "Handover",
-    "ShortageStatus", "CashMovement",
+    "ShortageStatus", "CashMovement", "Delivery", "DeliveryLine", "RecipeLine", "StockItem",
+    "StockMovement", "StockTake", "StockTakeLine", "Supplier",
 ]

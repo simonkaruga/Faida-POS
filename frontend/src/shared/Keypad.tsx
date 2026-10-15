@@ -10,19 +10,24 @@ type Props = {
   enterLabel?: string;
   /** Let Enter work with nothing typed, e.g. NEXT past a note that wasn't counted. */
   allowEmptyEnter?: boolean;
+  /** Adds a decimal point key, e.g. for 2.5 kg. */
+  decimal?: boolean;
 };
 
 /** Large number keypad (keys ≥ 72 px, masterplan 9.1). Also accepts a physical keyboard. */
-export function Keypad({ value, onChange, onEnter, maxLength = 6, disabled, enterLabel = "OK", allowEmptyEnter }: Props) {
+export function Keypad({ value, onChange, onEnter, maxLength = 6, disabled, enterLabel = "OK", allowEmptyEnter, decimal }: Props) {
   const press = (digit: string) => {
-    if (!disabled && value.length < maxLength) onChange(value + digit);
+    if (disabled || value.length >= maxLength) return;
+    if (digit === ".") {
+      if (!value.includes(".")) onChange((value || "0") + ".");
+    } else onChange(value + digit);
   };
   const back = () => !disabled && onChange(value.slice(0, -1));
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (disabled || e.target instanceof HTMLInputElement) return;
-      if (/^\d$/.test(e.key)) press(e.key);
+      if (/^\d$/.test(e.key) || (decimal && e.key === ".")) press(e.key);
       else if (e.key === "Backspace") back();
       else if (e.key === "Enter" && (value || allowEmptyEnter)) onEnter();
     };
@@ -37,13 +42,28 @@ export function Keypad({ value, onChange, onEnter, maxLength = 6, disabled, ente
           {d}
         </button>
       ))}
-      <button className="key key-quiet" onClick={back} disabled={disabled} aria-label="Delete">
-        ⌫
-      </button>
+      {decimal ? (
+        <button className="key" onClick={() => press(".")} disabled={disabled}>
+          .
+        </button>
+      ) : (
+        <button className="key key-quiet" onClick={back} disabled={disabled} aria-label="Delete">
+          ⌫
+        </button>
+      )}
       <button className="key" onClick={() => press("0")} disabled={disabled}>
         0
       </button>
-      <button className={enterLabel.length > 4 ? "key key-enter key-long" : "key key-enter"} onClick={onEnter} disabled={disabled || (!value && !allowEmptyEnter)}>
+      {decimal && (
+        <button className="key key-quiet" onClick={back} disabled={disabled} aria-label="Delete">
+          ⌫
+        </button>
+      )}
+      <button
+        className={`key key-enter ${enterLabel.length > 4 ? "key-long" : ""} ${decimal ? "key-wide" : ""}`}
+        onClick={onEnter}
+        disabled={disabled || (!value && !allowEmptyEnter)}
+      >
         {enterLabel}
       </button>
     </div>

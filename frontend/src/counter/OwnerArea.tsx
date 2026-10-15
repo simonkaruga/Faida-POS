@@ -24,8 +24,9 @@ import { Keypad } from "../shared/Keypad";
 import { Modal } from "../shared/Modal";
 import { formatKsh } from "../shared/money";
 import { FinishedBills } from "./FinishedBills";
+import { StockTab } from "./StockTab";
 
-type Tab = "shifts" | "credit" | "cash" | "bills";
+type Tab = "shifts" | "credit" | "cash" | "stock" | "bills";
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong.");
 const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "");
 const KIND = { handover: "Hand-over", float: "Float", payout: "Pay-out", credit_collected: "Credit paid", owner: "Owner" } as const;
@@ -38,6 +39,7 @@ export function OwnerArea({ session, onBack }: { session: Session; onBack: () =>
     ["shifts", "Shifts & hand-overs"],
     ["credit", "Credit"],
     ["cash", "Cash box & pay-outs"],
+    ["stock", "Stock"],
     ["bills", "Today's bills"],
   ];
   return (
@@ -56,6 +58,7 @@ export function OwnerArea({ session, onBack }: { session: Session; onBack: () =>
         {tab === "shifts" && <ShiftsTab session={session} />}
         {tab === "credit" && <CreditTab session={session} />}
         {tab === "cash" && <CashTab session={session} />}
+        {tab === "stock" && <StockTab session={session} />}
         {tab === "bills" && <FinishedBills session={session} embedded />}
       </div>
     </main>
