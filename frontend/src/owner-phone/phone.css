@@ -1,0 +1,72 @@
+/* The owner's phone: portrait, readable outdoors, follows the phone's light/dark setting. */
+:root { user-select: auto; }
+body { overflow: auto; }
+.ph { min-height: 100%; display: flex; flex-direction: column; }
+.ph-main { flex: 1; padding-bottom: 76px; }
+.ph-pad { padding: 0 16px; }
+.ph-muted { color: var(--text-muted); }
+.ph-error { color: var(--red); font-weight: 600; min-height: 22px; }
+.ph-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: max(16px, env(safe-area-inset-top)) 16px 8px;
+  background: var(--navy);
+  color: #fff;
+}
+.ph-header h1 { margin: 0; font-size: 22px; }
+.ph-updated { margin: 4px 0 0; font-size: 14px; color: #c9d4ee; }
+.ph-updated.stale { color: var(--orange); font-weight: 700; }
+.ph-link { background: none; border: none; color: #c9d4ee; font: inherit; padding: 8px 0; min-height: 44px; }
+.ph-alerts { margin: 8px 16px; padding: 4px 14px; border-radius: 12px; background: rgb(240 138 36 / 0.15); color: var(--orange); font-weight: 600; }
+.ph-alerts p { margin: 8px 0; }
+.ph .rp-section { margin-top: 12px; }
+.ph .rp-row { font-size: 16px; }
+.ph .rp-big strong { font-size: 26px; }
+.ph-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.ph-nav button { min-height: 60px; background: none; border: none; color: var(--text-muted); font: inherit; font-size: 14px; font-weight: 600; }
+.ph-nav button.on { color: var(--blue); }
+.ph-daybar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; }
+.ph-daybar span { font-weight: 700; }
+.ph-daybar button {
+  min-width: 48px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+}
+.ph-daybar button.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+.ph-login { max-width: 420px; margin: 0 auto; padding: 48px 20px; display: flex; flex-direction: column; gap: 14px; }
+.ph-login h1 { margin: 0; font-size: 34px; }
+.ph-login label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
+.ph-login input {
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 18px;
+}
+.ph-button { min-height: 52px; border: none; border-radius: 12px; background: var(--blue); color: #fff; font: inherit; font-size: 18px; font-weight: 700; }
+.ph-button:disabled { opacity: 0.5; }
+.ph a { color: var(--blue); }
+@media (max-width: 420px) {
+  .rp-bar-row { grid-template-columns: minmax(80px, 34%) 1fr auto; font-size: 15px; }
+}

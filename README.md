@@ -26,10 +26,48 @@ cp .env.example .env          # set FAIDA_PIN_SECRET and FAIDA_DATABASE_URL
 Then, from the repo root:
 
 ```bash
-npm start                     # backend on :8000 (auto-reload) + frontend on http://localhost:5173
+npm start      # counter backend :8000, cloud backend :8100, frontend http://localhost:5173
 ```
 
-`npm run start:api` and `npm run start:web` start just one of them. PostgreSQL must already be running.
+`npm run start:api`, `start:cloud` and `start:web` start just one of them. PostgreSQL
+must already be running.
+
+- Counter screens: http://localhost:5173
+- Owner's phone view: http://localhost:5173/phone.html (try it in the browser's phone mode)
+
+### The development cloud
+
+The cloud is the same backend in cloud mode (`backend/.env.cloud`, see `.env.cloud.example`)
+on its own database. Linking a counter and creating the owner's phone login:
+
+```bash
+cd backend
+FAIDA_DATABASE_URL=<cloud database> .venv/bin/alembic upgrade head
+set -a; . ./.env.cloud; set +a                  # cloud settings for the next commands
+.venv/bin/python -m app.cli register-device --business-id <id> --name "Counter"
+.venv/bin/python -m app.cli create-owner --business-id <id> --email owner@example.com
+```
+
+`register-device` prints `FAIDA_CLOUD_TOKEN=...` for the counter's `.env` (with
+`FAIDA_CLOUD_URL`). `create-owner` prints a key to add to an authenticator app
+(Google Authenticator, Microsoft Authenticator...), which then shows the 6-digit code
+the phone login asks for.
+
+Sync: every change at the counter is written to `sync_queue` in the same transaction
+and uploaded in order when the cloud can be reached. The top bar shows Online, or
+Offline with how many changes are waiting.
+
+### Backups
+
+```bash
+.venv/bin/python -m app.backup create --to /media/usb/faida     # nightly
+.venv/bin/python -m app.backup restore --file faida-local-20261016-040000.fbk
+```
+
+Backups hold the database and the PIN secret, encrypted with `FAIDA_BACKUP_PASSPHRASE`;
+the newest 14 are kept. The result is sent to the cloud, and
+`python -m app.cli check-health` (cloud, for cron) reports counters whose sync or
+backups stopped, or whose clock is off.
 
 In development nothing goes to a real printer: slips, tickets, bills and receipts are
 written as text files to `backend/prints/`. Set `FAIDA_COUNTER_PRINTER` and
@@ -43,9 +81,11 @@ cd backend && .venv/bin/pytest     # needs an empty database at FAIDA_TEST_DATAB
 cd frontend && npm test && npm run typecheck
 ```
 
-The backend tests run against a real PostgreSQL database. The default is
-`postgresql+psycopg://faida@localhost:5544/faida_test`. **The tests wipe that
-database**, so never point `FAIDA_TEST_DATABASE_URL` at real data.
+The backend tests run against real PostgreSQL databases: `faida_test` (the counter),
+`faida_cloud_test` (the cloud) and `faida_restore_test` (backup restores), on
+`localhost:5544` by default (`FAIDA_TEST_DATABASE_URL`, `FAIDA_TEST_CLOUD_DATABASE_URL`,
+`FAIDA_TEST_RESTORE_DATABASE_URL`). **The tests wipe those databases**, so never point
+them at real data. Backup tests need `pg_dump` (`FAIDA_TEST_PG_BIN`).
 
 ## How permissions work
 

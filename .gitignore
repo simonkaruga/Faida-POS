@@ -8,3 +8,5 @@ dist/
 *.tsbuildinfo
 .claude/settings.local.json*
 prints/
+.env.cloud
+state/

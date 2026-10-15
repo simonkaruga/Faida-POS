@@ -10,6 +10,8 @@ export type Health = {
   set_up: boolean;
   business_name: string | null;
   cloud: "not_linked" | "online" | "offline";
+  waiting_to_sync: number | null;
+  last_synced_at: string | null;
   printers: "not_set_up" | "ok" | "offline";
 };
 
@@ -353,3 +355,58 @@ export const stockTake = (note: string | undefined, counts: { stock_item_id: str
 export const getRecipes = () => api<Recipe[]>("/stock/recipes");
 export const setRecipe = (optionId: string, lines: RecipeLine[]) =>
   api<Recipe>(`/stock/recipes/${optionId}`, { method: "PUT", body: { lines } });
+
+// Daily closing, reports, expenses
+export type SalesSummary = { bills: number; total: number; cash: number; mpesa: number; credit: number; unpaid: number; discounts: number; tips: number; average_bill: number };
+export type Profit = { sales: number; cost_of_sales: number; gross_profit: number; waste: number; variance: number; expenses: number; expenses_by_category: Record<string, number>; real_profit: number };
+export type WaiterHandover = { staff: string; day: string; expected: number; received: number; difference: number; receiver: string; agrees: boolean | null; forced: boolean; shortage_status: string | null };
+export type ClosingReport = {
+  day: string;
+  sales: SalesSummary;
+  credit_collected: { cash: number; mpesa: number; total: number };
+  cash_box: { expected_now: number; today: Record<string, number>; payouts: { amount: number; note: string | null; by: string }[] };
+  waiters: WaiterHandover[];
+  shortages: WaiterHandover[];
+  overs: WaiterHandover[];
+  voids: { bill: number; item: string; price: number; reason: string; asked_by: string | null; approved_by: string | null }[];
+  void_total: number;
+  discounts: { bill: number; amount: number; reason: string | null; asked_by: string | null; approved_by: string | null }[];
+  discount_total: number;
+  cancelled: { bill: number; total: number | null; reason: string; asked_by: string | null; approved_by: string | null }[];
+  unpaid_bills: { bill: number; place: string; waiter: string; amount: number }[];
+  stock_variance: { day: string; item: string; variance: string; value: number | null }[];
+  stock: { low: { item: string; level: string }[]; check: { item: string; level: string }[]; value: number | null };
+  blockers: { open_shifts: string[]; open_bills: { bill: number; place: string; waiter: string }[] };
+  profit?: Profit;
+};
+export type Closing = { day: string; closed: boolean; closed_by: string | null; closed_at: string | null; cash_box_counted: number | null; note: string | null; report: ClosingReport };
+export type Report = {
+  start: string;
+  end: string;
+  sales: SalesSummary;
+  profit: Profit;
+  breakdown: {
+    by_item: { item: string; quantity: number; sales: number }[];
+    by_category: { category: string; sales: number }[];
+    by_waiter: { waiter: string; bills: number; sales: number }[];
+    by_hour: { hour: number; sales: number }[];
+    best: { item: string; quantity: number; sales: number }[];
+    worst: { item: string; quantity: number; sales: number }[];
+  };
+  expenses: { by_category: Record<string, number>; total: number };
+  shortages: { staff: string; shifts: number; times_short: number; short: number; times_over: number; over: number }[];
+  variance: { day: string; item: string; variance: string; value: number | null }[];
+  debtors: { name: string; phone: string | null; owed: number; limit: number; since: string | null }[];
+  stock: { low: { item: string; level: string }[]; check: { item: string; level: string }[]; value: number | null };
+  credit_collected: { cash: number; mpesa: number; total: number };
+};
+export type Expense = { id: string; category: string; amount: number; note: string | null; business_day: string; from_cash_box: boolean; reversed: boolean; is_reversal: boolean; by: string };
+
+export const getClosing = (day?: string) => api<Closing>(`/closing${day ? `?day=${day}` : ""}`);
+export const closeDay = (day: string, cashBoxCounted?: number, note?: string) =>
+  api<Closing>("/closing", { body: { day, cash_box_counted: cashBoxCounted, note } });
+export const getReport = (start: string, end: string) => api<Report>(`/reports?start=${start}&end=${end}`);
+export const getExpenses = (start: string, end: string) => api<Expense[]>(`/expenses?start=${start}&end=${end}`);
+export const addExpense = (body: { category: string; amount: number; note?: string; from_cash_box: boolean }) =>
+  api<Expense>("/expenses", { body });
+export const reverseExpense = (id: string) => api<Expense>(`/expenses/${id}/reverse`, { method: "POST" });

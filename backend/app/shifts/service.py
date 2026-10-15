@@ -14,10 +14,9 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.db import now
 from app.floor.models import Bill, BillStatus
 from app.floor.service import amounts
 from app.payments.models import Method, Payment
@@ -38,14 +37,14 @@ def current_shift(db: Session, business_id: uuid.UUID, staff_id: uuid.UUID, tz: 
     """The person's open shift, starting one if they have none."""
     if shift := open_shift(db, business_id, staff_id):
         return shift
-    db.execute(
-        insert(Shift)
-        .values(id=uuid.uuid4(), business_id=business_id, created_by=staff_id, created_at=now(),
-                staff_id=staff_id, business_day=today(db, business_id, tz), status=ShiftStatus.open,
-                float_amount=0, sync_status="pending")
-        .on_conflict_do_nothing()
-    )
-    return open_shift(db, business_id, staff_id)
+    try:
+        with db.begin_nested():  # two screens starting the same shift at once: one wins
+            shift = Shift(business_id=business_id, created_by=staff_id, staff_id=staff_id,
+                          business_day=today(db, business_id, tz))
+            db.add(shift)
+    except IntegrityError:
+        shift = open_shift(db, business_id, staff_id)
+    return shift
 
 
 @dataclass

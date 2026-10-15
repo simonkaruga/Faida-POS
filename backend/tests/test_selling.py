@@ -1,7 +1,7 @@
 """Phase 2: a full round, from order to two receipts, on the counter alone."""
 
 import pytest
-from conftest import OWNER_PIN, login
+from conftest import login
 from sqlalchemy import select
 
 from app.audit.models import AuditEntry

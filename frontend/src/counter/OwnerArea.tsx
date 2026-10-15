@@ -24,9 +24,10 @@ import { Keypad } from "../shared/Keypad";
 import { Modal } from "../shared/Modal";
 import { formatKsh } from "../shared/money";
 import { FinishedBills } from "./FinishedBills";
+import { ClosingTab, ExpensesTab, ReportsTab } from "./OwnerReports";
 import { StockTab } from "./StockTab";
 
-type Tab = "shifts" | "credit" | "cash" | "stock" | "bills";
+type Tab = "shifts" | "credit" | "cash" | "stock" | "bills" | "closing" | "reports" | "expenses";
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong.");
 const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "");
 const KIND = { handover: "Hand-over", float: "Float", payout: "Pay-out", credit_collected: "Credit paid", owner: "Owner" } as const;
@@ -35,12 +36,15 @@ const KIND = { handover: "Hand-over", float: "Float", payout: "Pay-out", credit_
  * the same screens without owner-only actions. */
 export function OwnerArea({ session, onBack }: { session: Session; onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("shifts");
+  const isOwner = session.permissions.view_financials === "allow";
   const tabs: [Tab, string][] = [
-    ["shifts", "Shifts & hand-overs"],
+    ["shifts", "Shifts"],
     ["credit", "Credit"],
-    ["cash", "Cash box & pay-outs"],
+    ["cash", "Cash box"],
     ["stock", "Stock"],
-    ["bills", "Today's bills"],
+    ["bills", "Bills"],
+    ["closing", "Daily closing"],
+    ...(isOwner ? ([["reports", "Reports"], ["expenses", "Expenses"]] as [Tab, string][]) : []),
   ];
   return (
     <main className="screen">
@@ -60,6 +64,9 @@ export function OwnerArea({ session, onBack }: { session: Session; onBack: () =>
         {tab === "cash" && <CashTab session={session} />}
         {tab === "stock" && <StockTab session={session} />}
         {tab === "bills" && <FinishedBills session={session} embedded />}
+        {tab === "closing" && <ClosingTab />}
+        {tab === "reports" && <ReportsTab />}
+        {tab === "expenses" && <ExpensesTab />}
       </div>
     </main>
   );

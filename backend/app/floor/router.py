@@ -198,7 +198,7 @@ def send(bill_id: uuid.UUID, body: SendIn, actor: CurrentActor, request: Request
                    SellOption.business_id == actor.business_id, SellOption.active, MenuItem.active)
         )
     }
-    if missing := {it.sell_option_id for it in body.items} - options.keys():
+    if {it.sell_option_id for it in body.items} - options.keys():
         raise HTTPException(status.HTTP_409_CONFLICT, "An item is no longer on the menu. Refresh and try again.")
 
     printing, sent_at = _printing(request), now()

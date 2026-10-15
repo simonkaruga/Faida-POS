@@ -5,7 +5,9 @@ alembic==1.14.0
 psycopg[binary]==3.2.3
 pydantic-settings==2.7.0
 tzdata==2024.2
+cryptography==44.0.0
 
 # development and tests
 pytest==8.3.4
 httpx==0.28.1
+pyflakes==3.2.0

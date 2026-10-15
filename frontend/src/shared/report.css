@@ -1,0 +1,29 @@
+/* Reports: shared by the counter's owner area and the owner's phone. */
+.rp { display: flex; flex-direction: column; gap: 14px; }
+.rp-section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; }
+.rp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.rp-head h3 { margin: 0; font-size: 18px; color: var(--text-muted); font-weight: 700; }
+.rp-row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 17px; }
+.rp-row:last-child { border-bottom: none; }
+.rp-row.strong { font-weight: 800; font-size: 19px; }
+.rp-row.warn .rp-num { color: var(--orange); }
+.rp-row.bad .rp-num { color: var(--red); }
+.rp-row.good .rp-num { color: var(--green); }
+.rp-num { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.rp-num small { color: var(--text-muted); font-weight: 400; }
+.rp-empty { color: var(--text-muted); margin: 4px 0; }
+.rp-bigs { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 8px; }
+.rp-big { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 10px; background: var(--surface-raised); }
+.rp-big span { color: var(--text-muted); font-size: 15px; }
+.rp-big strong { font-size: 28px; font-variant-numeric: tabular-nums; }
+.rp-big.warn strong { color: var(--orange); }
+.rp-big.bad strong { color: var(--red); }
+.rp-big.good strong { color: var(--green); }
+
+/* Bar list: one series, one hue; thin bars with rounded data ends from the baseline. */
+.rp-bars { display: flex; flex-direction: column; gap: 6px; }
+.rp-bar-row { display: grid; grid-template-columns: minmax(110px, 30%) 1fr auto; align-items: center; gap: 10px; font-size: 16px; min-height: 28px; }
+.rp-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-bar-track { height: 14px; }
+.rp-bar { display: block; height: 100%; min-width: 2px; background: var(--blue); border-radius: 0 4px 4px 0; }
+.rp-bar-row:hover .rp-bar { filter: brightness(1.2); }

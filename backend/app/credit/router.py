@@ -4,15 +4,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app.audit import service as audit
 from app.auth import service as auth
 from app.auth.deps import Actor, CurrentActor, Db, require
 from app.auth.permissions import Action
 from app.credit.models import CreditCollection, CreditCustomer
+from app.credit.service import oldest_unpaid, owed
 from app.db import now
-from app.floor.models import Bill, BillStatus
+from app.floor.models import BillStatus
 from app.floor.schemas import BillOut, bill_detail
 from app.floor.service import Printing, amounts, finish_bill, load_bill
 from app.payments.models import Method
@@ -25,29 +26,6 @@ router = APIRouter(tags=["credit"])
 
 Owner = Annotated[Actor, Depends(require(Action.manage_business))]
 Collector = Annotated[Actor, Depends(require(Action.collect_credit_payment))]
-
-
-def owed(db: Db, customer_id: uuid.UUID) -> int:
-    credited = db.scalar(select(func.coalesce(func.sum(Bill.credit_amount), 0))
-                         .where(Bill.credit_customer_id == customer_id, Bill.status == BillStatus.credit))
-    collected = db.scalar(select(func.coalesce(func.sum(CreditCollection.amount), 0))
-                          .where(CreditCollection.customer_id == customer_id))
-    return credited - collected
-
-
-def oldest_unpaid(db: Db, customer_id: uuid.UUID) -> datetime | None:
-    """When the oldest credit still not paid off was given. Payments clear the oldest first."""
-    collected = db.scalar(select(func.coalesce(func.sum(CreditCollection.amount), 0))
-                          .where(CreditCollection.customer_id == customer_id))
-    for closed_at, amount in db.execute(
-        select(Bill.closed_at, Bill.credit_amount)
-        .where(Bill.credit_customer_id == customer_id, Bill.status == BillStatus.credit)
-        .order_by(Bill.closed_at)
-    ):
-        if collected < amount:
-            return closed_at
-        collected -= amount
-    return None
 
 
 class CustomerOut(BaseModel):

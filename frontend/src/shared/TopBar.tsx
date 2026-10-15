@@ -24,7 +24,7 @@ export function TopBar({ health, reachable, staffName }: Props) {
     ? { tone: "red", label: "Counter not responding" }
     : health?.cloud === "online"
       ? { tone: "green", label: "Online" }
-      : { tone: "yellow", label: health?.cloud === "offline" ? "Offline" : "Cloud not linked" };
+      : { tone: "yellow", label: health?.cloud === "offline" ? `Offline${health.waiting_to_sync ? ` · ${health.waiting_to_sync} to send` : ""}` : "Cloud not linked" };
   const printers = health?.printers === "ok" ? "OK" : "Not set up";
 
   return (

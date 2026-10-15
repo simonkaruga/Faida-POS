@@ -264,3 +264,7 @@
 .tenths input { width: 220px; height: 40px; accent-color: var(--blue); }
 .tenths strong { min-width: 44px; font-size: 20px; }
 .movements { max-height: 56vh; overflow: auto; }
+
+/* Reports in the owner area */
+.report-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; align-items: start; }
+.reversed-row { opacity: 0.6; }

@@ -39,6 +39,23 @@ class Config(BaseSettings):
     pin_max_attempts: int = 5
     pin_lockout_seconds: int = 30
 
+    # Counter: where to upload, with the token from `register-device` on the cloud.
+    cloud_url: str | None = None
+    cloud_token: str | None = None
+    sync_interval_seconds: int = 15
+
+    # Backups (python -m app.backup). Always encrypted with this passphrase.
+    backup_passphrase: str | None = None
+    pg_bin: str | None = None  # PostgreSQL's bin folder, if pg_dump isn't on the PATH
+    state_dir: str = "state"  # backup status and other small local files
+
+    # Cloud: Avinaya's admin token for /api/admin/health, and where health alerts go.
+    admin_token: str | None = None
+    alert_webhook: str | None = None
+
+    # Built frontend to serve (the cloud serves the owner's phone view from here).
+    static_dir: str | None = None
+
 
 @lru_cache
 def get_config() -> Config:

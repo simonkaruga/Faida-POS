@@ -23,19 +23,33 @@ from app.settings.config import Config
 TEST_DB = os.environ.get(
     "FAIDA_TEST_DATABASE_URL", "postgresql+psycopg://faida@localhost:5544/faida_test"
 )
+CLOUD_DB = os.environ.get(
+    "FAIDA_TEST_CLOUD_DATABASE_URL", "postgresql+psycopg://faida@localhost:5544/faida_cloud_test"
+)
 SECRET = "test-pin-secret"
 OWNER_PIN = "2580"
 
 
-@pytest.fixture(scope="session")
-def engine():
-    engine = create_engine(TEST_DB)
+def migrated(url):
+    engine = create_engine(url)
     with engine.begin() as conn:
         conn.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public"))
     alembic_cfg = AlembicConfig(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
     alembic_cfg.set_main_option("script_location", os.path.join(os.path.dirname(__file__), "..", "migrations"))
-    alembic_cfg.attributes["database_url"] = TEST_DB
+    alembic_cfg.attributes["database_url"] = url
     command.upgrade(alembic_cfg, "head")
+    return engine
+
+
+def truncate(engine):
+    tables = ", ".join(t.name for t in Base.metadata.sorted_tables)
+    with engine.begin() as conn:
+        conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
+
+
+@pytest.fixture(scope="session")
+def engine():
+    engine = migrated(TEST_DB)
     yield engine
     engine.dispose()
 
@@ -43,9 +57,7 @@ def engine():
 @pytest.fixture(autouse=True)
 def clean(engine):
     yield
-    tables = ", ".join(t.name for t in Base.metadata.sorted_tables)
-    with engine.begin() as conn:
-        conn.execute(text(f"TRUNCATE {tables} CASCADE"))
+    truncate(engine)
 
 
 @pytest.fixture
@@ -139,3 +151,60 @@ def waiter(client, add_staff):
 def supervisor(client, add_staff):
     add_staff("Sam", "supervisor", "8642")
     return login(client, "8642")
+
+
+# The cloud: a second backend in cloud mode, on its own database.
+
+
+@pytest.fixture(scope="session")
+def cloud_engine():
+    engine = migrated(CLOUD_DB)
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture
+def cloud_db(cloud_engine):
+    with Session(cloud_engine, expire_on_commit=False, info={"no_sync_queue": True}) as session:
+        yield session
+    truncate(cloud_engine)
+
+
+@pytest.fixture
+def cloud(cloud_db):
+    app = create_app(Config(mode="cloud", database_url=CLOUD_DB, pin_secret=SECRET, admin_token="admin-token"))
+    with TestClient(app) as c:
+        yield c
+
+
+class Link:
+    """The counter's internet connection to the test cloud. Set `online` to False to cut it."""
+
+    def __init__(self, cloud_client):
+        self.cloud = cloud_client
+        self.online = True
+        self.calls = 0
+
+    def __call__(self, url, body, token):
+        from app.sync.push import SyncError
+
+        self.calls += 1
+        if not self.online:
+            raise SyncError("Cloud not reachable: no internet")
+        r = self.cloud.post("/api/sync/upload", json=body, headers={"Authorization": f"Bearer {token}"})
+        if r.status_code != 200:
+            raise SyncError(f"Cloud refused the upload ({r.status_code}): {r.text}")
+        return r.json()
+
+
+@pytest.fixture
+def linked(cloud, cloud_db, business, config, printers):
+    """A counter registered with the cloud. Returns (counter client, link, token)."""
+    from app.sync.receive import new_device
+
+    _, token = new_device(cloud_db, business.id, "Counter")
+    link = Link(cloud)
+    counter = create_app(config.model_copy(update={"cloud_url": "http://cloud", "cloud_token": token}),
+                         printers=printers, sync_transport=link, start_sync=False)
+    with TestClient(counter) as c:
+        yield c, link, token

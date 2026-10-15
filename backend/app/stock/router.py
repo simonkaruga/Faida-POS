@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import delete, select
+from sqlalchemy import select
 
 from app.audit import service as audit
 from app.auth import service as auth
@@ -233,7 +233,8 @@ def set_recipe(option_id: uuid.UUID, body: RecipeIn, actor: Owner, db: Db) -> Re
         if line.in_tots and not (s.unit is StockUnit.ml and tot):
             raise HTTPException(status.HTTP_409_CONFLICT,
                                 "Tots need the tot size set in settings, and an item kept in ml.")
-    db.execute(delete(RecipeLine).where(RecipeLine.sell_option_id == option.id))
+    for old in db.scalars(select(RecipeLine).where(RecipeLine.sell_option_id == option.id)):
+        db.delete(old)
     for line in body.lines:
         db.add(RecipeLine(business_id=actor.business_id, created_by=actor.staff.id, sell_option_id=option.id,
                           **line.model_dump()))
