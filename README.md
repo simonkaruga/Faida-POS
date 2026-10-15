@@ -20,6 +20,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env          # set FAIDA_PIN_SECRET and FAIDA_DATABASE_URL
 .venv/bin/alembic upgrade head
 .venv/bin/python -m app.cli init-business --name "Demo Bar" --owner "Njeri"
+.venv/bin/python -m app.cli load-menu ../docs/sample-menu.json   # menu and tables
 ```
 
 Then, from the repo root:
@@ -29,6 +30,11 @@ npm start                     # backend on :8000 (auto-reload) + frontend on htt
 ```
 
 `npm run start:api` and `npm run start:web` start just one of them. PostgreSQL must already be running.
+
+In development nothing goes to a real printer: slips, tickets, bills and receipts are
+written as text files to `backend/prints/`. Set `FAIDA_COUNTER_PRINTER` and
+`FAIDA_KITCHEN_PRINTER` to use real printers (formats in
+[printers.py](backend/app/printing/printers.py)).
 
 ## Tests
 

@@ -1,14 +1,16 @@
 import { useState } from "react";
+import type { Notice } from "../App";
 import { ApiError, login, type Health, type Session } from "../services/api";
 import { Keypad } from "../shared/Keypad";
 import "./pin-login.css";
 
 type Props = {
   health: Health | null;
+  notice?: Notice | null;
   onLogin: (session: Session) => void;
 };
 
-export function PinLogin({ health, onLogin }: Props) {
+export function PinLogin({ health, notice, onLogin }: Props) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -28,6 +30,7 @@ export function PinLogin({ health, onLogin }: Props) {
 
   return (
     <main className="pin-login">
+      {notice && <div className={notice.warning ? "lock-message warning" : "lock-message"}>{notice.text}</div>}
       <h1>{health?.business_name ?? "Faida POS"}</h1>
       <p className="pin-prompt">Enter your PIN</p>
       <div className="pin-dots" aria-label={`${pin.length} digits entered`}>

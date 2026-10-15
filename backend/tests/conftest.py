@@ -1,6 +1,7 @@
 """Tests run against a real PostgreSQL database (FAIDA_TEST_DATABASE_URL), migrated
 with the same migrations the counter and cloud use."""
 
+import json
 import os
 
 import pytest
@@ -12,7 +13,11 @@ from sqlalchemy.orm import Session
 
 from app.cli import init_business
 from app.main import create_app
+from app.menu.importer import load_menu
 from app.models import Base
+from app.printing.document import to_text
+from app.printing.models import PrinterName
+from app.printing.printers import PrinterError
 from app.settings.config import Config
 
 TEST_DB = os.environ.get(
@@ -56,9 +61,31 @@ def config():
     )
 
 
+class FakePrinter:
+    """Records what would have printed, as text. Set `fail` to simulate an offline printer."""
+
+    def __init__(self):
+        self.printed: list[str] = []
+        self.drawer_opened = 0
+        self.fail = False
+
+    def print(self, doc):
+        if self.fail:
+            raise PrinterError("Printer not reachable")
+        self.printed.append(to_text(doc))
+
+    def open_drawer(self):
+        self.drawer_opened += 1
+
+
 @pytest.fixture
-def app(config):
-    return create_app(config)
+def printers():
+    return {PrinterName.counter: FakePrinter(), PrinterName.kitchen: FakePrinter()}
+
+
+@pytest.fixture
+def app(config, printers):
+    return create_app(config, printers=printers)
 
 
 @pytest.fixture
@@ -70,6 +97,15 @@ def client(app):
 @pytest.fixture
 def business(db):
     return init_business(db, SECRET, "Test Bar", "Njeri", OWNER_PIN)
+
+
+SAMPLE_MENU = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "sample-menu.json")
+
+
+@pytest.fixture
+def menu(db, business):
+    with open(SAMPLE_MENU, encoding="utf-8") as f:
+        load_menu(db, business.id, json.load(f))
 
 
 def login(client, pin):

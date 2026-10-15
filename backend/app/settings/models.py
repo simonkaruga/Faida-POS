@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime, time
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Time, Uuid
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base, Record, SyncStatus, now, str_enum
@@ -43,3 +44,8 @@ class BusinessSettings(Record, Base):
     )
     mpesa_till_number: Mapped[str | None] = mapped_column(String(20))
     receipt_footer: Mapped[str] = mapped_column(String(200), default="Thank you, karibu tena!")
+    # Quick-pick buttons for kitchen notes (4.1); free text is always allowed too.
+    note_presets: Mapped[list[str]] = mapped_column(JSONB, default=lambda: list(DEFAULT_NOTES))
+
+
+DEFAULT_NOTES = ("Well done", "Medium", "No onions", "No chilli", "Extra hot", "Takeaway")

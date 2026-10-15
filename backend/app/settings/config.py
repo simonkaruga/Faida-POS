@@ -30,6 +30,11 @@ class Config(BaseSettings):
     # server-side backstop: a session unused for this long is ended regardless.
     session_idle_minutes: int = 10
 
+    # Printers (see app/printing/printers.py for the formats). The counter printer has
+    # the cash drawer and prints bar slips, bills and receipts.
+    counter_printer: str = "file:prints"
+    kitchen_printer: str = "file:prints"
+
     # Wrong PINs in a row before the keypad pauses, and for how long.
     pin_max_attempts: int = 5
     pin_lockout_seconds: int = 30

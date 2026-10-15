@@ -1,12 +1,14 @@
 """Install-time commands, run on the counter (masterplan 7.1 step 5).
 
     python -m app.cli init-business --name "Mama Njeri's Bar" --owner "Njeri"
+    python -m app.cli load-menu ../docs/sample-menu.json
 
 The owner's PIN is asked for at the keyboard so it never appears in shell history.
 """
 
 import argparse
 import getpass
+import json
 import sys
 
 from sqlalchemy import create_engine, select
@@ -14,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.audit import service as audit
 from app.auth.pins import WeakPin, check_new_pin, pin_lookup
+from app.menu.importer import load_menu
 from app.settings.config import get_config
 from app.settings.models import Business, BusinessSettings
 from app.staff.models import Role, Staff
@@ -50,11 +53,24 @@ def main(argv: list[str] | None = None) -> None:
     init = commands.add_parser("init-business", help="Set up the business and its owner")
     init.add_argument("--name", required=True, help="Business name, as shown on receipts")
     init.add_argument("--owner", required=True, help="Owner's name")
+    menu = commands.add_parser("load-menu", help="Load the menu and tables from a JSON file")
+    menu.add_argument("file")
     args = parser.parse_args(argv)
 
     config = get_config()
     if config.mode != "local":
-        raise SystemExit("init-business runs on the counter (FAIDA_MODE=local).")
+        raise SystemExit("These commands run on the counter (FAIDA_MODE=local).")
+    if args.command == "load-menu":
+        with open(args.file, encoding="utf-8") as f:
+            data = json.load(f)
+        with Session(create_engine(config.database_url), expire_on_commit=False) as db:
+            business_id = db.scalar(select(Business.id))
+            if business_id is None:
+                raise SystemExit("Run init-business first.")
+            counts = load_menu(db, business_id, data)
+        print(f"Loaded {counts['tables']} tables, {counts['categories']} categories, "
+              f"{counts['items']} items.", file=sys.stderr)
+        return
     pin = getpass.getpass("Owner PIN (4-6 digits): ")
     if getpass.getpass("Type it again: ") != pin:
         raise SystemExit("The PINs don't match.")

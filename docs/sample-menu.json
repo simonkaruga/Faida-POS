@@ -1,0 +1,66 @@
+{
+  "tables": ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "Garden 1", "Garden 2"],
+  "note_presets": ["Well done", "Medium", "No onions", "No chilli", "Extra hot", "Takeaway"],
+  "categories": [
+    {
+      "name": "Beers",
+      "items": [
+        { "name": "Tusker", "station": "bar", "price": 300, "favourite": true },
+        { "name": "Tusker Lite", "station": "bar", "price": 300 },
+        { "name": "Guinness", "station": "bar", "price": 320, "favourite": true },
+        { "name": "White Cap", "station": "bar", "price": 300, "favourite": true },
+        { "name": "Balozi", "station": "bar", "price": 280 },
+        { "name": "Pilsner", "station": "bar", "price": 280 },
+        { "name": "Smirnoff Ice", "station": "bar", "price": 300 }
+      ]
+    },
+    {
+      "name": "Spirits",
+      "items": [
+        {
+          "name": "Johnnie Walker Red", "station": "bar", "favourite": true,
+          "options": [
+            { "label": "Single tot", "price": 250 },
+            { "label": "Double", "price": 450 },
+            { "label": "Bottle", "price": 3500 }
+          ]
+        },
+        {
+          "name": "Gilbey's Gin", "station": "bar",
+          "options": [
+            { "label": "Single tot", "price": 150 },
+            { "label": "Double", "price": 280 },
+            { "label": "Bottle", "price": 1800 }
+          ]
+        },
+        { "name": "Jameson", "station": "bar", "options": [{ "label": "Bottle", "price": 4200 }] }
+      ]
+    },
+    {
+      "name": "Soft drinks",
+      "items": [
+        { "name": "Coke", "station": "bar", "price": 100, "favourite": true },
+        { "name": "Water 500ml", "station": "bar", "price": 80, "favourite": true },
+        { "name": "Soda water", "station": "bar", "price": 100 },
+        { "name": "Novida", "station": "bar", "price": 100 }
+      ]
+    },
+    {
+      "name": "Mains",
+      "items": [
+        { "name": "Chicken & chips", "station": "kitchen", "price": 650, "favourite": true },
+        { "name": "Nyama choma 1/2 kg", "station": "kitchen", "price": 800, "favourite": true },
+        { "name": "Fish & ugali", "station": "kitchen", "price": 700 },
+        { "name": "Beef stew & rice", "station": "kitchen", "price": 550 }
+      ]
+    },
+    {
+      "name": "Snacks",
+      "items": [
+        { "name": "Chips", "station": "kitchen", "price": 250, "favourite": true },
+        { "name": "Samosa (2)", "station": "kitchen", "price": 100 },
+        { "name": "Smokie", "station": "kitchen", "price": 60 }
+      ]
+    }
+  ]
+}

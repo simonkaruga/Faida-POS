@@ -20,10 +20,86 @@ export type Session = {
   auto_lock_seconds: number;
 };
 
+export type SellOption = { id: string; label: string; price: number };
+export type MenuItem = { id: string; name: string; station: "bar" | "kitchen"; favourite: boolean; options: SellOption[] };
+export type Menu = { categories: { id: string; name: string; items: MenuItem[] }[]; note_presets: string[] };
+
+export type Person = { id: string; name: string };
+export type FloorBill = {
+  id: string;
+  number: number;
+  place: string;
+  table_id: string | null;
+  tab_name: string | null;
+  waiter: Person;
+  mine: boolean;
+  total: number | null;
+  balance: number | null;
+  not_printed: boolean | null;
+};
+export type Floor = { tables: { id: string; name: string }[]; bills: FloorBill[] };
+
+export type BillLine = {
+  id: string;
+  item_name: string;
+  option_label: string;
+  station: "bar" | "kitchen";
+  unit_price: number;
+  note: string | null;
+  sent_at: string;
+  ticket_id: string;
+  voided: boolean;
+  void_reason: "not_prepared" | "already_prepared" | null;
+};
+export type Ticket = {
+  id: string;
+  kind: "bar_slip" | "kitchen_ticket" | "bill" | "receipt";
+  number: number;
+  status: "pending" | "printed" | "not_printed";
+  created_at: string;
+  printed_at: string | null;
+  reprints: number;
+  last_error: string | null;
+};
+export type Payment = {
+  id: string;
+  method: "cash" | "mpesa";
+  amount: number;
+  tendered: number | null;
+  tip: number;
+  mpesa_ref: string | null;
+  created_at: string;
+  taken_by: string;
+};
+export type Bill = {
+  id: string;
+  number: number;
+  place: string;
+  table_id: string | null;
+  tab_name: string | null;
+  waiter: Person;
+  status: "open" | "paid" | "credit" | "unpaid_responsible" | "cancelled" | "merged";
+  lines: BillLine[];
+  tickets: Ticket[];
+  payments: Payment[];
+  total: number;
+  paid: number;
+  balance: number;
+  tips: number;
+};
+
+export type Settings = {
+  mpesa_code_entry: "last4" | "full" | "none";
+  mpesa_till_number: string | null;
+  note_presets: string[];
+};
+
 export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
+    public data?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -58,8 +134,15 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
   if (response.status === 401 && token) onUnauthorized();
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    const detail = typeof data.detail === "string" ? data.detail : "Something went wrong.";
-    throw new ApiError(response.status, detail);
+    const detail = data.detail;
+    if (detail && typeof detail === "object" && !Array.isArray(detail)) {
+      throw new ApiError(response.status, detail.message ?? "Something went wrong.", detail.code, detail);
+    }
+    if (Array.isArray(detail)) {
+      // Validation error from the backend: show the first message.
+      throw new ApiError(response.status, String(detail[0]?.msg ?? "Check what was entered.").replace(/^Value error, /, ""));
+    }
+    throw new ApiError(response.status, typeof detail === "string" ? detail : "Something went wrong.");
   }
   return response.status === 204 ? (undefined as T) : response.json();
 }
@@ -67,3 +150,40 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
 export const login = (pin: string) => api<Session>("/auth/login", { body: { pin } });
 export const lock = () => api<void>("/auth/lock", { method: "POST" });
 export const getHealth = () => api<Health>("/health");
+export const getSettings = () => api<Settings>("/settings");
+export const getMenu = () => api<Menu>("/menu");
+export const getFloor = () => api<Floor>("/floor");
+export const getBill = (id: string) => api<Bill>(`/bills/${id}`);
+
+export const openBill = (place: { table_id: string } | { tab_name: string }) => api<Bill>("/bills", { body: place });
+
+export type RoundItem = { sell_option_id: string; quantity: number; note: string | null };
+export const sendRound = (billId: string, items: RoundItem[]) => api<Bill>(`/bills/${billId}/send`, { body: { items } });
+export const printBill = (billId: string) => api<Bill>(`/bills/${billId}/print`, { method: "POST" });
+export const voidLine = (billId: string, lineId: string, reason: string, approvalId?: string) =>
+  api<Bill>(`/bills/${billId}/lines/${lineId}/void`, { body: { reason, approval_id: approvalId } });
+export const moveBill = (billId: string, tableId: string) => api<Bill>(`/bills/${billId}/move`, { body: { table_id: tableId } });
+export const handOver = (billId: string, toPin: string) => api<Bill>(`/bills/${billId}/handover`, { body: { to_pin: toPin } });
+export const mergeBill = (billId: string, fromBillId: string) =>
+  api<Bill>(`/bills/${billId}/merge`, { body: { from_bill_id: fromBillId } });
+export const splitBill = (billId: string, lineIds: string[]) => api<Bill>(`/bills/${billId}/split`, { body: { line_ids: lineIds } });
+export const closeEmpty = (billId: string) => api<Bill>(`/bills/${billId}/close-empty`, { method: "POST" });
+export const reprint = (ticketId: string, approvalId?: string) =>
+  api<Bill>(`/tickets/${ticketId}/reprint`, { body: { approval_id: approvalId } });
+
+export type PaymentIn = {
+  method: "cash" | "mpesa";
+  amount: number;
+  tendered?: number;
+  tip?: number;
+  mpesa_code?: string;
+  approval_id?: string;
+  confirm_duplicate?: boolean;
+};
+export const takePayment = (billId: string, body: PaymentIn) =>
+  api<{ bill: Bill; change: number }>(`/bills/${billId}/payments`, { body });
+
+export const requestApproval = (action: string, approverPin: string, reason: string, decision: "approved" | "rejected") =>
+  api<{ id: string; decision: string; approved_by: Person }>("/auth/approvals", {
+    body: { action, approver_pin: approverPin, reason, decision },
+  });

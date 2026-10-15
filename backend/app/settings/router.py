@@ -22,6 +22,7 @@ class SettingsOut(BaseModel):
     mpesa_code_entry: MpesaCodeEntry
     mpesa_till_number: str | None
     receipt_footer: str
+    note_presets: list[str]
 
 
 class SettingsPatch(BaseModel):
@@ -31,6 +32,9 @@ class SettingsPatch(BaseModel):
     mpesa_code_entry: MpesaCodeEntry | None = None
     mpesa_till_number: str | None = Field(default=None, pattern=r"^\d{5,10}$")
     receipt_footer: str | None = Field(default=None, max_length=200)
+    note_presets: list[Annotated[str, Field(min_length=1, max_length=40)]] | None = Field(
+        default=None, max_length=24
+    )
 
 
 def _settings(db: Db, actor: Actor) -> BusinessSettings:

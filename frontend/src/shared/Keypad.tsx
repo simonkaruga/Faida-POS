@@ -19,6 +19,7 @@ export function Keypad({ value, onChange, onEnter, maxLength = 6, disabled, ente
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (disabled || e.target instanceof HTMLInputElement) return;
       if (/^\d$/.test(e.key)) press(e.key);
       else if (e.key === "Backspace") back();
       else if (e.key === "Enter" && value) onEnter();
