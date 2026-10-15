@@ -10,20 +10,25 @@ Offline-first point of sale for a bar and restaurant. What it does and why is in
 
 You need Python 3.11+, Node 20+ and PostgreSQL 16.
 
+One-time setup:
+
 ```bash
-# Backend
+npm install                   # root: the tool that runs both servers
+(cd frontend && npm install)
 cd backend
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env          # set FAIDA_PIN_SECRET and FAIDA_DATABASE_URL
 .venv/bin/alembic upgrade head
 .venv/bin/python -m app.cli init-business --name "Demo Bar" --owner "Njeri"
-.venv/bin/uvicorn app.main:create_app --factory --port 8000
-
-# Frontend (second terminal). Proxies /api to port 8000.
-cd frontend
-npm install
-npm run dev                   # http://localhost:5173
 ```
+
+Then, from the repo root:
+
+```bash
+npm start                     # backend on :8000 (auto-reload) + frontend on http://localhost:5173
+```
+
+`npm run start:api` and `npm run start:web` start just one of them. PostgreSQL must already be running.
 
 ## Tests
 

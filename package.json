@@ -1,0 +1,12 @@
+{
+  "name": "faida-pos",
+  "private": true,
+  "scripts": {
+    "start": "concurrently --kill-others --names api,web --prefix-colors blue,green \"npm:start:api\" \"npm:start:web\"",
+    "start:api": "cd backend && .venv/bin/uvicorn app.main:create_app --factory --reload --port 8000",
+    "start:web": "npm --prefix frontend run dev"
+  },
+  "devDependencies": {
+    "concurrently": "9.1.0"
+  }
+}
