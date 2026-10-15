@@ -70,8 +70,3 @@
   font-size: 18px;
 }
 .approval-box strong { color: var(--yellow); }
-
-.btn-orange { background: var(--orange); color: #111; }
-.btn-yellow { background: var(--yellow); color: #111; }
-.btn-red { background: var(--red); }
-.btn-green { background: var(--green); }

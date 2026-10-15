@@ -70,6 +70,7 @@ export type Payment = {
   mpesa_ref: string | null;
   created_at: string;
   taken_by: string;
+  reversed: boolean;
 };
 export type Bill = {
   id: string;
@@ -82,10 +83,17 @@ export type Bill = {
   lines: BillLine[];
   tickets: Ticket[];
   payments: Payment[];
+  gross: number;
+  discount: number;
+  discount_kind: "amount" | "percent" | null;
+  discount_value: number;
   total: number;
   paid: number;
   balance: number;
   tips: number;
+  credit_customer: Person | null;
+  credit_amount: number;
+  cancel_reason: "not_prepared" | "already_prepared" | null;
 };
 
 export type Settings = {
@@ -187,3 +195,115 @@ export const requestApproval = (action: string, approverPin: string, reason: str
   api<{ id: string; decision: string; approved_by: Person }>("/auth/approvals", {
     body: { action, approver_pin: approverPin, reason, decision },
   });
+
+export const discountBill = (billId: string, kind: "amount" | "percent", value: number, reason: string, approvalId?: string) =>
+  api<Bill>(`/bills/${billId}/discount`, { body: { kind, value, reason, approval_id: approvalId } });
+export const cancelPaidBill = (billId: string, reason: string, approvalId?: string) =>
+  api<Bill>(`/bills/${billId}/cancel`, { body: { reason, approval_id: approvalId } });
+
+export type FinishedBill = {
+  id: string;
+  number: number;
+  place: string;
+  waiter: Person;
+  status: Bill["status"];
+  total: number;
+  closed_at: string | null;
+};
+export const getFinishedBills = () => api<FinishedBill[]>("/bills");
+
+// Credit
+export type CreditCustomer = {
+  id: string;
+  name: string;
+  phone: string | null;
+  credit_limit: number;
+  owed: number;
+  available: number;
+  oldest_unpaid: string | null;
+};
+export const getCustomers = () => api<CreditCustomer[]>("/credit/customers");
+export const getDebtors = () => api<CreditCustomer[]>("/credit/debtors");
+export const createCustomer = (body: { name: string; phone: string | null; credit_limit: number }) =>
+  api<CreditCustomer>("/credit/customers", { body });
+export const putOnCredit = (billId: string, customerId: string, approvalId?: string) =>
+  api<Bill>(`/bills/${billId}/credit`, { body: { customer_id: customerId, approval_id: approvalId } });
+export const markUnpaid = (billId: string) => api<Bill>(`/bills/${billId}/unpaid`, { method: "POST" });
+export const collectCredit = (customerId: string, body: { amount: number; method: "cash" | "mpesa"; mpesa_code?: string }) =>
+  api<CreditCustomer>(`/credit/customers/${customerId}/collections`, { body });
+
+// Shifts and cash-up
+export type CashUp = {
+  bills: number;
+  total_sales: number;
+  mpesa: number;
+  credit: number;
+  cash_taken_by_others: number;
+  cash_due_from_sales: number;
+  unpaid_responsible: number;
+  cash_taken_for_others: number;
+  float_amount: number;
+  mpesa_tips: number;
+  cash_to_hand_over: number;
+  mpesa_payments: { bill_number: number; amount: number; tip: number; ref: string | null; at: string }[];
+};
+export type ShiftInfo = { id: string; staff: Person; business_day: string; started_at: string; float_amount: number };
+export type MyShift = {
+  shift: ShiftInfo | null;
+  cash_up: CashUp | null;
+  open_bills: { id: string; number: number; place: string; balance: number }[];
+};
+export type Handover = {
+  id: string;
+  shift_id: string;
+  staff: Person;
+  receiver: Person;
+  expected: number;
+  received: number;
+  difference: number;
+  staff_agrees: boolean | null;
+  staff_note: string | null;
+  receiver_note: string | null;
+  forced: boolean;
+  created_at: string;
+  shortage_status: "paid_back" | "deducted" | "forgiven" | null;
+  printed: boolean;
+};
+export type ShiftRow = {
+  shift: ShiftInfo;
+  status: "open" | "closed";
+  ended_at: string | null;
+  open_bills: number;
+  expected: number;
+  handover: Handover | null;
+};
+export type CloseShift = {
+  receiver_pin: string;
+  counted_notes?: Record<string, number>;
+  received?: number;
+  receiver_note?: string;
+  staff_pin: string;
+  agree: boolean;
+  staff_note?: string;
+};
+export const getMyShift = () => api<MyShift>("/shifts/me");
+export const checkReceiver = (shiftId: string, pin: string) =>
+  api<{ receiver: Person; cash_up: CashUp }>(`/shifts/${shiftId}/receiver`, { body: { pin } });
+export const closeShift = (shiftId: string, body: CloseShift) => api<Handover>(`/shifts/${shiftId}/close`, { body });
+export const forceClose = (shiftId: string, received: number, note: string) =>
+  api<Handover>(`/shifts/${shiftId}/force-close`, { body: { received, note } });
+export const giveFloat = (staffId: string, amount: number) => api<ShiftInfo>("/shifts/float", { body: { staff_id: staffId, amount } });
+export const getShifts = () => api<ShiftRow[]>("/shifts");
+export const getAlerts = () => api<{ staff: Person; times: number; total_short: number; message: string }[]>("/shifts/alerts");
+export const setShortageStatus = (handoverId: string, outcome: string, note?: string) =>
+  api<Handover>(`/handovers/${handoverId}/shortage-status`, { body: { outcome, note } });
+export const getActiveStaff = () => api<(Person & { role: Role })[]>("/staff/active");
+
+// Counter cash box
+export type CashBox = {
+  expected: number;
+  today: { id: string; kind: "handover" | "float" | "payout" | "credit_collected" | "owner"; amount: number; note: string | null; by: string; at: string }[];
+};
+export const getCashBox = () => api<CashBox>("/cashbox");
+export const recordPayout = (amount: number, reason: string) => api<CashBox>("/payouts", { body: { amount, reason } });
+export const ownerCash = (amount: number, note: string) => api<CashBox>("/cashbox/owner", { body: { amount, note } });

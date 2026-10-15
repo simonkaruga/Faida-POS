@@ -1,8 +1,8 @@
 import enum
 import uuid
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import Date, ForeignKey, Index, Integer, String
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base, Record, str_enum
@@ -32,3 +32,7 @@ class Payment(Record, Base):
     # Last 4 characters of the M-Pesa code, or the full code, per the owner's setting.
     mpesa_ref: Mapped[str | None] = mapped_column(String(12))
     business_day: Mapped[date] = mapped_column(Date)
+    # The shift of the person who took it: cash is in their hands until hand-over.
+    shift_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shifts.id"), index=True)
+    # Set when the bill is cancelled after payment (the money went back to the customer).
+    reversed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

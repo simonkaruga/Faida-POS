@@ -57,3 +57,7 @@ body { background: var(--bg); overflow: hidden; }
 .btn:disabled { opacity: 0.45; cursor: default; }
 .btn-primary { min-height: var(--tap-primary); background: var(--blue); font-size: 22px; }
 .btn-quiet { background: var(--surface-raised); color: var(--text); }
+.btn-orange { background: var(--orange); color: #111; }
+.btn-yellow { background: var(--yellow); color: #111; }
+.btn-red { background: var(--red); }
+.btn-green { background: var(--green); }

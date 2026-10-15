@@ -82,6 +82,19 @@ def _keep_an_owner(db: Db, staff: Staff) -> None:
         raise HTTPException(status.HTTP_409_CONFLICT, "The business must keep at least one owner.")
 
 
+class Colleague(BaseModel):
+    id: uuid.UUID
+    name: str
+    role: Role
+
+
+@router.get("/active")
+def active_staff(actor: Annotated[Actor, Depends(require(Action.receive_handover))], db: Db) -> list[Colleague]:
+    """Names of active staff, for an Owner or Supervisor giving a float."""
+    rows = db.scalars(select(Staff).where(Staff.business_id == actor.business_id, Staff.active).order_by(Staff.name))
+    return [Colleague(id=s.id, name=s.name, role=s.role) for s in rows]
+
+
 @router.get("")
 def list_staff(actor: Owner, db: Db) -> list[StaffOut]:
     rows = db.scalars(

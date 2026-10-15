@@ -69,10 +69,17 @@ const bill: Bill = {
   lines: [],
   tickets: [],
   payments: [],
+  gross: 1250,
+  discount: 0,
+  discount_kind: null,
+  discount_value: 0,
   total: 1250,
   paid: 0,
   balance: 1250,
   tips: 0,
+  credit_customer: null,
+  credit_amount: 0,
+  cancel_reason: null,
 };
 
 function mockApi(onPayment: (body: Record<string, unknown>) => Response) {

@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import Actor
 from app.auth.permissions import Action, Level, level
-from app.floor.models import Bill, BillLine, BillStatus, Table
+from app.db import now
+from app.floor.models import Bill, BillLine, BillStatus, DiscountKind, Table
 from app.payments.models import Payment
 from app.printing import layouts
 from app.printing.models import PrinterName, Ticket, TicketKind
@@ -50,17 +51,54 @@ def bill_lines(db: Session, bill: Bill) -> list[BillLine]:
     ))
 
 
-def totals(db: Session, bill: Bill) -> tuple[int, int, int]:
-    """(total, paid, tips). Voided lines don't count; tips are not part of the bill."""
-    total = db.scalar(
+@dataclass
+class Amounts:
+    gross: int  # sum of items still on the bill
+    discount: int
+    total: int  # gross - discount: what the customer owes, and the sale
+    paid: int
+    tips: int
+
+    @property
+    def balance(self) -> int:
+        return self.total - self.paid
+
+
+def discount_on(bill: Bill, gross: int) -> int:
+    if bill.discount_kind is DiscountKind.amount:
+        return min(bill.discount_value, gross)
+    if bill.discount_kind is DiscountKind.percent:
+        return round(gross * bill.discount_value / 100)
+    return 0
+
+
+def amounts(db: Session, bill: Bill) -> Amounts:
+    """Voided lines don't count, reversed payments don't count, tips are not part of the bill."""
+    gross = db.scalar(
         select(func.coalesce(func.sum(BillLine.unit_price), 0))
         .where(BillLine.bill_id == bill.id, BillLine.voided_at.is_(None))
     )
     paid, tips = db.execute(
         select(func.coalesce(func.sum(Payment.amount), 0), func.coalesce(func.sum(Payment.tip), 0))
-        .where(Payment.bill_id == bill.id)
+        .where(Payment.bill_id == bill.id, Payment.reversed_at.is_(None))
     ).one()
-    return total, paid, tips
+    discount = discount_on(bill, gross)
+    return Amounts(gross=gross, discount=discount, total=gross - discount, paid=paid, tips=tips)
+
+
+def totals(db: Session, bill: Bill) -> tuple[int, int, int]:
+    """(total after discount, paid, tips)."""
+    a = amounts(db, bill)
+    return a.total, a.paid, a.tips
+
+
+def finish_bill(db: Session, bill: Bill, status: BillStatus, tz: ZoneInfo) -> None:
+    """Close a bill as paid, on credit or unpaid. Its sale counts in the cash-up of the
+    shift of the waiter it belongs to now."""
+    from app.shifts.service import current_shift  # here: shifts.service imports this module
+
+    bill.status, bill.closed_at = status, now()
+    bill.finished_shift_id = current_shift(db, bill.business_id, bill.waiter_id, tz).id
 
 
 def table_has_open_bill(db: Session, business_id: uuid.UUID, table_id: uuid.UUID) -> Bill | None:

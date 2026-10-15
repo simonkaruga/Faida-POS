@@ -169,7 +169,7 @@ def test_cash_payment_shows_change_and_prints_two_receipts(client, waiter, round
         assert "Not a KRA tax invoice" in copy and "TOTAL" in copy and "2,000 / 750" in copy
     assert "COUNTER COPY" in counter and "COUNTER COPY" not in customer
     client.app.state.printing.flush()
-    assert printers[COUNTER].drawer_opened == 1
+    assert printers[COUNTER].drawer_opened == 0  # the waiter keeps the cash until hand-over
     assert client.get("/api/floor", headers=waiter).json()["bills"] == []
 
 

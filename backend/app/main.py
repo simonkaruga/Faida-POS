@@ -15,6 +15,8 @@ from sqlalchemy.orm import sessionmaker
 from app.audit.router import router as audit_router
 from app.auth.router import router as auth_router
 from app.auth.sessions import KeypadGuard, SessionStore
+from app.credit.router import router as credit_router
+from app.expenses.router import router as cash_router
 from app.floor.router import router as floor_router
 from app.menu.router import router as menu_router
 from app.payments.router import router as payments_router
@@ -24,10 +26,12 @@ from app.printing.service import PrintService
 from app.settings.config import VERSION, Config, get_config
 from app.settings.models import Business
 from app.settings.router import router as settings_router
+from app.shifts.router import router as shifts_router
 from app.staff.router import router as staff_router
 
 COUNTER_ROUTERS = (
     auth_router, staff_router, settings_router, audit_router, menu_router, floor_router, payments_router,
+    credit_router, shifts_router, cash_router,
 )
 
 

@@ -15,6 +15,7 @@ class TicketKind(enum.StrEnum):
     kitchen_ticket = "kitchen_ticket"
     bill = "bill"  # before payment
     receipt = "receipt"  # after payment: customer copy + COUNTER COPY
+    handover = "handover"  # cash hand-over slip: waiter copy + owner copy
 
 
 class PrinterName(enum.StrEnum):
@@ -33,7 +34,8 @@ class Ticket(Record, Base):
 
     __tablename__ = "tickets"
 
-    bill_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("bills.id"), index=True)
+    bill_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("bills.id"), index=True)
+    shift_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shifts.id"))
     kind: Mapped[TicketKind] = mapped_column(str_enum(TicketKind, "ticket_kind"))
     number: Mapped[int] = mapped_column(Integer)
     printer: Mapped[PrinterName] = mapped_column(str_enum(PrinterName, "printer_name"))

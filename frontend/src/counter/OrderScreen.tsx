@@ -227,6 +227,12 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
         </div>
 
         <footer className="bill-foot">
+          {bill.discount > 0 && (
+            <div className="row muted bill-paid">
+              <span className="grow">Discount{bill.discount_kind === "percent" ? ` ${bill.discount_value}%` : ""}</span>
+              <span>−{formatKsh(bill.discount)}</span>
+            </div>
+          )}
           <div className="bill-total">
             <span>TOTAL</span>
             <span>{formatKsh(bill.total + roundTotal)}</span>

@@ -30,8 +30,18 @@ class BillStatus(enum.StrEnum):
     paid = "paid"
     credit = "credit"  # Phase 3
     unpaid_responsible = "unpaid_responsible"  # Phase 3
-    cancelled = "cancelled"
+    cancelled = "cancelled"  # closed empty, or a paid bill reversed with approval
     merged = "merged"  # its lines were moved into `merged_into_id`
+
+
+class VoidReason(enum.StrEnum):
+    not_prepared = "not_prepared"  # goes back to stock (Phase 4)
+    already_prepared = "already_prepared"  # recorded as waste
+
+
+class DiscountKind(enum.StrEnum):
+    amount = "amount"
+    percent = "percent"
 
 
 class Bill(Record, Base):
@@ -50,11 +60,17 @@ class Bill(Record, Base):
     business_day: Mapped[date] = mapped_column(Date)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     merged_into_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("bills.id"))
-
-
-class VoidReason(enum.StrEnum):
-    not_prepared = "not_prepared"  # goes back to stock (Phase 4)
-    already_prepared = "already_prepared"  # recorded as waste
+    # The shift of the waiter who finished the bill (paid, credit or unpaid). Its sales
+    # count in that shift's cash-up.
+    finished_shift_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shifts.id"), index=True)
+    # Discount on the whole bill: a fixed amount or a percentage (see floor.service.amounts).
+    discount_kind: Mapped[DiscountKind | None] = mapped_column(str_enum(DiscountKind, "discount_kind"))
+    discount_value: Mapped[int] = mapped_column(Integer, default=0)
+    # Approved credit: what was left to pay moves to the customer's account.
+    credit_customer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("credit_customers.id"), index=True)
+    credit_amount: Mapped[int] = mapped_column(Integer, default=0)
+    # Cancelled after payment: what happens to the items (back to stock or waste).
+    cancel_reason: Mapped[VoidReason | None] = mapped_column(str_enum(VoidReason, "void_reason"))
 
 
 class BillLine(Record, Base):

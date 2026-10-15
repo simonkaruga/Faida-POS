@@ -8,10 +8,12 @@ type Props = {
   maxLength?: number;
   disabled?: boolean;
   enterLabel?: string;
+  /** Let Enter work with nothing typed, e.g. NEXT past a note that wasn't counted. */
+  allowEmptyEnter?: boolean;
 };
 
 /** Large number keypad (keys ≥ 72 px, masterplan 9.1). Also accepts a physical keyboard. */
-export function Keypad({ value, onChange, onEnter, maxLength = 6, disabled, enterLabel = "OK" }: Props) {
+export function Keypad({ value, onChange, onEnter, maxLength = 6, disabled, enterLabel = "OK", allowEmptyEnter }: Props) {
   const press = (digit: string) => {
     if (!disabled && value.length < maxLength) onChange(value + digit);
   };
@@ -22,7 +24,7 @@ export function Keypad({ value, onChange, onEnter, maxLength = 6, disabled, ente
       if (disabled || e.target instanceof HTMLInputElement) return;
       if (/^\d$/.test(e.key)) press(e.key);
       else if (e.key === "Backspace") back();
-      else if (e.key === "Enter" && value) onEnter();
+      else if (e.key === "Enter" && (value || allowEmptyEnter)) onEnter();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -41,7 +43,7 @@ export function Keypad({ value, onChange, onEnter, maxLength = 6, disabled, ente
       <button className="key" onClick={() => press("0")} disabled={disabled}>
         0
       </button>
-      <button className="key key-enter" onClick={onEnter} disabled={disabled || !value}>
+      <button className={enterLabel.length > 4 ? "key key-enter key-long" : "key key-enter"} onClick={onEnter} disabled={disabled || (!value && !allowEmptyEnter)}>
         {enterLabel}
       </button>
     </div>

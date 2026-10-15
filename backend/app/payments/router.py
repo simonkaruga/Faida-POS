@@ -11,16 +11,18 @@ from app.audit import service as audit
 from app.auth import service as auth
 from app.auth.deps import Actor, CurrentActor, Db
 from app.auth.permissions import Action, Level, level
+from app.credit.models import CreditCustomer
 from app.db import now
 from app.floor.models import Bill, BillStatus
 from app.floor.schemas import BillOut, bill_detail
-from app.floor.service import Printing, bill_lines, group_items, load_bill, totals
+from app.floor.service import Printing, amounts, bill_lines, finish_bill, group_items, load_bill, totals
 from app.payments.models import Method, Payment
 from app.printing import layouts
 from app.printing.models import PrinterName, TicketKind
 from app.sequences import next_number
 from app.settings.models import MpesaCodeEntry
 from app.settings.service import get_settings, today
+from app.shifts.service import current_shift
 
 router = APIRouter(tags=["payments"])
 
@@ -47,7 +49,7 @@ class PaymentResult(BaseModel):
     change: int
 
 
-def _mpesa_ref(mode: MpesaCodeEntry, code: str | None) -> str | None:
+def mpesa_ref(mode: MpesaCodeEntry, code: str | None) -> str | None:
     if mode is MpesaCodeEntry.none:
         return None
     code = (code or "").strip().upper()
@@ -89,7 +91,7 @@ def take_payment(bill_id: uuid.UUID, body: PaymentIn, actor: CurrentActor, reque
         if tendered < body.amount:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Cash given is less than the amount.")
     else:
-        ref = _mpesa_ref(settings.mpesa_code_entry, body.mpesa_code)
+        ref = mpesa_ref(settings.mpesa_code_entry, body.mpesa_code)
         duplicate = _duplicate_of(db, actor, ref) if ref else None
         if duplicate:
             confirmed = level(actor.staff.role, Action.mpesa_duplicate_override) is Level.allow and body.confirm_duplicate
@@ -106,6 +108,7 @@ def take_payment(bill_id: uuid.UUID, body: PaymentIn, actor: CurrentActor, reque
         business_id=actor.business_id, created_by=actor.staff.id, bill_id=bill.id, method=body.method,
         amount=body.amount, tendered=tendered, tip=body.tip, mpesa_ref=ref,
         business_day=today(db, actor.business_id, tz),
+        shift_id=current_shift(db, actor.business_id, actor.staff.id, tz).id,
     )
     db.add(payment)
     db.flush()
@@ -117,29 +120,34 @@ def take_payment(bill_id: uuid.UUID, body: PaymentIn, actor: CurrentActor, reque
 
     receipt = None
     if paid + body.amount == total:
-        bill.status, bill.closed_at = BillStatus.paid, now()
-        receipt = _receipt(db, actor, bill, Printing(tz), settings.receipt_footer)
+        finish_bill(db, bill, BillStatus.paid, tz)
+        receipt = make_receipt(db, actor, bill, Printing(tz), settings.receipt_footer)
     db.commit()
 
-    printing = request.app.state.printing
-    if body.method is Method.cash:
-        printing.open_drawer()
+    # Waiters keep the cash they take until hand-over, so the drawer stays shut.
     if receipt:
-        printing.print_tickets([receipt])
+        request.app.state.printing.print_tickets([receipt])
     return PaymentResult(bill=bill_detail(db, bill), change=tendered - body.amount if tendered is not None else 0)
 
 
-def _receipt(db: Db, actor: Actor, bill: Bill, printing: Printing, footer: str):
+def make_receipt(db: Db, actor: Actor, bill: Bill, printing: Printing, footer: str):
+    """The receipt (customer copy + COUNTER COPY). A bill closed on credit shows the
+    credit customer in place of a payment for what is left."""
     lines = [l for l in bill_lines(db, bill) if l.voided_at is None]
-    payments = db.scalars(select(Payment).where(Payment.bill_id == bill.id).order_by(Payment.created_at))
+    payments = db.scalars(select(Payment).where(Payment.bill_id == bill.id, Payment.reversed_at.is_(None))
+                          .order_by(Payment.created_at))
     rows = [
         layouts.PaymentRow(label="Cash", amount=p.amount, tendered=p.tendered)
         if p.method is Method.cash
         else layouts.PaymentRow(label=f"M-Pesa {p.mpesa_ref or ''}".strip(), amount=p.amount, tip=p.tip)
         for p in payments
     ]
+    if bill.status is BillStatus.credit:
+        customer = db.get(CreditCustomer, bill.credit_customer_id)
+        rows.append(layouts.PaymentRow(label=f"On credit: {customer.name}", amount=bill.credit_amount))
+    a = amounts(db, bill)
     number = next_number(db, actor.business_id, "receipt")
     content = layouts.receipt(printing.header(db, bill, now()), number, group_items(lines),
-                              sum(l.unit_price for l in lines), rows, footer)
+                              a.gross, a.discount, rows, footer)
     return printing.new_ticket(db, actor, bill, TicketKind.receipt, PrinterName.counter, content,
                                number, copies=[None, "COUNTER COPY"])

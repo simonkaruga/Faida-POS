@@ -1,9 +1,21 @@
 import { useEffect, useState } from "react";
-import { ApiError, getBill, getSettings, takePayment, type Bill, type PaymentIn, type Session, type Settings } from "../services/api";
+import {
+  ApiError,
+  getBill,
+  getSettings,
+  markUnpaid,
+  takePayment,
+  type Bill,
+  type PaymentIn,
+  type Session,
+  type Settings,
+} from "../services/api";
 import { ApprovalDialog } from "../shared/ApprovalDialog";
 import { CodeKeypad } from "../shared/CodeKeypad";
 import { Keypad } from "../shared/Keypad";
+import { Modal } from "../shared/Modal";
 import { formatKsh } from "../shared/money";
+import { CreditDialog } from "./CreditDialog";
 
 type Props = {
   session: Session;
@@ -13,7 +25,7 @@ type Props = {
 };
 
 type Field = "amount" | "given" | "tip" | "code";
-type Done = { change: number; method: "cash" | "mpesa"; receiptPrinted: boolean; place: string };
+type Done = { change: number; method: "cash" | "mpesa" | "credit" | "unpaid"; receiptPrinted: boolean; place: string; note?: string };
 
 const CODE_LENGTH = { last4: 4, full: 10, none: 0 } as const;
 const num = (s: string) => (s ? parseInt(s, 10) : 0);
@@ -34,6 +46,8 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<Done | null>(null);
+  const [crediting, setCrediting] = useState(false);
+  const [confirmUnpaid, setConfirmUnpaid] = useState(false);
 
   useEffect(() => {
     getBill(billId).then((b) => (setBill(b), setAmount(String(b.balance))), (e) => setError(e.message));
@@ -93,7 +107,10 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
   if (done) {
     return (
       <main className="screen-center paid">
-        <div className="paid-badge">PAID</div>
+        <div className={done.method === "unpaid" ? "paid-badge warn" : "paid-badge"}>
+          {done.method === "credit" ? "ON CREDIT" : done.method === "unpaid" ? "UNPAID" : "PAID"}
+        </div>
+        {done.note && <div style={{ fontSize: 22 }}>{done.note}</div>}
         <div className="muted" style={{ fontSize: 22 }}>
           {done.place}
         </div>
@@ -103,13 +120,15 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
             <strong>{formatKsh(done.change)}</strong>
           </div>
         )}
-        <p className={done.receiptPrinted ? "muted" : "error-text"} style={{ fontSize: 20 }}>
-          {done.receiptPrinted ? "Receipt printed: customer copy and counter copy." : "Receipt NOT printed. Reprint it from the bill."}
-        </p>
+        {done.method !== "unpaid" && (
+          <p className={done.receiptPrinted ? "muted" : "error-text"} style={{ fontSize: 20 }}>
+            {done.receiptPrinted ? "Receipt printed: customer copy and counter copy." : "Receipt NOT printed. Reprint it from My bills."}
+          </p>
+        )}
         <button
           className="btn btn-primary"
           style={{ minWidth: 260 }}
-          onClick={() => onDone(`${done.place}: paid ✓`, !done.receiptPrinted)}
+          onClick={() => onDone(`${done.place}: ${done.method === "credit" ? "on credit" : done.method === "unpaid" ? "marked unpaid" : "paid"} ✓`, !done.receiptPrinted)}
         >
           DONE
         </button>
@@ -205,6 +224,18 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
         <button className="btn btn-primary pay-go" disabled={!ready || busy} onClick={() => submit()}>
           {method === "cash" ? "TAKE CASH" : "RECORD M-PESA"} {due > 0 ? formatKsh(due) : ""}
         </button>
+        <div className="row">
+          {session.permissions.approve_credit !== "deny" && (
+            <button className="btn btn-yellow grow" onClick={() => setCrediting(true)}>
+              REQUEST CREDIT
+            </button>
+          )}
+          {session.permissions.mark_unpaid_responsible === "own" && (
+            <button className="btn btn-quiet grow" onClick={() => setConfirmUnpaid(true)}>
+              Unpaid – I'm responsible
+            </button>
+          )}
+        </div>
       </section>
 
       <section className="pay-pad">
@@ -233,6 +264,39 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
           </div>
         )}
       </section>
+
+      {crediting && (
+        <CreditDialog
+          session={session}
+          bill={bill}
+          onDone={(b) => {
+            const receipt = b.tickets.filter((t) => t.kind === "receipt").pop();
+            setDone({ change: 0, method: "credit", receiptPrinted: receipt?.status !== "not_printed", place: b.place, note: `${formatKsh(b.credit_amount)} to ${b.credit_customer?.name}` });
+          }}
+          onClose={() => setCrediting(false)}
+        />
+      )}
+
+      {confirmUnpaid && (
+        <Modal title="Mark unpaid?" onClose={() => setConfirmUnpaid(false)}>
+          <p style={{ fontSize: 20, margin: 0 }}>
+            {formatKsh(bill.balance)} will stay in the cash you owe at hand-over. Use this for a walk-out or credit nobody approved.
+          </p>
+          <div className="row row-end">
+            <button
+              className="btn btn-orange"
+              onClick={() =>
+                markUnpaid(bill.id).then(
+                  (b) => setDone({ change: 0, method: "unpaid", receiptPrinted: true, place: b.place, note: `${formatKsh(bill.balance)} is your responsibility` }),
+                  (e) => (setConfirmUnpaid(false), setError(e instanceof ApiError ? e.message : "Something went wrong.")),
+                )
+              }
+            >
+              YES, I'M RESPONSIBLE
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {asking && (
         <ApprovalDialog

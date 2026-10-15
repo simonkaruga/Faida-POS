@@ -5,8 +5,9 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.floor.models import Bill, BillStatus, VoidReason
-from app.floor.service import bill_lines, place, totals
+from app.credit.models import CreditCustomer
+from app.floor.models import Bill, BillStatus, DiscountKind, VoidReason
+from app.floor.service import amounts, bill_lines, place
 from app.menu.models import Station
 from app.payments.models import Method, Payment
 from app.printing.models import PrintStatus, Ticket, TicketKind
@@ -51,6 +52,7 @@ class PaymentOut(BaseModel):
     mpesa_ref: str | None
     created_at: datetime
     taken_by: str
+    reversed: bool
 
 
 class BillOut(BaseModel):
@@ -66,16 +68,24 @@ class BillOut(BaseModel):
     lines: list[LineOut]
     tickets: list[TicketOut]
     payments: list[PaymentOut]
+    gross: int
+    discount: int
+    discount_kind: DiscountKind | None
+    discount_value: int
     total: int
     paid: int
     balance: int
     tips: int
+    credit_customer: Person | None
+    credit_amount: int
+    cancel_reason: VoidReason | None
 
 
 def bill_detail(db: Session, bill: Bill) -> BillOut:
     db.expire_all()  # print workers update tickets in their own sessions
     bill = db.get(Bill, bill.id)
-    total, paid, tips = totals(db, bill)
+    a = amounts(db, bill)
+    customer = db.get(CreditCustomer, bill.credit_customer_id) if bill.credit_customer_id else None
     waiter = db.get(Staff, bill.waiter_id)
     tickets = db.scalars(select(Ticket).where(Ticket.bill_id == bill.id).order_by(Ticket.created_at))
     payments = db.execute(
@@ -97,8 +107,12 @@ def bill_detail(db: Session, bill: Bill) -> BillOut:
         tickets=[TicketOut.model_validate(t, from_attributes=True) for t in tickets],
         payments=[
             PaymentOut(id=p.id, method=p.method, amount=p.amount, tendered=p.tendered, tip=p.tip,
-                       mpesa_ref=p.mpesa_ref, created_at=p.created_at, taken_by=name)
+                       mpesa_ref=p.mpesa_ref, created_at=p.created_at, taken_by=name,
+                       reversed=p.reversed_at is not None)
             for p, name in payments
         ],
-        total=total, paid=paid, balance=total - paid, tips=tips,
+        gross=a.gross, discount=a.discount, discount_kind=bill.discount_kind, discount_value=bill.discount_value,
+        total=a.total, paid=a.paid, balance=a.balance, tips=a.tips,
+        credit_customer=Person(id=customer.id, name=customer.name) if customer else None,
+        credit_amount=bill.credit_amount, cancel_reason=bill.cancel_reason,
     )

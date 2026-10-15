@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -10,14 +11,19 @@ from app.auth import service as auth
 from app.auth.deps import Actor, CurrentActor, Db, require
 from app.auth.permissions import Action, Level, level
 from app.db import now
-from app.floor.models import Bill, BillHandover, BillLine, BillStatus, Table, VoidReason
+from app.floor.models import Bill, BillHandover, BillLine, BillStatus, DiscountKind, Table, VoidReason
 from app.floor.schemas import BillOut, Person, bill_detail
-from app.floor.service import Printing, bill_lines, group_items, load_bill, place, table_has_open_bill, totals
+from app.floor.service import (
+    Printing, amounts, bill_lines, group_items, load_bill, place, table_has_open_bill, totals,
+)
 from app.menu.models import MenuItem, SellOption, Station
 from app.printing import layouts
 from app.printing.models import PrinterName, PrintStatus, Ticket, TicketKind
 from app.sequences import next_number
+from app.payments.models import Payment
 from app.settings.service import get_settings, today
+from app.shifts.models import Shift, ShiftStatus
+from app.shifts.service import current_shift
 from app.staff.models import Staff
 
 router = APIRouter(tags=["floor"])
@@ -155,6 +161,7 @@ def open_bill(body: OpenBill, actor: Annotated[Actor, Depends(require(Action.ope
         waiter_id=actor.staff.id, business_day=today(db, actor.business_id, request.app.state.tz),
     )
     db.add(bill)
+    current_shift(db, actor.business_id, actor.staff.id, request.app.state.tz)
     db.commit()
     return bill_detail(db, bill)
 
@@ -231,9 +238,9 @@ def print_bill(bill_id: uuid.UUID, actor: CurrentActor, request: Request, db: Db
     lines = [l for l in bill_lines(db, bill) if l.voided_at is None]
     if not lines:
         raise HTTPException(status.HTTP_409_CONFLICT, "Nothing has been sent on this bill yet.")
-    total, paid, _ = totals(db, bill)
+    a = amounts(db, bill)
     printing = _printing(request)
-    content = layouts.bill(printing.header(db, bill, now()), group_items(lines), total, paid,
+    content = layouts.bill(printing.header(db, bill, now()), group_items(lines), a.gross, a.discount, a.paid,
                            get_settings(db, actor.business_id).mpesa_till_number)
     ticket = printing.new_ticket(db, actor, bill, TicketKind.bill, PrinterName.counter, content, bill.number)
     db.commit()
@@ -256,11 +263,12 @@ def void_line(bill_id: uuid.UUID, line_id: uuid.UUID, body: VoidIn, actor: Curre
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found on this bill.")
     if line.voided_at:
         raise HTTPException(status.HTTP_409_CONFLICT, "This item was already removed.")
-    total, paid, _ = totals(db, bill)
-    if total - line.unit_price < paid:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Payments already taken are more than the new total.")
     approval = auth.authorize(db, actor, Action.void_item, body.approval_id)
     line.voided_at, line.voided_by, line.void_reason = now(), actor.staff.id, body.reason
+    db.flush()
+    if amounts(db, bill).balance < 0:
+        db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Payments already taken are more than the new total.")
     audit.record(
         db, business_id=actor.business_id, actor_id=actor.staff.id, action="bill_line.voided",
         entity_type="bill_line", entity_id=line.id, approval=approval,
@@ -308,6 +316,7 @@ def hand_over(bill_id: uuid.UUID, body: HandoverIn, actor: CurrentActor, request
     db.add(BillHandover(business_id=actor.business_id, created_by=actor.staff.id, bill_id=bill.id,
                         from_waiter_id=giver, to_waiter_id=receiver.id))
     bill.waiter_id = receiver.id
+    current_shift(db, actor.business_id, receiver.id, state.tz)
     audit.record(db, business_id=actor.business_id, actor_id=actor.staff.id, action="bill.handed_over",
                  entity_type="bill", entity_id=bill.id,
                  details={"bill": bill.number, "from": str(giver), "to": str(receiver.id), "to_name": receiver.name})
@@ -356,9 +365,6 @@ def split(bill_id: uuid.UUID, body: SplitIn, actor: CurrentActor, request: Reque
         raise HTTPException(status.HTTP_409_CONFLICT, "Some items are not on this bill.")
     if chosen == lines.keys():
         raise HTTPException(status.HTTP_409_CONFLICT, "Leave at least one item on this bill.")
-    total, paid, _ = totals(db, bill)
-    if total - sum(lines[i].unit_price for i in chosen) < paid:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Payments already taken are more than what would be left.")
     new = Bill(
         business_id=actor.business_id, created_by=actor.staff.id,
         number=next_number(db, actor.business_id, "bill"), table_id=bill.table_id,
@@ -369,6 +375,10 @@ def split(bill_id: uuid.UUID, body: SplitIn, actor: CurrentActor, request: Reque
     db.flush()
     for i in chosen:
         lines[i].bill_id = new.id
+    db.flush()
+    if amounts(db, bill).balance < 0:
+        db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Payments already taken are more than what would be left.")
     audit.record(db, business_id=actor.business_id, actor_id=actor.staff.id, action="bill.split",
                  entity_type="bill", entity_id=new.id,
                  details={"from": bill.number, "new": new.number, "items": len(chosen)})
@@ -419,3 +429,106 @@ def reprint(ticket_id: uuid.UUID, body: ReprintIn, actor: CurrentActor, request:
     db.commit()
     request.app.state.printing.print_tickets([ticket], reprint=already_out)
     return bill_detail(db, bill)
+
+
+class DiscountIn(BaseModel):
+    kind: DiscountKind
+    value: Annotated[int, Field(ge=0, le=1_000_000)]  # 0 removes the discount
+    reason: Annotated[str, Field(min_length=1, max_length=120)]
+    approval_id: uuid.UUID | None = None
+
+
+@router.post("/bills/{bill_id}/discount")
+def discount(bill_id: uuid.UUID, body: DiscountIn, actor: CurrentActor, db: Db) -> BillOut:
+    """A discount on the whole bill: a fixed amount or a percentage. Waiters need an
+    Owner or Supervisor PIN. Sales and the waiter's cash due are net of it."""
+    bill = load_bill(db, actor, bill_id, Action.discount)
+    if body.kind is DiscountKind.percent and body.value > 100:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "A percentage can't be more than 100.")
+    approval = auth.authorize(db, actor, Action.discount, body.approval_id)
+    before = amounts(db, bill).discount
+    bill.discount_kind, bill.discount_value = (body.kind, body.value) if body.value else (None, 0)
+    db.flush()
+    after = amounts(db, bill)
+    if after.balance < 0:
+        db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Payments already taken are more than the discounted total.")
+    audit.record(
+        db, business_id=actor.business_id, actor_id=actor.staff.id, action="bill.discounted",
+        entity_type="bill", entity_id=bill.id, approval=approval,
+        details={"bill": bill.number, "kind": body.kind.value, "value": body.value,
+                 "amount": after.discount, "previous_amount": before, "reason": body.reason},
+    )
+    db.commit()
+    return bill_detail(db, bill)
+
+
+class CancelIn(BaseModel):
+    reason: VoidReason  # what happens to the items: back to stock, or waste
+    approval_id: uuid.UUID | None = None
+
+
+@router.post("/bills/{bill_id}/cancel")
+def cancel_paid(bill_id: uuid.UUID, body: CancelIn, actor: CurrentActor, db: Db) -> BillOut:
+    """Cancel a paid (or credit) bill: its payments are reversed, the money goes back to
+    the customer, and its sale no longer counts. Possible only while the shift that
+    finished it is still open; after the hand-over a refund is a pay-out."""
+    bill = load_bill(db, actor, bill_id, Action.cancel_paid_bill, open_only=False)
+    if bill.status not in (BillStatus.paid, BillStatus.credit):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only a paid or credit bill can be cancelled.")
+    shift = db.get(Shift, bill.finished_shift_id) if bill.finished_shift_id else None
+    if shift is None or shift.status is not ShiftStatus.open:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "This bill's shift has already been handed over. Record the refund as a pay-out.")
+    approval = auth.authorize(db, actor, Action.cancel_paid_bill, body.approval_id)
+    a = amounts(db, bill)
+    refunded = {"cash": 0, "mpesa": 0}
+    for p in db.scalars(select(Payment).where(Payment.bill_id == bill.id, Payment.reversed_at.is_(None))):
+        p.reversed_at = now()
+        refunded[p.method.value] += p.amount
+    was = bill.status
+    bill.status, bill.cancel_reason = BillStatus.cancelled, body.reason
+    audit.record(
+        db, business_id=actor.business_id, actor_id=actor.staff.id, action="bill.cancelled",
+        entity_type="bill", entity_id=bill.id, approval=approval,
+        details={"bill": bill.number, "was": was.value, "total": a.total, "refund_cash": refunded["cash"],
+                 "refund_mpesa": refunded["mpesa"], "credit": bill.credit_amount if was is BillStatus.credit else 0,
+                 "reason": body.reason.value},
+    )
+    db.commit()
+    return bill_detail(db, bill)
+
+
+class FinishedBill(BaseModel):
+    id: uuid.UUID
+    number: int
+    place: str
+    waiter: Person
+    status: BillStatus
+    total: int
+    closed_at: datetime | None
+
+
+@router.get("/bills")
+def finished_bills(actor: CurrentActor, request: Request, db: Db) -> list[FinishedBill]:
+    """Bills already closed: a waiter's own from their current shift, or every bill of
+    today's business day for an Owner or Supervisor. Used to reprint or cancel."""
+    query = select(Bill).where(
+        Bill.business_id == actor.business_id,
+        Bill.status.in_((BillStatus.paid, BillStatus.credit, BillStatus.unpaid_responsible, BillStatus.cancelled)),
+        Bill.finished_shift_id.is_not(None),  # leaves out bills closed empty
+    )
+    if level(actor.staff.role, Action.view_other_bills) is Level.allow:
+        query = query.where(Bill.business_day == today(db, actor.business_id, request.app.state.tz))
+    else:
+        shift = db.scalar(select(Shift).where(Shift.staff_id == actor.staff.id, Shift.status == ShiftStatus.open))
+        if shift is None:
+            return []
+        query = query.where(Bill.finished_shift_id == shift.id, Bill.waiter_id == actor.staff.id)
+    rows = []
+    for bill in db.scalars(query.order_by(Bill.closed_at.desc()).limit(200)):
+        waiter = db.get(Staff, bill.waiter_id)
+        rows.append(FinishedBill(id=bill.id, number=bill.number, place=place(db, bill),
+                                 waiter=Person(id=waiter.id, name=waiter.name), status=bill.status,
+                                 total=amounts(db, bill).total, closed_at=bill.closed_at))
+    return rows

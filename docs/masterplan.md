@@ -597,6 +597,10 @@ The quotation promises about **10–14 working days**. The order below makes sur
 | 18 | A supervisor running daily closing could see profit | Supervisor's closing view **hides profit, buying prices and stock values** (2) |
 | 19 | Force-close didn't say what happens to cash the waiter took home | Owner records **cash received (may be 0)**, the rest becomes that waiter's shortage, sign-off "not present" (4.6) |
 | 20 | Client wants manual M-Pesa that's quick on busy nights | **Last 4 characters** of the code (default), repeats within 7 days need approval, owner setting to change (4.3, 8) |
+| 21 | The cash drawer opened on every cash payment, but waiters hold their own cash until hand-over | **Waiters keep their own cash.** The drawer holds the owner's or supervisor's money and opens for hand-overs, floats, pay-outs and cash credit payments (decided 15 Oct 2026) |
+| 22 | Pay-outs and cash credit payments had no cash to come from or go to | A **counter cash box**: hand-overs in, floats and pay-outs out, cash credit payments in. Its expected balance is checked at closing |
+| 23 | How discounts work was not defined | **A fixed amount or a percentage of the whole bill**, approved by Owner or Supervisor PIN for waiters. Sales and the waiter's cash due are net of it |
+| 24 | What cancelling a paid bill does was not defined | **Full reversal**: its payments and sales are removed, and the approver picks *not prepared → back to stock* or *already served → waste*. Only while the shift that finished the bill is still open; after hand-over a refund is a pay-out |
 
 ### 15.3 Final checks
 

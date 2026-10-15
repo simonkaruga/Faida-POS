@@ -85,8 +85,16 @@ def _head(h: Header, title: str) -> list[Row]:
     ]
 
 
-def bill(h: Header, items: list[ItemRow], total: int, paid: int, till: str | None) -> list[Row]:
-    doc = _head(h, "BILL") + _items(items) + [rule(), cols("TOTAL", ksh(total), size=2, bold=True)]
+def _totals(gross: int, discount: int) -> list[Row]:
+    rows = [rule()]
+    if discount:
+        rows += [cols("Subtotal", ksh(gross)), cols("Discount", f"-{ksh(discount)}")]
+    return rows + [cols("TOTAL", ksh(gross - discount), size=2, bold=True)]
+
+
+def bill(h: Header, items: list[ItemRow], gross: int, discount: int, paid: int, till: str | None) -> list[Row]:
+    total = gross - discount
+    doc = _head(h, "BILL") + _items(items) + _totals(gross, discount)
     if paid:
         doc += [cols("Already paid", ksh(paid)), cols("TO PAY", ksh(total - paid), bold=True)]
     if till:
@@ -97,10 +105,9 @@ def bill(h: Header, items: list[ItemRow], total: int, paid: int, till: str | Non
 
 
 def receipt(
-    h: Header, number: int, items: list[ItemRow], total: int, payments: list[PaymentRow], footer: str
+    h: Header, number: int, items: list[ItemRow], gross: int, discount: int, payments: list[PaymentRow], footer: str
 ) -> list[Row]:
-    doc = _head(h, f"RECEIPT No. {number:04d}") + _items(items)
-    doc += [rule(), cols("TOTAL", ksh(total), size=2, bold=True), rule()]
+    doc = _head(h, f"RECEIPT No. {number:04d}") + _items(items) + _totals(gross, discount) + [rule()]
     for p in payments:
         doc.append(cols(p.label, ksh(p.amount)))
         if p.tendered is not None and p.tendered != p.amount:
@@ -109,3 +116,47 @@ def receipt(
             doc.append(cols("   Tip (M-Pesa)", ksh(p.tip)))
     doc += [rule(), text("Not a KRA tax invoice", bold=True, align="center"), text(footer, align="center")]
     return doc
+
+
+def handover_slip(
+    business: str, staff: str, started: datetime, ended: datetime, cash: dict, received: int,
+    receiver: str, agrees: bool | None, staff_note: str | None, receiver_note: str | None, forced: bool,
+) -> list[Row]:
+    """The cash hand-over slip (masterplan 4.6), printed for the waiter and the owner."""
+    fmt = "%d/%m/%Y %H:%M"
+    rows = [
+        text(business, size=2, bold=True, align="center"),
+        text("CASH HAND-OVER" + (" (FORCE-CLOSED)" if forced else ""), bold=True, align="center"),
+        rule(),
+        cols("Staff", staff),
+        cols("Shift", f"{started.strftime(fmt)} - {ended.strftime('%H:%M')}"),
+        rule(),
+        cols(f"Total sales ({cash['bills']} bill{'' if cash['bills'] == 1 else 's'})", ksh(cash["total_sales"])),
+        cols("- Paid by M-Pesa", ksh(cash["mpesa"])),
+        cols("- Approved credit", ksh(cash["credit"])),
+    ]
+    if cash["cash_taken_by_others"]:
+        rows.append(cols("- Cash taken by others", ksh(cash["cash_taken_by_others"])))
+    rows += [
+        cols("= Cash due from sales", ksh(cash["cash_due_from_sales"]), bold=True),
+        text(f"  of which unpaid - your responsibility: {ksh(cash['unpaid_responsible'])}"),
+    ]
+    if cash["cash_taken_for_others"]:
+        rows.append(cols("+ Cash taken on others' bills", ksh(cash["cash_taken_for_others"])))
+    rows += [
+        cols("+ Float received at start", ksh(cash["float_amount"])),
+        cols("- M-Pesa tips", ksh(cash["mpesa_tips"])),
+        cols("HAND OVER", ksh(cash["cash_to_hand_over"]), size=2, bold=True),
+        rule(),
+        cols("Received", ksh(received), bold=True),
+    ]
+    difference = received - cash["cash_to_hand_over"]
+    result = "BALANCED" if difference == 0 else f"SHORT {ksh(-difference)}" if difference < 0 else f"OVER {ksh(difference)}"
+    rows += [text(result, size=2, bold=True, align="center"), rule(), cols("Received by", receiver)]
+    if receiver_note:
+        rows.append(text(f"Note: {receiver_note}"))
+    signed = "NOT PRESENT" if agrees is None else "AGREES" if agrees else "DISAGREES"
+    rows.append(cols(staff, signed, bold=True))
+    if staff_note:
+        rows.append(text(f"Note: {staff_note}"))
+    return rows

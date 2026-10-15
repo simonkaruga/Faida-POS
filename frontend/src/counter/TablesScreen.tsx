@@ -6,12 +6,13 @@ import { formatKsh } from "../shared/money";
 type Props = {
   session: Session;
   onOpen: (billId: string) => void;
+  onNavigate: (screen: "endShift" | "myBills" | "owner") => void;
   onLock: () => void;
 };
 
 /** The waiter's home screen (masterplan 9.4): free tables, mine in blue with the
  * amount, other waiters' tables grey and locked, then tabs. */
-export function TablesScreen({ session, onOpen, onLock }: Props) {
+export function TablesScreen({ session, onOpen, onNavigate, onLock }: Props) {
   const [floor, setFloor] = useState<Floor | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [newTab, setNewTab] = useState<string | null>(null);
@@ -91,6 +92,17 @@ export function TablesScreen({ session, onOpen, onLock }: Props) {
         <span className="muted grow">
           {session.staff.name} · {floor.bills.filter((b) => b.mine).length} open bills
         </span>
+        <button className="btn btn-quiet" onClick={() => onNavigate("myBills")}>
+          My bills
+        </button>
+        {session.permissions.receive_handover === "allow" && (
+          <button className="btn btn-quiet" onClick={() => onNavigate("owner")}>
+            Owner area
+          </button>
+        )}
+        <button className="btn" onClick={() => onNavigate("endShift")}>
+          END MY SHIFT
+        </button>
         <button className="btn btn-primary" onClick={onLock}>
           LOCK
         </button>

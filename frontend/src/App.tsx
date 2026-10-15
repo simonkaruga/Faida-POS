@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import { EndShift } from "./counter/EndShift";
+import { FinishedBills } from "./counter/FinishedBills";
 import { OrderScreen } from "./counter/OrderScreen";
+import { OwnerArea } from "./counter/OwnerArea";
 import { PayScreen } from "./counter/PayScreen";
 import { PinLogin } from "./counter/PinLogin";
 import { TablesScreen } from "./counter/TablesScreen";
@@ -10,11 +13,17 @@ import { useHealth } from "./services/useHealth";
 import { TopBar } from "./shared/TopBar";
 
 export type Notice = { text: string; warning?: boolean };
-type View = { screen: "tables" } | { screen: "order"; billId: string } | { screen: "pay"; billId: string };
+type View =
+  | { screen: "tables" | "endShift" | "myBills" | "owner" }
+  | { screen: "order"; billId: string }
+  | { screen: "pay"; billId: string };
+
+// Counting a hand-over by hand takes longer than the usual idle lock.
+const COUNTING_IDLE_SECONDS = 300;
 
 function SignedIn({ session, onLock }: { session: Session; onLock: (notice?: Notice) => void }) {
-  useAutoLock(session.auto_lock_seconds, () => onLock());
   const [view, setView] = useState<View>({ screen: "tables" });
+  useAutoLock(view.screen === "endShift" ? Math.max(session.auto_lock_seconds, COUNTING_IDLE_SECONDS) : session.auto_lock_seconds, () => onLock());
   const [menu, setMenu] = useState<Menu | null>(null);
 
   useEffect(() => {
@@ -49,11 +58,30 @@ function SignedIn({ session, onLock }: { session: Session; onLock: (notice?: Not
           onDone={lockWith}
         />
       );
+    case "endShift":
+      return <EndShift session={session} onPay={(billId) => setView({ screen: "pay", billId })} onBack={tables} onDone={lockWith} />;
+    case "myBills":
+      return (
+        <main className="screen">
+          <div className="screen-scroll">
+            <h2 className="section-title">My finished bills this shift</h2>
+            <FinishedBills session={session} embedded />
+          </div>
+          <footer className="screen-actions">
+            <button className="btn btn-quiet" onClick={tables}>
+              ‹ Tables
+            </button>
+          </footer>
+        </main>
+      );
+    case "owner":
+      return <OwnerArea session={session} onBack={tables} />;
     default:
       return (
         <TablesScreen
           session={session}
           onOpen={(billId) => setView({ screen: "order", billId })}
+          onNavigate={(screen) => setView({ screen })}
           onLock={() => onLock()}
         />
       );
