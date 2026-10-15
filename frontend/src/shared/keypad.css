@@ -1,0 +1,20 @@
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 96px);
+  gap: 12px;
+}
+.key {
+  height: 80px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 32px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.key:active { background: var(--blue); color: #fff; }
+.key:disabled { opacity: 0.45; }
+.key-quiet { font-size: 26px; background: var(--surface); }
+.key-enter { background: var(--blue); color: #fff; border-color: var(--blue); font-size: 24px; }

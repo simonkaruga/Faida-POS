@@ -1,0 +1,7 @@
+.home { display: flex; flex-direction: column; height: calc(100% - 56px); }
+.home-body { flex: 1; padding: 32px; }
+.home-body h2 { margin: 0; font-size: 30px; }
+.home-role { margin: 4px 0 24px; color: var(--text-muted); font-size: 18px; }
+.home-note { color: var(--text-muted); font-size: 18px; }
+.home-actions { display: flex; justify-content: flex-end; gap: var(--gap); padding: 16px 24px; background: var(--surface); }
+.home-actions .btn { min-width: 200px; }
