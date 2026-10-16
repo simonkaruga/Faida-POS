@@ -1,0 +1,47 @@
+/* A printout on screen: white thermal paper, 48 columns, torn bottom edge. */
+.receipt-view { display: flex; flex-direction: column; gap: 12px; }
+.receipt-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 18px; }
+.copy-tabs { display: flex; gap: 6px; }
+.copy-tabs button {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 650;
+}
+.copy-tabs button.on { background: var(--blue-soft); border-color: var(--blue); color: var(--text); }
+.paper-wrap { display: flex; justify-content: center; max-height: 56vh; overflow: auto; padding: 4px 0 16px; }
+.receipt-view.compact .paper-wrap { max-height: 46vh; }
+.paper {
+  --paper: #fdfdf8;
+  position: relative;
+  width: max-content;
+  padding: 16px 18px 26px;
+  background: var(--paper);
+  color: #111;
+  font: 13px/1.38 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  border-radius: 4px 4px 0 0;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+  animation: rise 320ms var(--ease) both;
+  user-select: text;
+}
+.paper::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -9px;
+  height: 10px;
+  background:
+    linear-gradient(135deg, var(--paper) 50%, transparent 50%) 0 0 / 12px 10px repeat-x,
+    linear-gradient(225deg, var(--paper) 50%, transparent 50%) 0 0 / 12px 10px repeat-x;
+}
+.paper-row { white-space: pre; min-height: 1.38em; }
+.paper-row.center { text-align: center; }
+.paper-row.right { text-align: right; }
+.paper-row.bold { font-weight: 700; }
+.paper-row.big { font-size: 24px; line-height: 1.2; font-weight: 800; letter-spacing: 1px; }
+.paper-row.rule { color: #8a8a80; }

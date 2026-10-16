@@ -9,9 +9,11 @@ import {
   type FinishedBill,
   type Session,
 } from "../services/api";
+import { ReceiptText } from "lucide-react";
 import { ApprovalDialog } from "../shared/ApprovalDialog";
 import { Modal } from "../shared/Modal";
 import { formatKsh } from "../shared/money";
+import { ReceiptDialog } from "../shared/Receipt";
 import { groupLines } from "./billLines";
 
 const STATUS = { paid: "Paid", credit: "On credit", unpaid_responsible: "Unpaid", cancelled: "Cancelled", open: "Open", merged: "Merged" } as const;
@@ -56,6 +58,7 @@ export function FinishedBills({ session, embedded }: { session: Session; embedde
 function FinishedBillDialog({ session, bill, onChanged, onClose }: { session: Session; bill: Bill; onChanged: (b: Bill) => void; onClose: () => void }) {
   const [asking, setAsking] = useState<null | "reprint" | "not_prepared" | "already_prepared">(null);
   const [cancelling, setCancelling] = useState(false);
+  const [viewing, setViewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const receipt = bill.tickets.filter((t) => t.kind === "receipt").pop();
   const canCancel = (bill.status === "paid" || bill.status === "credit") && session.permissions.cancel_paid_bill !== "deny";
@@ -84,6 +87,23 @@ function FinishedBillDialog({ session, bill, onChanged, onClose }: { session: Se
   }
 
   const needs = (action: string) => session.permissions[action] === "approval";
+
+  if (viewing && receipt) {
+    return (
+      <ReceiptDialog
+        id={receipt.id}
+        title={`Receipt · ${bill.place}`}
+        free={!needs("reprint_receipt")}
+        onReprint={async () => {
+          if (needs("reprint_receipt") && receipt.printed_at) {
+            setViewing(false);
+            setAsking("reprint");
+          } else await doReprint();
+        }}
+        onClose={() => setViewing(false)}
+      />
+    );
+  }
   return (
     <Modal title={`${bill.place} · #${String(bill.number).padStart(4, "0")} · ${STATUS[bill.status]}`} onClose={onClose}>
       <div className="list-table">
@@ -136,8 +156,8 @@ function FinishedBillDialog({ session, bill, onChanged, onClose }: { session: Se
       ) : (
         <div className="row row-end">
           {receipt && (
-            <button className="btn btn-quiet" onClick={() => (needs("reprint_receipt") && receipt.printed_at ? setAsking("reprint") : doReprint())}>
-              Reprint receipt
+            <button className="btn btn-quiet" onClick={() => setViewing(true)}>
+              <ReceiptText size={20} /> View receipt
             </button>
           )}
           {canCancel && (

@@ -1,19 +1,37 @@
 .topbar {
   display: flex;
   align-items: center;
-  gap: 24px;
-  height: 56px;
-  padding: 0 20px;
-  background: var(--navy);
+  gap: 18px;
+  height: 60px;
+  padding: 0 18px;
+  background: linear-gradient(90deg, #0d1a3a, #13234a 60%, #182a57);
   color: #fff;
-  font-size: 18px;
+  font-size: 16px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.06);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.25);
+  position: relative;
+  z-index: 5;
 }
-.topbar-business { font-weight: 700; font-size: 20px; }
-.topbar-staff { padding: 6px 14px; border-radius: 999px; background: var(--navy-strong); }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 19px; letter-spacing: -0.01em; }
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #4b8ff8, #6250d6);
+  box-shadow: 0 4px 12px rgb(59 130 246 / 0.4);
+}
+.topbar-staff { display: inline-flex; align-items: center; gap: 10px; padding: 4px 14px 4px 4px; border-radius: 999px; background: rgb(255 255 255 / 0.07); font-weight: 650; line-height: 1.1; }
+.topbar-staff small { display: block; font-size: 12px; font-weight: 500; color: #b8c4e0; }
 .topbar-spacer { flex: 1; }
-.topbar-status { display: inline-flex; align-items: center; gap: 8px; color: #dbe3f5; }
-.topbar-clock { font-variant-numeric: tabular-nums; font-weight: 600; }
-.dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
-.dot-green { background: var(--green); }
-.dot-yellow { background: var(--yellow); }
-.dot-red { background: var(--red); }
+.status { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px; background: rgb(255 255 255 / 0.06); color: #d5ddef; font-weight: 600; font-size: 15px; }
+.status.green svg { color: #4ade80; }
+.status.yellow { color: #fde68a; }
+.status.yellow svg { color: var(--yellow); }
+.status.orange { color: #fdba74; }
+.status.red { background: rgb(229 72 77 / 0.25); color: #fecaca; }
+.status.muted { color: #9fb0d4; }
+.topbar-clock { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 20px; text-align: right; line-height: 1.05; }
+.topbar-clock small { display: block; font-size: 12px; font-weight: 500; color: #b8c4e0; }

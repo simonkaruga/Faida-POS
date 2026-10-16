@@ -35,6 +35,7 @@ export type FloorBill = {
   tab_name: string | null;
   waiter: Person;
   mine: boolean;
+  opened_at: string;
   total: number | null;
   balance: number | null;
   not_printed: boolean | null;
@@ -82,6 +83,7 @@ export type Bill = {
   tab_name: string | null;
   waiter: Person;
   status: "open" | "paid" | "credit" | "unpaid_responsible" | "cancelled" | "merged";
+  opened_at: string;
   lines: BillLine[];
   tickets: Ticket[];
   payments: Payment[];

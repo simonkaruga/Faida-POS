@@ -29,6 +29,7 @@ from app.menu.router import router as menu_router
 from app.payments.router import router as payments_router
 from app.printing.models import PrinterName
 from app.printing.printers import Printer, make_printer
+from app.printing.router import router as printing_router
 from app.printing.service import PrintService
 from app.reports.phone import router as phone_router
 from app.reports.router import router as reports_router
@@ -44,7 +45,7 @@ from app.sync.receive import router as sync_router
 
 COUNTER_ROUTERS = (
     auth_router, staff_router, settings_router, audit_router, menu_router, floor_router, payments_router,
-    credit_router, shifts_router, cash_router, stock_router, reports_router,
+    credit_router, shifts_router, cash_router, stock_router, reports_router, printing_router,
 )
 CLOUD_ROUTERS = (sync_router, phone_router, admin_router)
 

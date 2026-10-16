@@ -1,3 +1,4 @@
+import { BookUser, CalendarCheck2, House, Package, TrendingUp, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { formatKsh } from "../shared/money";
 import { BarList, Big, ClosingView, ProfitBlock, Row, SalesBlock, Section } from "../shared/ReportParts";
@@ -21,7 +22,13 @@ import {
 import "./phone.css";
 
 type Tab = "today" | "closing" | "stock" | "profit" | "debtors";
-const TABS: [Tab, string][] = [["today", "Today"], ["closing", "Closing"], ["stock", "Stock"], ["profit", "Profit"], ["debtors", "Debtors"]];
+const TABS: [Tab, string, LucideIcon][] = [
+  ["today", "Today", House],
+  ["closing", "Closing", CalendarCheck2],
+  ["stock", "Stock", Package],
+  ["profit", "Profit", TrendingUp],
+  ["debtors", "Debtors", BookUser],
+];
 const message = (e: unknown) => (e instanceof PhoneError ? e.message : "Something went wrong.");
 
 /** The owner's phone (masterplan 4.10): read-only, from the cloud copy. */
@@ -42,8 +49,9 @@ export function PhoneApp() {
         {tab === "debtors" && <DebtorsView />}
       </main>
       <nav className="ph-nav">
-        {TABS.map(([t, label]) => (
+        {TABS.map(([t, label, Icon]) => (
           <button key={t} className={tab === t ? "on" : ""} onClick={() => (tab === t ? setRefresh(refresh + 1) : setTab(t))}>
+            <Icon size={22} />
             {label}
           </button>
         ))}

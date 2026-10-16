@@ -93,6 +93,7 @@ class FloorBill(BaseModel):
     tab_name: str | None
     waiter: Person
     mine: bool
+    opened_at: datetime  # tables show how long the bill has been open
     # Hidden on other waiters' bills for a waiter (shown grey and locked).
     total: int | None
     balance: int | None
@@ -126,7 +127,7 @@ def floor(actor: CurrentActor, db: Db) -> FloorOut:
         bills.append(FloorBill(
             id=bill.id, number=bill.number, place=place(db, bill), table_id=bill.table_id,
             tab_name=bill.tab_name, waiter=Person(id=waiter.id, name=waiter.name), mine=mine,
-            total=total, balance=None if total is None else total - paid,
+            opened_at=bill.created_at, total=total, balance=None if total is None else total - paid,
             not_printed=unprinted if visible else None,
         ))
     return FloorOut(tables=[TableOut(id=t.id, name=t.name) for t in tables], bills=bills)

@@ -1,9 +1,11 @@
+import { ArrowLeft, Banknote, BookUser, CheckCircle2, ReceiptText, Smartphone, TriangleAlert, UserX } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   ApiError,
   getBill,
   getSettings,
   markUnpaid,
+  reprint,
   takePayment,
   type Bill,
   type PaymentIn,
@@ -15,6 +17,7 @@ import { CodeKeypad } from "../shared/CodeKeypad";
 import { Keypad } from "../shared/Keypad";
 import { Modal } from "../shared/Modal";
 import { formatKsh } from "../shared/money";
+import { ReceiptPreview } from "../shared/Receipt";
 import { CreditDialog } from "./CreditDialog";
 
 type Props = {
@@ -25,7 +28,14 @@ type Props = {
 };
 
 type Field = "amount" | "given" | "tip" | "code";
-type Done = { change: number; method: "cash" | "mpesa" | "credit" | "unpaid"; receiptPrinted: boolean; place: string; note?: string };
+type Done = {
+  change: number;
+  method: "cash" | "mpesa" | "credit" | "unpaid";
+  receiptPrinted: boolean;
+  receiptId?: string;
+  place: string;
+  note?: string;
+};
 
 const CODE_LENGTH = { last4: 4, full: 10, none: 0 } as const;
 const num = (s: string) => (s ? parseInt(s, 10) : 0);
@@ -54,7 +64,7 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
     getSettings().then(setSettings, (e) => setError(e.message));
   }, [billId]);
 
-  if (!bill || !settings) return <main className="screen-center">{error ?? "Loading…"}</main>;
+  if (!bill || !settings) return <main className="screen screen-loading">{error ?? <span className="spinner" />}</main>;
 
   const codeLength = CODE_LENGTH[settings.mpesa_code_entry];
   const due = num(amount);
@@ -87,7 +97,7 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
       setDuplicate(null);
       if (updated.status === "paid") {
         const receipt = updated.tickets.filter((t) => t.kind === "receipt").pop();
-        setDone({ change, method, receiptPrinted: receipt?.status !== "not_printed", place: updated.place });
+        setDone({ change, method, receiptPrinted: receipt?.status !== "not_printed", receiptId: receipt?.id, place: updated.place });
       } else {
         setBill(updated);
         setAmount(String(updated.balance));
@@ -105,33 +115,54 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
   };
 
   if (done) {
+    const warn = done.method === "unpaid" || !done.receiptPrinted;
+    const finish = () =>
+      onDone(`${done.place}: ${done.method === "credit" ? "on credit" : done.method === "unpaid" ? "marked unpaid" : "paid"} ✓`, !done.receiptPrinted);
     return (
-      <main className="screen-center paid">
-        <div className={done.method === "unpaid" ? "paid-badge warn" : "paid-badge"}>
-          {done.method === "credit" ? "ON CREDIT" : done.method === "unpaid" ? "UNPAID" : "PAID"}
-        </div>
-        {done.note && <div style={{ fontSize: 22 }}>{done.note}</div>}
-        <div className="muted" style={{ fontSize: 22 }}>
-          {done.place}
-        </div>
-        {done.method === "cash" && (
-          <div className="change">
-            <span>CHANGE</span>
-            <strong>{formatKsh(done.change)}</strong>
+      <main className="paid">
+        <section className="paid-left">
+          <svg className={`paid-check ${done.method === "unpaid" ? "warn" : ""}`} viewBox="0 0 112 112" aria-hidden>
+            <circle cx="56" cy="56" r="52" />
+            <path d="M34 58 l15 15 l30 -32" />
+          </svg>
+          <div className={done.method === "unpaid" ? "paid-badge warn" : "paid-badge"}>
+            {done.method === "credit" ? "ON CREDIT" : done.method === "unpaid" ? "UNPAID" : "PAID"}
           </div>
-        )}
-        {done.method !== "unpaid" && (
-          <p className={done.receiptPrinted ? "muted" : "error-text"} style={{ fontSize: 20 }}>
-            {done.receiptPrinted ? "Receipt printed: customer copy and counter copy." : "Receipt NOT printed. Reprint it from My bills."}
-          </p>
-        )}
-        <button
-          className="btn btn-primary"
-          style={{ minWidth: 260 }}
-          onClick={() => onDone(`${done.place}: ${done.method === "credit" ? "on credit" : done.method === "unpaid" ? "marked unpaid" : "paid"} ✓`, !done.receiptPrinted)}
-        >
-          DONE
-        </button>
+          <div className="muted" style={{ fontSize: 22 }}>
+            {done.place}
+            {done.note && ` · ${done.note}`}
+          </div>
+          {done.method === "cash" && (
+            <div className="change">
+              <span>CHANGE</span>
+              <strong>{formatKsh(done.change)}</strong>
+            </div>
+          )}
+          {done.method !== "unpaid" && !done.receiptPrinted && (
+            <p className="warn" style={{ fontSize: 19, fontWeight: 650 }}>
+              The receipt did NOT print. Print it again from here.
+            </p>
+          )}
+          <button className="btn btn-primary" style={{ minWidth: 280 }} onClick={finish}>
+            <CheckCircle2 size={22} /> DONE
+          </button>
+          {warn && <span className="muted">The screen locks when you're done.</span>}
+        </section>
+        <section className="paid-right">
+          {done.receiptId ? (
+            <ReceiptPreview
+              id={done.receiptId}
+              compact
+              free={session.permissions.reprint_receipt === "allow"}
+              onReprint={done.receiptPrinted ? undefined : () => reprint(done.receiptId!)}
+            />
+          ) : (
+            <div className="empty-state">
+              <ReceiptText size={56} />
+              No receipt: the bill stays in {session.staff.name}'s cash to hand over.
+            </div>
+          )}
+        </section>
       </main>
     );
   }
@@ -142,40 +173,39 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
   return (
     <main className="pay">
       <section className="pay-summary">
-        <button className="btn btn-quiet" onClick={onBack}>
-          ‹ Back to bill
-        </button>
-        <h2>
-          {bill.place} · #{String(bill.number).padStart(4, "0")}
-        </h2>
-        <div className="pay-figure">
-          <span>Total</span>
-          <strong>{formatKsh(bill.total)}</strong>
+        <div className="pay-head">
+          <button className="icon-btn" onClick={onBack} aria-label="Back to bill">
+            <ArrowLeft size={22} />
+          </button>
+          <span className="place-badge">{bill.place}</span>
+          <h2>Bill #{String(bill.number).padStart(4, "0")}</h2>
         </div>
-        {bill.paid > 0 && (
-          <>
-            {bill.payments.map((p) => (
-              <div key={p.id} className="row muted" style={{ fontSize: 18 }}>
-                <span className="grow">
-                  {p.method === "cash" ? "Cash" : `M-Pesa ${p.mpesa_ref ?? ""}`}
-                  {p.tip ? ` (+${formatKsh(p.tip)} tip)` : ""}
-                </span>
-                <span>{formatKsh(p.amount)}</span>
-              </div>
-            ))}
-            <div className="pay-figure big">
-              <span>Left to pay</span>
-              <strong>{formatKsh(bill.balance)}</strong>
-            </div>
-          </>
-        )}
+        <div className="due-card">
+          <span>{bill.paid > 0 ? "Left to pay" : "To pay"}</span>
+          <strong>{formatKsh(bill.balance)}</strong>
+          {bill.paid > 0 && (
+            <small>
+              of {formatKsh(bill.total)} · paid so far{" "}
+              {bill.payments
+                .filter((p) => !p.reversed)
+                .map((p) => `${p.method === "cash" ? "cash" : `M-Pesa ${p.mpesa_ref ?? ""}`} ${formatKsh(p.amount)}`)
+                .join(", ")}
+            </small>
+          )}
+        </div>
 
         <div className="method-tabs">
-          <button className={`btn ${method === "cash" ? "btn-primary" : "btn-quiet"}`} onClick={() => switchTo("cash")}>
-            CASH
+          <button className={`method ${method === "cash" ? "on" : ""}`} onClick={() => switchTo("cash")}>
+            <span className="method-icon">
+              <Banknote size={24} />
+            </span>
+            Cash
           </button>
-          <button className={`btn ${method === "mpesa" ? "btn-primary" : "btn-quiet"}`} onClick={() => switchTo("mpesa")}>
-            M-PESA
+          <button className={`method mpesa ${method === "mpesa" ? "on" : ""}`} onClick={() => switchTo("mpesa")}>
+            <span className="method-icon">
+              <Smartphone size={24} />
+            </span>
+            M-Pesa
           </button>
         </div>
 
@@ -183,9 +213,9 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
         {method === "cash" ? (
           <>
             <FieldBox label="Cash given" value={given} active={field === "given"} onClick={() => setField("given")} />
-            <div className="change">
-              <span>CHANGE</span>
-              <strong className={given && change < 0 ? "warn" : ""}>{given ? formatKsh(Math.max(change, 0)) : "—"}</strong>
+            <div className={`change ${given && change < 0 ? "under" : ""}`}>
+              <span>{given && change < 0 ? "NOT ENOUGH CASH, SHORT BY" : "CHANGE"}</span>
+              <strong>{given ? formatKsh(Math.abs(change)) : "—"}</strong>
             </div>
           </>
         ) : (
@@ -202,37 +232,39 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
 
         {duplicate && (
           <div className="approval-box">
-            <div>
+            <TriangleAlert size={28} color="var(--yellow)" />
+            <div className="grow">
               <strong>{duplicate}</strong>
-            </div>
-            <div className="row" style={{ marginTop: 10 }}>
-              {dupApproval === "allow" ? (
-                <button className="btn btn-yellow" onClick={() => submit({ confirm_duplicate: true })}>
-                  I CHECKED IT. CONTINUE
-                </button>
-              ) : (
-                <button className="btn btn-yellow" onClick={() => setAsking(true)}>
-                  GET APPROVAL
-                </button>
-              )}
+              <div className="row" style={{ marginTop: 10 }}>
+                {dupApproval === "allow" ? (
+                  <button className="btn btn-yellow" onClick={() => submit({ confirm_duplicate: true })}>
+                    I CHECKED IT. CONTINUE
+                  </button>
+                ) : (
+                  <button className="btn btn-yellow" onClick={() => setAsking(true)}>
+                    GET APPROVAL
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
         <p className="error-text" role="alert">
           {error ?? ""}
         </p>
-        <button className="btn btn-primary pay-go" disabled={!ready || busy} onClick={() => submit()}>
+        <button className={`btn btn-primary pay-go ${method}`} disabled={!ready || busy} onClick={() => submit()}>
+          {method === "cash" ? <Banknote size={26} /> : <Smartphone size={26} />}
           {method === "cash" ? "TAKE CASH" : "RECORD M-PESA"} {due > 0 ? formatKsh(due) : ""}
         </button>
         <div className="row">
           {session.permissions.approve_credit !== "deny" && (
             <button className="btn btn-yellow grow" onClick={() => setCrediting(true)}>
-              REQUEST CREDIT
+              <BookUser size={20} /> REQUEST CREDIT
             </button>
           )}
           {session.permissions.mark_unpaid_responsible === "own" && (
             <button className="btn btn-quiet grow" onClick={() => setConfirmUnpaid(true)}>
-              Unpaid – I'm responsible
+              <UserX size={20} /> Unpaid – I'm responsible
             </button>
           )}
         </div>
@@ -271,7 +303,7 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
           bill={bill}
           onDone={(b) => {
             const receipt = b.tickets.filter((t) => t.kind === "receipt").pop();
-            setDone({ change: 0, method: "credit", receiptPrinted: receipt?.status !== "not_printed", place: b.place, note: `${formatKsh(b.credit_amount)} to ${b.credit_customer?.name}` });
+            setDone({ change: 0, method: "credit", receiptPrinted: receipt?.status !== "not_printed", receiptId: receipt?.id, place: b.place, note: `${formatKsh(b.credit_amount)} to ${b.credit_customer?.name}` });
           }}
           onClose={() => setCrediting(false)}
         />

@@ -66,6 +66,7 @@ const bill: Bill = {
   tab_name: null,
   waiter: { id: "s1", name: "Jane" },
   status: "open",
+  opened_at: new Date().toISOString(),
   lines: [],
   tickets: [],
   payments: [],
@@ -116,7 +117,7 @@ describe("pay screen", () => {
     );
     render(<PayScreen session={session} billId="b1" onBack={vi.fn()} onDone={vi.fn()} />);
     await screen.findByText("TAKE CASH 1,250");
-    tap("M-PESA");
+    tap("M-Pesa");
     ["P", "2", "Q", "M"].forEach(tap);
     tap("RECORD M-PESA 1,250");
     expect(await screen.findByText(/used on bill #0131/)).toBeTruthy();

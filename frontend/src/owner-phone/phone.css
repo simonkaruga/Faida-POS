@@ -11,8 +11,8 @@ body { overflow: auto; }
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
-  padding: max(16px, env(safe-area-inset-top)) 16px 8px;
-  background: var(--navy);
+  padding: max(18px, env(safe-area-inset-top)) 16px 14px;
+  background: linear-gradient(135deg, #13234a, #2563eb);
   color: #fff;
 }
 .ph-header h1 { margin: 0; font-size: 22px; }
@@ -35,7 +35,7 @@ body { overflow: auto; }
   border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
 }
-.ph-nav button { min-height: 60px; background: none; border: none; color: var(--text-muted); font: inherit; font-size: 14px; font-weight: 600; }
+.ph-nav button { min-height: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; background: none; border: none; color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 650; }
 .ph-nav button.on { color: var(--blue); }
 .ph-daybar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; }
 .ph-daybar span { font-weight: 700; }

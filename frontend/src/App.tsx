@@ -10,6 +10,7 @@ import { useAutoLock } from "./counter/useAutoLock";
 import "./counter/counter.css";
 import { getMenu, lock, setToken, setUnauthorizedHandler, type Menu, type Session } from "./services/api";
 import { useHealth } from "./services/useHealth";
+import { Toaster } from "./shared/Toast";
 import { TopBar } from "./shared/TopBar";
 
 export type Notice = { text: string; warning?: boolean };
@@ -117,11 +118,14 @@ export function App() {
 
   return (
     <>
-      <TopBar health={health} reachable={reachable} staffName={session?.staff.name} />
+      <TopBar health={health} reachable={reachable} staff={session?.staff} />
+      <Toaster />
       {health && !health.set_up ? (
         <main className="pin-login">
-          <h1>This counter is not set up yet</h1>
-          <p className="pin-prompt">Run the install steps in docs/install-checklist.md.</p>
+          <div className="pin-setup">
+            <h1>This counter is not set up yet</h1>
+            <p className="pin-prompt">Run the install steps in docs/install-checklist.md.</p>
+          </div>
         </main>
       ) : session ? (
         <SignedIn session={session} onLock={doLock} />

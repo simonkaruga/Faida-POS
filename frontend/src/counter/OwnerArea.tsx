@@ -1,5 +1,20 @@
+import {
+  ArrowLeft,
+  BookUser,
+  CalendarCheck2,
+  ChartColumn,
+  HandCoins,
+  Package,
+  Printer,
+  ReceiptText,
+  TriangleAlert,
+  Users,
+  Vault,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import {
+  api,
   ApiError,
   collectCredit,
   createCustomer,
@@ -13,6 +28,7 @@ import {
   giveFloat,
   ownerCash,
   recordPayout,
+  reprint,
   setShortageStatus,
   type CashBox,
   type CreditCustomer,
@@ -23,54 +39,136 @@ import { CodeKeypad } from "../shared/CodeKeypad";
 import { Keypad } from "../shared/Keypad";
 import { Modal } from "../shared/Modal";
 import { formatKsh } from "../shared/money";
+import { getPrintouts, KIND_NAME, ReceiptDialog, StatusPill, type Printout } from "../shared/Receipt";
 import { FinishedBills } from "./FinishedBills";
 import { ClosingTab, ExpensesTab, ReportsTab } from "./OwnerReports";
 import { StockTab } from "./StockTab";
 
-type Tab = "shifts" | "credit" | "cash" | "stock" | "bills" | "closing" | "reports" | "expenses";
+type Tab = "shifts" | "credit" | "cash" | "stock" | "bills" | "printers" | "closing" | "reports" | "expenses";
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong.");
 const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "");
 const KIND = { handover: "Hand-over", float: "Float", payout: "Pay-out", credit_collected: "Credit paid", owner: "Owner" } as const;
 
+type NavItem = { tab: Tab; label: string; icon: LucideIcon; hint: string };
+
 /** Counter screens behind an Owner or Supervisor PIN (masterplan 9.4). Supervisors see
- * the same screens without owner-only actions. */
+ * the same screens without owner-only pages and actions. */
 export function OwnerArea({ session, onBack }: { session: Session; onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("shifts");
   const isOwner = session.permissions.view_financials === "allow";
-  const tabs: [Tab, string][] = [
-    ["shifts", "Shifts"],
-    ["credit", "Credit"],
-    ["cash", "Cash box"],
-    ["stock", "Stock"],
-    ["bills", "Bills"],
-    ["closing", "Daily closing"],
-    ...(isOwner ? ([["reports", "Reports"], ["expenses", "Expenses"]] as [Tab, string][]) : []),
+  const groups: [string, NavItem[]][] = [
+    ["Today", [
+      { tab: "shifts", label: "Shifts & hand-overs", icon: Users, hint: "Floats, cash-ups, shortages" },
+      { tab: "bills", label: "Today's bills", icon: ReceiptText, hint: "Receipts, cancellations" },
+      { tab: "cash", label: "Cash box", icon: Vault, hint: "Pay-outs and cash in the box" },
+      { tab: "printers", label: "Printer log", icon: Printer, hint: "Every slip, ticket and receipt" },
+    ]],
+    ["Business", [
+      { tab: "credit", label: "Credit", icon: BookUser, hint: "Debtors and payments" },
+      { tab: "stock", label: "Stock", icon: Package, hint: "Deliveries, counts, waste" },
+      { tab: "closing", label: "Daily closing", icon: CalendarCheck2, hint: "End the business day" },
+    ]],
+    ...(isOwner
+      ? ([["Owner", [
+          { tab: "reports", label: "Reports", icon: ChartColumn, hint: "Sales, profit, sellers" },
+          { tab: "expenses", label: "Expenses", icon: HandCoins, hint: "Rent, power, salaries" },
+        ]]] as [string, NavItem[]][])
+      : []),
   ];
+  const current = groups.flatMap(([, items]) => items).find((i) => i.tab === tab)!;
   return (
-    <main className="screen">
-      <div className="category-bar owner-tabs">
-        <button className="btn btn-quiet" onClick={onBack}>
-          ‹ Tables
+    <main className="owner">
+      <nav className="owner-nav">
+        <button className="btn btn-quiet owner-back" onClick={onBack}>
+          <ArrowLeft size={20} /> Tables
         </button>
-        {tabs.map(([t, label]) => (
-          <button key={t} className={`cat ${tab === t ? "selected" : ""}`} onClick={() => setTab(t)}>
-            {label}
-          </button>
+        {groups.map(([group, items]) => (
+          <div key={group} className="owner-group">
+            <span className="owner-group-name">{group}</span>
+            {items.map((item) => (
+              <button key={item.tab} className={`owner-link ${tab === item.tab ? "on" : ""}`} onClick={() => setTab(item.tab)}>
+                <item.icon size={20} />
+                {item.label}
+              </button>
+            ))}
+          </div>
         ))}
-      </div>
-      <div className="screen-scroll">
-        {tab === "shifts" && <ShiftsTab session={session} />}
-        {tab === "credit" && <CreditTab session={session} />}
-        {tab === "cash" && <CashTab session={session} />}
-        {tab === "stock" && <StockTab session={session} />}
-        {tab === "bills" && <FinishedBills session={session} embedded />}
-        {tab === "closing" && <ClosingTab />}
-        {tab === "reports" && <ReportsTab />}
-        {tab === "expenses" && <ExpensesTab />}
-      </div>
+      </nav>
+      <section className="owner-main">
+        <header className="owner-title rise" key={tab}>
+          <span className="owner-title-icon">
+            <current.icon size={24} />
+          </span>
+          <div>
+            <h1>{current.label}</h1>
+            <p className="muted">{current.hint}</p>
+          </div>
+        </header>
+        <div className="owner-body">
+          {tab === "shifts" && <ShiftsTab session={session} />}
+          {tab === "credit" && <CreditTab session={session} />}
+          {tab === "cash" && <CashTab session={session} />}
+          {tab === "stock" && <StockTab session={session} />}
+          {tab === "bills" && <FinishedBills session={session} embedded />}
+          {tab === "printers" && <PrinterLog />}
+          {tab === "closing" && <ClosingTab />}
+          {tab === "reports" && <ReportsTab />}
+          {tab === "expenses" && <ExpensesTab />}
+        </div>
+      </section>
     </main>
   );
 }
+
+/** Everything that went to the printers today, newest first, with the exact printout. */
+function PrinterLog() {
+  const [rows, setRows] = useState<Printout[] | null>(null);
+  const [open, setOpen] = useState<Printout | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = () => getPrintouts().then(setRows, (e) => setError(errorText(e)));
+  useEffect(() => {
+    load();
+  }, []);
+  if (!rows) return <div className="screen-loading">{error ?? <span className="spinner" />}</div>;
+  const failed = rows.filter((r) => r.status === "not_printed").length;
+  return (
+    <>
+      {failed > 0 && (
+        <div className="alert-row">
+          <TriangleAlert size={20} /> {failed} printouts did not come out. Open one to print it again.
+        </div>
+      )}
+      <div className="list-table">
+        {rows.map((r) => (
+          <button key={r.id} className="list-row" onClick={() => setOpen(r)}>
+            <span className="muted" style={{ minWidth: 60 }}>
+              {time(r.created_at)}
+            </span>
+            <span className="pill">{r.printer === "kitchen" ? "Kitchen" : "Counter"}</span>
+            <strong style={{ minWidth: 150 }}>
+              {KIND_NAME[r.kind]} {r.kind === "receipt" || r.kind === "bill" ? `#${String(r.number).padStart(4, "0")}` : r.number}
+            </strong>
+            <span className="grow muted">{r.title}</span>
+            {r.reprints > 0 && <span className="pill">×{r.reprints + 1}</span>}
+            <StatusPill status={r.status} />
+          </button>
+        ))}
+        {!rows.length && <p className="muted">Nothing printed yet.</p>}
+      </div>
+      {open && (
+        <ReceiptDialog
+          id={open.id}
+          title={`${KIND_NAME[open.kind]} · ${open.title}`}
+          free
+          onReprint={() => (open.kind === "handover" ? reprintSlip(open.id) : reprint(open.id)).then(load)}
+          onClose={() => (setOpen(null), load())}
+        />
+      )}
+    </>
+  );
+}
+
+const reprintSlip = (id: string) => api<Printout>(`/handover-slips/${id}/reprint`, { method: "POST" });
 
 function AmountDialog({ title, children, onSubmit, onClose, submitLabel, extra }: {
   title: string;
