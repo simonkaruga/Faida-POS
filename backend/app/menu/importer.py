@@ -5,8 +5,12 @@ A simple item has a "price"; an item sold several ways (a spirit) has "options",
 with a "label" and "price". "uses" says what one sale takes from stock: a "quantity" in
 the stock item's unit (bottles, ml, g, pieces), or "tots" of a spirit."""
 
+import re
+import shutil
+import time as clock
 import uuid
 from datetime import time
+from pathlib import Path
 from decimal import Decimal
 from typing import Annotated
 
@@ -245,3 +249,32 @@ def load_stock(db: Session, business_id: uuid.UUID, data: dict) -> dict[str, int
     audit.record(db, business_id=business_id, actor_id=None, action="stock.loaded", details=counts)
     db.commit()
     return counts
+
+
+PICTURE_TYPES = (".jpg", ".png", ".webp")
+
+
+def picture_name(item_name: str) -> str:
+    """The file name a picture for this item is looked up by: "Nyama choma 1/2 kg" -> nyama-choma-1-2-kg."""
+    return re.sub("[^a-z0-9]+", "-", item_name.lower()).strip("-")
+
+
+def load_images(db: Session, business_id: uuid.UUID, folder: str, images_dir: Path) -> int:
+    """Give menu items without a picture the one in `folder` named after them
+    (docs/sample-images). Items that already have a picture keep it."""
+    source = Path(folder)
+    images_dir.mkdir(parents=True, exist_ok=True)
+    count = 0
+    for item in db.scalars(select(MenuItem).where(MenuItem.business_id == business_id, MenuItem.image.is_(None))):
+        found = next((source / f"{picture_name(item.name)}{ext}" for ext in PICTURE_TYPES
+                      if (source / f"{picture_name(item.name)}{ext}").is_file()), None)
+        if found is None:
+            continue
+        name = f"{item.id}-{int(clock.time())}{found.suffix}"
+        shutil.copyfile(found, images_dir / name)
+        item.image = name
+        audit.record(db, business_id=business_id, actor_id=None, action="menu.image_set",
+                     entity_type="menu_item", entity_id=item.id, details={"image": name, "from": found.name})
+        count += 1
+    db.commit()
+    return count

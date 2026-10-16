@@ -67,7 +67,7 @@ The installer asks for:
 
 ## 5. Business data (Owner area > Setup)
 
-- [ ] **Menu & prices**: every item, size and price checked with the owner. Add pictures for the favourites.
+- [ ] **Menu & prices**: every item, size and price checked with the owner. Add pictures for the favourites: take photos of the bar's own drinks and plates, or load the sample pictures with `python -m app.cli load-images docs/sample-images` (they match items by name; credits are in that folder).
 - [ ] **Choices & happy hour**: mixers, sides and "how cooked" are attached to the right items, and the happy hour times and days are correct.
 - [ ] **Tables & sections**: the names match the floor (Indoor, Garden, VIP…).
 - [ ] **Staff & PINs**: each person types their own PIN. Supervisors are set as supervisors.

@@ -29,6 +29,7 @@ cp .env.example .env          # set FAIDA_PIN_SECRET and FAIDA_DATABASE_URL
 .venv/bin/alembic upgrade head
 .venv/bin/python -m app.cli init-business --name "Demo Bar" --owner "Njeri"
 .venv/bin/python -m app.cli load-menu ../docs/sample-menu.json   # menu and tables
+.venv/bin/python -m app.cli load-images ../docs/sample-images    # tile pictures (credits in that folder)
 ```
 
 Then, from the repo root:

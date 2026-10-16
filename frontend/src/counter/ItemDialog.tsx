@@ -36,6 +36,7 @@ export function ItemDialog({ item, onAdd, onClose }: { item: MenuItem; onAdd: (c
 
   return (
     <Modal title={item.name} onClose={onClose} wide={item.modifier_groups.length > 0}>
+      {item.image && <img className="dialog-photo" src={item.image} alt="" />}
       {item.options.length > 1 && (
         <section className="pick-group">
           <h3>

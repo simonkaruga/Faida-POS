@@ -150,8 +150,8 @@
 .item-tile {
   --c: var(--cat-other);
   position: relative;
-  min-height: 92px;
-  border-radius: 14px;
+  min-height: 140px;
+  border-radius: 16px;
   border: 1px solid var(--border);
   background: linear-gradient(180deg, color-mix(in srgb, var(--c) 12%, var(--surface-raised)), var(--surface-raised));
   color: var(--text);
@@ -510,8 +510,29 @@
 .list-row:active { transform: scale(0.99); background: var(--surface-hover); }
 
 /* Handover features: pictures, sold out, happy hour, modifiers, same again */
-.item-tile.with-image { min-height: 138px; padding-top: 84px; }
-.item-image { position: absolute; inset: 4px 0 auto; height: 78px; width: 100%; object-fit: cover; }
+/* Photo tiles (Toast / Lightspeed style): the picture fills the tile, the name and price
+   sit on a dark fade at the bottom, white in both themes. */
+.item-tile.with-image { justify-content: flex-end; padding: 12px; color: #fff; border-color: transparent; background: #0b1020; }
+.item-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; transition: transform 300ms var(--ease); }
+.item-tile.with-image:hover .item-image { transform: scale(1.05); }
+.item-tile.with-image::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgb(4 7 18 / 0) 25%, rgb(4 7 18 / 0.55) 55%, rgb(4 7 18 / 0.92) 100%);
+}
+.item-tile.with-image::before { z-index: 3; }
+.item-tile.with-image > :not(.item-image) { position: relative; z-index: 2; }
+.item-tile.with-image .item-badge, .item-tile.with-image .sold-out-tag { position: absolute; }
+.item-tile.with-image .item-name { text-shadow: 0 1px 6px rgb(0 0 0 / 0.7); font-size: 17px; }
+.item-tile.with-image .item-parts { color: rgb(255 255 255 / 0.78); }
+.item-tile.with-image .price-tag, .item-tile.with-image .item-price { background: rgb(255 255 255 / 0.18); color: #fff; backdrop-filter: blur(6px); }
+.item-tile.with-image .item-station { color: rgb(255 255 255 / 0.8); }
+.item-tile.with-image .pill.blue { background: rgb(59 130 246 / 0.85); color: #fff; }
+/* Tiles without a picture: the category's icon, large and faint, so they aren't empty. */
+.item-watermark { position: absolute; right: -6px; top: 30px; color: var(--c); opacity: 0.16; pointer-events: none; transform: rotate(-8deg); }
+.item-tile > :not(.item-watermark):not(.item-image):not(.item-badge):not(.sold-out-tag) { position: relative; }
 .item-tile.sold-out { opacity: 0.5; filter: grayscale(0.7); }
 .item-tile.editing { outline: 2px dashed var(--orange); outline-offset: -4px; }
 .sold-out-tag { position: absolute; top: 10px; right: 8px; padding: 2px 8px; border-radius: 6px; background: var(--red); color: #fff; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; }
@@ -591,3 +612,6 @@ select.text-input { appearance: auto; }
   .report-grid { display: block !important; }
   .report-grid > * { margin-bottom: 10px; }
 }
+
+/* Choosing an item: its picture across the top of the pop-up. */
+.dialog-photo { width: calc(100% + 48px); margin: -4px -24px 4px; height: 120px; object-fit: cover; object-position: center 35%; mask-image: linear-gradient(180deg, #000 60%, transparent); }

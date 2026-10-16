@@ -21,7 +21,7 @@
   box-shadow: var(--shadow-lg);
   animation: rise 220ms var(--ease) both;
 }
-.modal-wide { max-width: min(96vw, 1040px); }
+.modal-wide { max-width: min(96vw, 1040px); width: min(96vw, 820px); }
 .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 .modal-head h2 { margin: 0; font-size: 23px; letter-spacing: -0.01em; }
 .modal-body { display: flex; flex-direction: column; gap: 14px; }

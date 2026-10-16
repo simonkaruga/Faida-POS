@@ -279,3 +279,17 @@ def test_split_moves_a_combo_with_its_parts(client, owner, m):
     parent = next(l for l in bill["lines"] if l["item_name"] == "Chicken & chips + Coke")
     new = client.post(f"/api/bills/{bill['id']}/split", headers=owner, json={"line_ids": [parent["id"]]}).json()
     assert new["total"] == 750 and len(new["lines"]) == 3
+
+
+def test_sample_pictures_load_by_item_name(db, business, menu, tmp_path):
+    from pathlib import Path
+
+    from app.menu.importer import load_images, picture_name
+    from app.menu.models import MenuItem
+
+    assert picture_name("Nyama choma 1/2 kg") == "nyama-choma-1-2-kg"
+    sample = Path(__file__).parents[2] / "docs" / "sample-images"
+    count = load_images(db, business.id, str(sample), tmp_path)
+    tusker = db.scalar(select(MenuItem).where(MenuItem.name == "Tusker"))
+    assert count >= 10 and tusker.image and (tmp_path / tusker.image).is_file()
+    assert load_images(db, business.id, str(sample), tmp_path) == 0  # pictures already set are kept

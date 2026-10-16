@@ -4,6 +4,7 @@ On the counter (FAIDA_MODE=local):
     python -m app.cli init-business --name "Mama Njeri's Bar" --owner "Njeri"
     python -m app.cli load-menu ../docs/sample-menu.json
     python -m app.cli load-stock ../docs/sample-menu.json   (stock and recipes only)
+    python -m app.cli load-images ../docs/sample-images     (tile pictures, by item name)
 
 On the cloud (FAIDA_MODE=cloud):
     python -m app.cli register-device --business-id <id> --name "Counter"
@@ -18,13 +19,15 @@ import getpass
 import json
 import sys
 import uuid
+from pathlib import Path
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from app import models as _all_tables  # noqa: F401  (every table, so foreign keys resolve)
 from app.audit import service as audit
 from app.auth.pins import WeakPin, check_new_pin, pin_lookup
-from app.menu.importer import load_menu, load_stock
+from app.menu.importer import load_images, load_menu, load_stock
 from app.settings.config import get_config
 from app.settings.models import Business, BusinessSettings
 from app.staff.models import Role, Staff
@@ -114,6 +117,8 @@ def main(argv: list[str] | None = None) -> None:
     menu.add_argument("file")
     stock = commands.add_parser("load-stock", help="Add stock items and recipes to the menu already loaded")
     stock.add_argument("file")
+    images = commands.add_parser("load-images", help="Pictures for items without one, from files named after them")
+    images.add_argument("folder")
     device = commands.add_parser("register-device", help="Cloud: allow a counter to upload for a business")
     device.add_argument("--business-id", required=True, type=uuid.UUID)
     device.add_argument("--name", default="Counter")
@@ -132,6 +137,14 @@ def main(argv: list[str] | None = None) -> None:
         return
     if config.mode != "local":
         raise SystemExit("These commands run on the counter (FAIDA_MODE=local).")
+    if args.command == "load-images":
+        with Session(create_engine(config.database_url), expire_on_commit=False) as db:
+            business_id = db.scalar(select(Business.id))
+            if business_id is None:
+                raise SystemExit("Run init-business first.")
+            n = load_images(db, business_id, args.folder, Path(config.state_dir) / "images")
+        print(f"Added {n} pictures.", file=sys.stderr)
+        return
     if args.command in ("load-menu", "load-stock"):
         with open(args.file, encoding="utf-8") as f:
             data = json.load(f)

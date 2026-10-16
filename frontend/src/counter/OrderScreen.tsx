@@ -221,6 +221,7 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
   const countFor = (item: MenuItem) => item.options.reduce((s, o) => s + (inRound.get(o.id) ?? 0), 0);
   const colorOf = new Map(menu.categories.map((c, i) => [c.id, categoryColor(i)]));
   const categoryOf = new Map(menu.categories.flatMap((c) => c.items.map((i) => [i.id, c.id] as const)));
+  const iconOf = new Map(menu.categories.map((c) => [c.id, categoryIcon(c.name)]));
   const ticketStatus = new Map(bill.tickets.map((t) => [t.id, t.status]));
 
   return (
@@ -275,6 +276,7 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
           {items.map((item) => {
             const n = countFor(item);
             const Station = item.station === "kitchen" ? ChefHat : GlassWater;
+            const Watermark = iconOf.get(categoryOf.get(item.id) ?? "");
             return (
               <button
                 key={item.id}
@@ -282,7 +284,11 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
                 style={{ "--c": colorOf.get(categoryOf.get(item.id) ?? "") ?? "var(--cat-other)" } as React.CSSProperties}
                 onClick={() => tapItem(item)}
               >
-                {item.image && <img className="item-image" src={item.image} alt="" loading="lazy" />}
+                {item.image ? (
+                  <img className="item-image" src={item.image} alt="" loading="lazy" draggable={false} />
+                ) : (
+                  Watermark && <Watermark className="item-watermark" size={76} strokeWidth={1.5} aria-hidden />
+                )}
                 {n > 0 && <span className="item-badge">{n}</span>}
                 {!item.available && <span className="sold-out-tag">SOLD OUT</span>}
                 <span className="item-name">{item.name}</span>
