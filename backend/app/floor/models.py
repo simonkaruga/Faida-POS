@@ -1,6 +1,7 @@
 import enum
 import uuid
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import (
     Boolean,
@@ -11,6 +12,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base, Record, str_enum
@@ -21,6 +23,7 @@ class Table(Record, Base):
     __tablename__ = "tables"
 
     name: Mapped[str] = mapped_column(String(30))
+    section: Mapped[str] = mapped_column(String(30), default="Main")  # Indoor, Garden, VIP...
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
@@ -39,6 +42,16 @@ class VoidReason(enum.StrEnum):
     already_prepared = "already_prepared"  # recorded as waste
 
 
+class CompReason(enum.StrEnum):
+    """Why something was given free. It still comes out of stock, and shows in closing."""
+
+    house = "house"  # on the house
+    staff_drink = "staff_drink"
+    owner_guest = "owner_guest"
+    complaint = "complaint"
+    promotion = "promotion"
+
+
 class DiscountKind(enum.StrEnum):
     amount = "amount"
     percent = "percent"
@@ -51,6 +64,7 @@ class Bill(Record, Base):
     __table_args__ = (UniqueConstraint("business_id", "number", name="uq_bills_number"),)
 
     number: Mapped[int] = mapped_column(Integer)  # shown as #0142
+    section: Mapped[str] = mapped_column(String(30), default="Main")  # where it was sold, for reports
     table_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tables.id"))
     tab_name: Mapped[str | None] = mapped_column(String(40))
     waiter_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("staff.id"), index=True)
@@ -93,6 +107,17 @@ class BillLine(Record, Base):
     voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     voided_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("staff.id"))
     void_reason: Mapped[VoidReason | None] = mapped_column(str_enum(VoidReason, "void_reason"))
+    # Choices made when ordering: [{"group": "Mixer", "label": "Coke", "price": 0, "id": ...}]
+    modifiers: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    # Happy hour: the menu price before the offer, and the offer's name.
+    list_price: Mapped[int | None] = mapped_column(Integer)
+    price_rule: Mapped[str | None] = mapped_column(String(40))
+    # Given free (comp): the line no longer counts towards the bill.
+    comp_reason: Mapped[CompReason | None] = mapped_column(str_enum(CompReason, "comp_reason"))
+    comped_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("staff.id"))
+    comped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # A part of a combo: free on its own line, charged in the combo's line.
+    combo_parent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("bill_lines.id"))
 
 
 class BillHandover(Record, Base):

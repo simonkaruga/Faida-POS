@@ -1,6 +1,6 @@
 """The printed layouts (masterplan 9.5). Each returns a document (see document.py)."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from app.printing.document import Row, cols, rule, text
@@ -21,6 +21,7 @@ class ItemRow:
     name: str
     note: str | None
     amount: int  # quantity x unit price
+    extras: list[str] = field(default_factory=list)  # modifiers, happy hour, "On the house"
 
 
 @dataclass
@@ -52,6 +53,8 @@ def _station_ticket(title: str, h: Header, number: int, items: list[ItemRow], bi
     ]
     for item in items:
         doc.append(text(f"{item.quantity} x {item.name}", size=2 if big_items else 1, bold=True))
+        for extra in item.extras:
+            doc.append(text(f"   {extra}", size=2 if big_items else 1, bold=True))
         if item.note:
             doc.append(text(f"   >> {item.note}", size=2 if big_items else 1))
     return doc
@@ -69,6 +72,8 @@ def _items(items: list[ItemRow]) -> list[Row]:
     doc = []
     for item in items:
         doc.append(cols(f"{item.quantity} x {item.name}", ksh(item.amount)))
+        for extra in item.extras:
+            doc.append(text(f"    {extra}"))
         if item.note:
             doc.append(text(f"    {item.note}"))
     return doc
@@ -133,6 +138,7 @@ def handover_slip(
         rule(),
         cols(f"Total sales ({cash['bills']} bill{'' if cash['bills'] == 1 else 's'})", ksh(cash["total_sales"])),
         cols("- Paid by M-Pesa", ksh(cash["mpesa"])),
+        cols("- Paid by card", ksh(cash.get("card", 0))),
         cols("- Approved credit", ksh(cash["credit"])),
     ]
     if cash["cash_taken_by_others"]:

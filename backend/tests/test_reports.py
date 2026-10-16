@@ -76,7 +76,7 @@ def test_daily_closing(client, owner, people, opts, db):
     live = client.get("/api/closing", headers=sam).json()
     report = live["report"]
     assert not live["closed"] and "profit" not in report and report["stock"]["value"] is None
-    assert report["sales"] == {"bills": 2, "total": 450, "cash": 200, "mpesa": 250, "credit": 0, "unpaid": 0,
+    assert report["sales"] == {"bills": 2, "total": 450, "cash": 200, "mpesa": 250, "card": 0, "credit": 0, "unpaid": 0,
                                "discounts": 0, "tips": 0, "average_bill": 225}
     assert report["voids"] == [{"bill": bill["number"], "item": "Tusker", "price": 300, "reason": "not_prepared",
                                 "asked_by": "Jane", "approved_by": "Sam", "at": report["voids"][0]["at"]}]

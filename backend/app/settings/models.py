@@ -46,6 +46,8 @@ class BusinessSettings(Record, Base):
     receipt_footer: Mapped[str] = mapped_column(String(200), default="Thank you, karibu tena!")
     # Quick-pick buttons for kitchen notes (4.1); free text is always allowed too.
     note_presets: Mapped[list[str]] = mapped_column(JSONB, default=lambda: list(DEFAULT_NOTES))
+    tab_section: Mapped[str] = mapped_column(String(30), default="Bar")  # the section tabs and quick sales count in
+    report_emails: Mapped[list[str]] = mapped_column(JSONB, default=list)  # the daily closing is emailed here
 
 
 DEFAULT_NOTES = ("Well done", "Medium", "No onions", "No chilli", "Extra hot", "Takeaway")

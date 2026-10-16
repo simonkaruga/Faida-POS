@@ -1,16 +1,18 @@
 from datetime import date, datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.audit import service as audit
 from app.auth.deps import Actor, Db, require
 from app.auth.permissions import Action, Level, level
+from app.reports import export, mailer
 from app.reports import service as reports
 from app.reports.models import DailyClosing
-from app.settings.service import today
+from app.settings.models import Business
+from app.settings.service import get_settings, today
 from app.staff.models import Staff
 
 router = APIRouter(tags=["reports"])
@@ -85,6 +87,9 @@ def close_day(body: CloseDayIn, actor: Closer, request: Request, db: Db) -> Clos
                            report=report)
     db.add(closing)
     db.flush()
+    business = db.get(Business, actor.business_id).name
+    mailer.queue_closing(db, request.app.state.config, business, get_settings(db, actor.business_id).report_emails,
+                         report, export.closing_workbook(business, report))
     audit.record(db, business_id=actor.business_id, actor_id=actor.staff.id, action="day.closed",
                  entity_type="daily_closing", entity_id=closing.id,
                  details={"day": body.day.isoformat(), "sales": report["sales"]["total"],
@@ -105,6 +110,7 @@ class ReportOut(BaseModel):
     debtors: list[dict]
     stock: dict
     voids: dict
+    comps: dict
     credit_collected: dict
 
 
@@ -122,5 +128,31 @@ def report(
         breakdown=reports.breakdown(db, bid, p, request.app.state.tz), expenses=reports.expenses(db, bid, p),
         shortages=reports.shortage_history(db, bid, p), variance=reports.variance_history(db, bid, p, money=True),
         debtors=reports.debtors(db, bid), stock=reports.stock_status(db, bid, money=True),
-        voids=reports.voids_and_discounts(db, bid, p), credit_collected=reports.credit_collected(db, bid, p),
+        voids=reports.voids_and_discounts(db, bid, p), comps=reports.comps(db, bid, p),
+        credit_collected=reports.credit_collected(db, bid, p),
     )
+
+
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _download(data: bytes, name: str) -> Response:
+    return Response(data, media_type=XLSX, headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@router.get("/closing/export")
+def export_closing(actor: Closer, request: Request, db: Db, day: date | None = None) -> Response:
+    """The daily closing as an Excel file (a supervisor's copy has no profit or values)."""
+    closing = get_closing(actor, request, db, day)
+    business = db.get(Business, actor.business_id).name
+    return _download(export.closing_workbook(business, closing.report), f"closing-{closing.day}.xlsx")
+
+
+@router.get("/reports/export")
+def export_report(
+    actor: Owner, request: Request, db: Db,
+    start: Annotated[date, Query()], end: Annotated[date, Query()],
+) -> Response:
+    r = report(actor, request, db, start, end)
+    business = db.get(Business, actor.business_id).name
+    return _download(export.report_workbook(business, r.model_dump(mode="json")), f"report-{start}-to-{end}.xlsx")

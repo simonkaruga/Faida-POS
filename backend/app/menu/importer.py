@@ -6,6 +6,7 @@ with a "label" and "price". "uses" says what one sale takes from stock: a "quant
 the stock item's unit (bottles, ml, g, pieces), or "tots" of a spirit."""
 
 import uuid
+from datetime import time
 from decimal import Decimal
 from typing import Annotated
 
@@ -15,7 +16,9 @@ from sqlalchemy.orm import Session
 
 from app.audit import service as audit
 from app.floor.models import Table
-from app.menu.models import Category, MenuItem, SellOption, Station
+from app.menu.models import (
+    Category, ComboComponent, ItemModifierGroup, MenuItem, ModifierGroup, ModifierOption, PriceRule, SellOption, Station,
+)
 from app.settings.service import get_settings
 from app.stock.models import RecipeLine, StockItem, StockUnit
 from app.stock.service import factor
@@ -35,6 +38,12 @@ class OptionFile(BaseModel):
     uses: list[UseFile] = []
 
 
+class ComboPartFile(BaseModel):
+    item: str
+    option: str = ""
+    quantity: int = 1
+
+
 class ItemFile(BaseModel):
     name: str
     station: Station
@@ -42,12 +51,42 @@ class ItemFile(BaseModel):
     price: Price | None = None
     uses: list[UseFile] = []
     options: list[OptionFile] | None = None
+    modifier_groups: list[str] = []
+    combo: list[ComboPartFile] = []
 
     @model_validator(mode="after")
     def price_or_options(self):
         if (self.price is None) == (not self.options):
             raise ValueError(f"{self.name}: give either a price or a list of options")
         return self
+
+
+class ModifierOptionFile(BaseModel):
+    label: str
+    price: Price = 0
+    stock: str | None = None
+    quantity: Decimal | None = None
+
+
+class ModifierGroupFile(BaseModel):
+    name: str
+    min: int = 0
+    max: int = 1
+    options: list[ModifierOptionFile]
+
+
+class PriceRuleFile(BaseModel):
+    name: str = "Happy hour"
+    percent_off: int
+    days: list[int] = [0, 1, 2, 3, 4, 5, 6]
+    start: time
+    end: time
+    categories: list[str] = []
+
+
+class TableFile(BaseModel):
+    name: str
+    section: str = "Main"
 
 
 class CategoryFile(BaseModel):
@@ -67,10 +106,13 @@ class StockFile(BaseModel):
 
 
 class MenuFile(BaseModel):
-    tables: list[str] = []
+    tables: list[str | TableFile] = []
+    tab_section: str | None = None
     note_presets: list[str] | None = None
     tot_size_ml: int | None = None
     stock: list[StockFile] = []
+    modifier_groups: list[ModifierGroupFile] = []
+    price_rules: list[PriceRuleFile] = []
     categories: list[CategoryFile]
 
 
@@ -96,29 +138,67 @@ def load_menu(db: Session, business_id: uuid.UUID, data: dict) -> dict[str, int]
             db.add(RecipeLine(business_id=business_id, sell_option_id=option_id, stock_item_id=stock_items[u.stock].id,
                               quantity=u.tots if u.tots is not None else u.quantity, in_tots=u.tots is not None))
 
-    for order, name in enumerate(menu.tables):
-        db.add(Table(business_id=business_id, name=name, sort_order=order))
+    for order, t in enumerate(menu.tables):
+        t = t if isinstance(t, TableFile) else TableFile(name=t)
+        db.add(Table(business_id=business_id, name=t.name, section=t.section, sort_order=order))
         counts["tables"] += 1
+    groups: dict[str, ModifierGroup] = {}
+    for g in menu.modifier_groups:
+        group = ModifierGroup(id=uuid.uuid4(), business_id=business_id, name=g.name, min_select=g.min, max_select=g.max)
+        db.add(group)
+        groups[g.name] = group
+        for order, o in enumerate(g.options):
+            if o.stock and o.stock not in stock_items:
+                raise SystemExit(f"Unknown stock item {o.stock!r}")
+            db.add(ModifierOption(business_id=business_id, group_id=group.id, label=o.label, price=o.price, sort_order=order,
+                                  stock_item_id=stock_items[o.stock].id if o.stock else None, stock_quantity=o.quantity))
+    db.flush()
+    option_ids: dict[tuple[str, str], uuid.UUID] = {}
+    combos: list[tuple[uuid.UUID, list[ComboPartFile]]] = []
+    links: list[ItemModifierGroup] = []  # added once the items they point to are saved
+    category_ids: dict[str, uuid.UUID] = {}
     for c_order, cat in enumerate(menu.categories):
         category = Category(id=uuid.uuid4(), business_id=business_id, name=cat.name, sort_order=c_order)
         db.add(category)
+        category_ids[cat.name] = category.id
         counts["categories"] += 1
         for i_order, it in enumerate(cat.items):
             item = MenuItem(id=uuid.uuid4(), business_id=business_id, category_id=category.id, name=it.name,
-                            station=it.station, favourite=it.favourite, sort_order=i_order)
+                            station=it.station, favourite=it.favourite, sort_order=i_order, is_combo=bool(it.combo))
             db.add(item)
             counts["items"] += 1
+            for g_order, name in enumerate(it.modifier_groups):
+                if name not in groups:
+                    raise SystemExit(f"Unknown modifier group {name!r}")
+                links.append(ItemModifierGroup(business_id=business_id, menu_item_id=item.id, group_id=groups[name].id,
+                                               sort_order=g_order))
+            if it.combo:
+                combos.append((item.id, it.combo))
             options = it.options or [OptionFile(label="", price=it.price, uses=it.uses)]
             for o_order, opt in enumerate(options):
                 option = SellOption(id=uuid.uuid4(), business_id=business_id, menu_item_id=item.id, label=opt.label,
                                     price=opt.price, sort_order=o_order)
                 db.add(option)
+                option_ids[(it.name, opt.label)] = option.id
                 uses(option.id, opt.uses)
+    db.flush()
+    db.add_all(links)
+    for combo_id, parts in combos:
+        for part in parts:
+            if (part.item, part.option) not in option_ids:
+                raise SystemExit(f"Unknown combo part {part.item!r} {part.option!r}")
+            db.add(ComboComponent(business_id=business_id, combo_item_id=combo_id,
+                                  sell_option_id=option_ids[(part.item, part.option)], quantity=part.quantity))
+    for r in menu.price_rules:
+        db.add(PriceRule(business_id=business_id, name=r.name, percent_off=r.percent_off, days=r.days,
+                         start_time=r.start, end_time=r.end, category_ids=[str(category_ids[c]) for c in r.categories]))
     settings = get_settings(db, business_id)
     if menu.note_presets is not None:
         settings.note_presets = menu.note_presets
     if menu.tot_size_ml:
         settings.tot_size_ml = menu.tot_size_ml
+    if menu.tab_section:
+        settings.tab_section = menu.tab_section
     audit.record(db, business_id=business_id, actor_id=None, action="menu.loaded", details=counts)
     db.commit()
     return counts

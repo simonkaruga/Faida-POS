@@ -20,6 +20,8 @@ class Action(enum.StrEnum):
     discount = "discount"
     reprint_receipt = "reprint_receipt"
     cancel_paid_bill = "cancel_paid_bill"
+    comp_item = "comp_item"  # give an item free: on the house, staff drink, owner's guest
+    mark_sold_out = "mark_sold_out"  # "86" an item tonight
     mpesa_duplicate_override = "mpesa_duplicate_override"  # 4.3
     approve_credit = "approve_credit"
     mark_unpaid_responsible = "mark_unpaid_responsible"
@@ -63,6 +65,8 @@ MATRIX: dict[Action, dict[Role, Level]] = {
     Action.discount:                 {O: A, S: A,   W: APP},
     Action.reprint_receipt:          {O: A, S: A,   W: APP},
     Action.cancel_paid_bill:         {O: A, S: A,   W: APP},
+    Action.comp_item:                {O: A, S: A,   W: APP},
+    Action.mark_sold_out:            {O: A, S: A,   W: X},
     Action.mpesa_duplicate_override: {O: A, S: A,   W: APP},
     # Supervisors approve only within the customer's limit (checked in credit/).
     Action.approve_credit:           {O: A, S: A,   W: APP},

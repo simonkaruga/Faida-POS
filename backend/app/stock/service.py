@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.floor.models import BillLine, VoidReason
+from app.menu.models import ModifierOption
 from app.stock.models import MovementKind, RecipeLine, StockItem, StockMovement, StockUnit
 
 
@@ -52,6 +53,11 @@ def move(
 def record_sale(db: Session, lines: Iterable[BillLine], *, tot_size: int | None, actor_id: uuid.UUID, day: date) -> None:
     """Take each sent line's recipe out of stock. Options with no recipe aren't tracked."""
     lines = list(lines)
+    modifier_ids = {uuid.UUID(m["id"]) for l in lines for m in (l.modifiers or [])}
+    modifier_stock = {
+        m.id: m for m in db.scalars(select(ModifierOption).where(ModifierOption.id.in_(modifier_ids),
+                                                                 ModifierOption.stock_item_id.is_not(None)))
+    } if modifier_ids else {}
     recipes: dict[uuid.UUID, list[RecipeLine]] = {}
     for r in db.scalars(select(RecipeLine).where(RecipeLine.sell_option_id.in_({l.sell_option_id for l in lines}))):
         recipes.setdefault(r.sell_option_id, []).append(r)
@@ -62,6 +68,12 @@ def record_sale(db: Session, lines: Iterable[BillLine], *, tot_size: int | None,
             quantity = r.quantity * (tot_size or 0) if r.in_tots else r.quantity
             move(db, item, MovementKind.sale, -quantity, actor_id=actor_id, day=day, reference_id=line.id,
                  note=line.item_name if not line.option_label else f"{line.item_name} - {line.option_label}")
+        for m in line.modifiers or []:
+            option = modifier_stock.get(uuid.UUID(m["id"]))
+            if option:
+                item = items.get(option.stock_item_id) or items.setdefault(option.stock_item_id, db.get(StockItem, option.stock_item_id))
+                move(db, item, MovementKind.sale, -(option.stock_quantity or 1), actor_id=actor_id, day=day,
+                     reference_id=line.id, note=f"{line.item_name} + {option.label}")
 
 
 def reverse_sale(db: Session, line: BillLine, reason: VoidReason, *, actor_id: uuid.UUID, day: date, note: str) -> None:

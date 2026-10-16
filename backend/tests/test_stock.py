@@ -206,8 +206,10 @@ def test_load_stock_onto_an_existing_menu(client, owner, db, business):
 
     with open(SAMPLE_MENU, encoding="utf-8") as f:
         data = json.load(f)
-    load_menu(db, business.id, {**data, "stock": [], "tot_size_ml": None,
-                                "categories": [{**c, "items": [{**i, "uses": [], "options": [{**o, "uses": []} for o in i["options"]] if "options" in i else None} for i in c["items"]]} for c in data["categories"]]})
+    no_stock = [{**c, "items": [{**i, "uses": [], "modifier_groups": [],
+                                 "options": [{**o, "uses": []} for o in i["options"]] if "options" in i else None}
+                                for i in c["items"]]} for c in data["categories"]]
+    load_menu(db, business.id, {**data, "stock": [], "tot_size_ml": None, "modifier_groups": [], "categories": no_stock})
     assert client.get("/api/stock", headers=owner).json() == []
     counts = load_stock(db, business.id, data)
     assert counts == {"stock_items": 24, "recipes": 25}

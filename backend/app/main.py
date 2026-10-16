@@ -31,6 +31,7 @@ from app.printing.models import PrinterName
 from app.printing.printers import Printer, make_printer
 from app.printing.router import router as printing_router
 from app.printing.service import PrintService
+from app.reports.mailer import MailWorker
 from app.reports.phone import router as phone_router
 from app.reports.router import router as reports_router
 from app.settings.config import VERSION, Config, get_config
@@ -63,9 +64,12 @@ def create_app(
     async def lifespan(app: FastAPI):
         if app.state.sync and start_sync:
             app.state.sync.start(config.sync_interval_seconds)
+        if local and config.smtp_host and start_sync:
+            app.state.mail.start()
         yield
         if app.state.sync:
             app.state.sync.stop()
+        app.state.mail.stop()
         app.state.printing.shutdown()
 
     app = FastAPI(title="Faida POS", version=VERSION, lifespan=lifespan)
@@ -83,6 +87,7 @@ def create_app(
         PrinterName.counter: make_printer(config.counter_printer if local else "none", "counter"),
         PrinterName.kitchen: make_printer(config.kitchen_printer if local else "none", "kitchen"),
     })
+    app.state.mail = MailWorker(app.state.sessionmaker, config)
     app.state.sync = (
         SyncClient(app.state.sessionmaker, config.cloud_url, config.cloud_token, transport=sync_transport,
                    backup_status=lambda: backup.read_status(config))

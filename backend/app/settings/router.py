@@ -23,6 +23,8 @@ class SettingsOut(BaseModel):
     mpesa_till_number: str | None
     receipt_footer: str
     note_presets: list[str]
+    tab_section: str
+    report_emails: list[str]
 
 
 class SettingsPatch(BaseModel):
@@ -34,6 +36,10 @@ class SettingsPatch(BaseModel):
     receipt_footer: str | None = Field(default=None, max_length=200)
     note_presets: list[Annotated[str, Field(min_length=1, max_length=40)]] | None = Field(
         default=None, max_length=24
+    )
+    tab_section: Annotated[str, Field(min_length=1, max_length=30)] | None = None
+    report_emails: list[Annotated[str, Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", max_length=120)]] | None = Field(
+        default=None, max_length=5
     )
 
 

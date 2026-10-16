@@ -39,6 +39,7 @@ class PaymentIn(BaseModel):
     tendered: Amount | None = None  # cash handed over; defaults to the amount
     tip: Annotated[int, Field(ge=0, le=1_000_000)] = 0  # M-Pesa only
     mpesa_code: Annotated[str, Field(max_length=12)] | None = None
+    card_ref: Annotated[str, Field(max_length=12)] | None = None  # last 4 of the card slip's reference
     # A repeated M-Pesa code: waiters need an approval; owners and supervisors confirm.
     approval_id: uuid.UUID | None = None
     confirm_duplicate: bool = False
@@ -83,8 +84,15 @@ def take_payment(bill_id: uuid.UUID, body: PaymentIn, actor: CurrentActor, reque
         raise HTTPException(status.HTTP_409_CONFLICT, f"Only {total - paid:,} is left to pay.")
 
     settings = get_settings(db, actor.business_id)
-    tendered, ref, approval, duplicate = None, None, None, None
-    if body.method is Method.cash:
+    tendered, ref, card_ref, approval, duplicate = None, None, None, None, None
+    if body.method is Method.card:
+        if body.tip:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Tips are recorded only for M-Pesa.")
+        card_ref = (body.card_ref or "").strip().upper()
+        if not re.fullmatch(r"[A-Z0-9]{4,12}", card_ref):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                "Enter the last 4 characters of the card slip's reference.")
+    elif body.method is Method.cash:
         if body.tip:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Tips are recorded only for M-Pesa.")
         tendered = body.tendered if body.tendered is not None else body.amount
@@ -106,7 +114,7 @@ def take_payment(bill_id: uuid.UUID, body: PaymentIn, actor: CurrentActor, reque
     tz = request.app.state.tz
     payment = Payment(
         business_id=actor.business_id, created_by=actor.staff.id, bill_id=bill.id, method=body.method,
-        amount=body.amount, tendered=tendered, tip=body.tip, mpesa_ref=ref,
+        amount=body.amount, tendered=tendered, tip=body.tip, mpesa_ref=ref, card_ref=card_ref,
         business_day=today(db, actor.business_id, tz),
         shift_id=current_shift(db, actor.business_id, actor.staff.id, tz).id,
     )
@@ -137,8 +145,8 @@ def make_receipt(db: Db, actor: Actor, bill: Bill, printing: Printing, footer: s
     payments = db.scalars(select(Payment).where(Payment.bill_id == bill.id, Payment.reversed_at.is_(None))
                           .order_by(Payment.created_at))
     rows = [
-        layouts.PaymentRow(label="Cash", amount=p.amount, tendered=p.tendered)
-        if p.method is Method.cash
+        layouts.PaymentRow(label="Cash", amount=p.amount, tendered=p.tendered) if p.method is Method.cash
+        else layouts.PaymentRow(label=f"Card ref {p.card_ref}", amount=p.amount) if p.method is Method.card
         else layouts.PaymentRow(label=f"M-Pesa {p.mpesa_ref or ''}".strip(), amount=p.amount, tip=p.tip)
         for p in payments
     ]
@@ -147,7 +155,7 @@ def make_receipt(db: Db, actor: Actor, bill: Bill, printing: Printing, footer: s
         rows.append(layouts.PaymentRow(label=f"On credit: {customer.name}", amount=bill.credit_amount))
     a = amounts(db, bill)
     number = next_number(db, actor.business_id, "receipt")
-    content = layouts.receipt(printing.header(db, bill, now()), number, group_items(lines),
+    content = layouts.receipt(printing.header(db, bill, now()), number, group_items(lines, for_customer=True),
                               a.gross, a.discount, rows, footer)
     return printing.new_ticket(db, actor, bill, TicketKind.receipt, PrinterName.counter, content,
                                number, copies=[None, "COUNTER COPY"])

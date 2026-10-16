@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.credit.models import CreditCustomer
-from app.floor.models import Bill, BillStatus, DiscountKind, VoidReason
+from app.floor.models import Bill, BillStatus, CompReason, DiscountKind, VoidReason
 from app.floor.service import amounts, bill_lines, place
 from app.menu.models import Station
 from app.payments.models import Method, Payment
@@ -30,6 +30,11 @@ class LineOut(BaseModel):
     ticket_id: uuid.UUID
     voided: bool
     void_reason: VoidReason | None
+    modifiers: list[dict]
+    list_price: int | None
+    price_rule: str | None
+    comp_reason: CompReason | None
+    combo_parent_id: uuid.UUID | None
 
 
 class TicketOut(BaseModel):
@@ -50,6 +55,7 @@ class PaymentOut(BaseModel):
     tendered: int | None
     tip: int
     mpesa_ref: str | None
+    card_ref: str | None
     created_at: datetime
     taken_by: str
     reversed: bool
@@ -61,6 +67,7 @@ class BillOut(BaseModel):
     place: str
     table_id: uuid.UUID | None
     tab_name: str | None
+    section: str
     waiter: Person
     status: BillStatus
     business_day: date
@@ -94,20 +101,22 @@ def bill_detail(db: Session, bill: Bill) -> BillOut:
     )
     return BillOut(
         id=bill.id, number=bill.number, place=place(db, bill), table_id=bill.table_id,
-        tab_name=bill.tab_name, waiter=Person(id=waiter.id, name=waiter.name), status=bill.status,
+        tab_name=bill.tab_name, section=bill.section, waiter=Person(id=waiter.id, name=waiter.name), status=bill.status,
         business_day=bill.business_day, opened_at=bill.created_at,
         lines=[
             LineOut(
                 id=l.id, item_name=l.item_name, option_label=l.option_label, station=l.station,
                 unit_price=l.unit_price, note=l.note, sent_at=l.created_at, ticket_id=l.ticket_id,
-                voided=l.voided_at is not None, void_reason=l.void_reason,
+                voided=l.voided_at is not None, void_reason=l.void_reason, modifiers=l.modifiers or [],
+                list_price=l.list_price, price_rule=l.price_rule, comp_reason=l.comp_reason,
+                combo_parent_id=l.combo_parent_id,
             )
             for l in bill_lines(db, bill)
         ],
         tickets=[TicketOut.model_validate(t, from_attributes=True) for t in tickets],
         payments=[
             PaymentOut(id=p.id, method=p.method, amount=p.amount, tendered=p.tendered, tip=p.tip,
-                       mpesa_ref=p.mpesa_ref, created_at=p.created_at, taken_by=name,
+                       mpesa_ref=p.mpesa_ref, card_ref=p.card_ref, created_at=p.created_at, taken_by=name,
                        reversed=p.reversed_at is not None)
             for p, name in payments
         ],

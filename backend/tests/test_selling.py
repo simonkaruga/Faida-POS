@@ -62,7 +62,8 @@ def test_menu_lists_spirits_with_their_choices(client, waiter, menu):
     jw = next(i for i in cats["Spirits"]["items"] if i["name"] == "Johnnie Walker Red")
     assert [o["label"] for o in jw["options"]] == ["Single tot", "Double", "Bottle"]
     tusker = next(i for i in cats["Beers"]["items"] if i["name"] == "Tusker")
-    assert tusker["options"] == [{"id": tusker["options"][0]["id"], "label": "", "price": 300}]
+    (only,) = tusker["options"]
+    assert (only["label"], only["price"], only["offer_price"]) == ("", 300, None)
 
 
 def test_send_routes_drinks_to_bar_and_food_to_kitchen(round1, printers):

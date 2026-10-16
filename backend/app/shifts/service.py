@@ -54,6 +54,7 @@ class MpesaRow:
     tip: int
     ref: str | None
     at: datetime
+    method: str = "mpesa"
 
 
 @dataclass
@@ -61,6 +62,7 @@ class CashUp:
     bills: int
     total_sales: int  # every bill finished: paid, credit, or unpaid (responsible)
     mpesa: int  # M-Pesa bill amounts only, tips excluded
+    card: int  # paid on the card machine
     credit: int
     cash_taken_by_others: int  # cash someone else took on this person's bills
     cash_due_from_sales: int
@@ -69,7 +71,7 @@ class CashUp:
     float_amount: int
     mpesa_tips: int  # paid to the till, so taken out of the cash in hand
     cash_to_hand_over: int
-    mpesa_payments: list[MpesaRow] = field(default_factory=list)
+    mpesa_payments: list[MpesaRow] = field(default_factory=list)  # M-Pesa and card, to tick off
 
     def as_dict(self) -> dict:
         d = asdict(self)
@@ -103,15 +105,17 @@ def cash_up(db: Session, shift: Shift) -> CashUp:
             unpaid += a.balance
 
     mpesa = sum(p.amount for p in on_my_bills if p.method is Method.mpesa)
+    card = sum(p.amount for p in on_my_bills if p.method is Method.card)
     by_others = sum(p.amount for p in on_my_bills if p.method is Method.cash and p.shift_id not in (shift.id, None))
     for_others = sum(p.amount for p in taken_by_me if p.method is Method.cash and p.bill_id not in bill_ids)
     tips = sum(p.tip for p in taken_by_me)
 
-    cash_due = total_sales - mpesa - credit - by_others
+    cash_due = total_sales - mpesa - card - credit - by_others
     return CashUp(
         bills=len(bills),
         total_sales=total_sales,
         mpesa=mpesa,
+        card=card,
         credit=credit,
         cash_taken_by_others=by_others,
         cash_due_from_sales=cash_due,
@@ -121,8 +125,9 @@ def cash_up(db: Session, shift: Shift) -> CashUp:
         mpesa_tips=tips,
         cash_to_hand_over=cash_due + for_others + shift.float_amount - tips,
         mpesa_payments=[
-            MpesaRow(numbers[p.bill_id], p.amount, p.tip, p.mpesa_ref, p.created_at)
-            for p in on_my_bills if p.method is Method.mpesa
+            MpesaRow(numbers[p.bill_id], p.amount, p.tip, p.mpesa_ref if p.method is Method.mpesa else p.card_ref,
+                     p.created_at, p.method.value)
+            for p in on_my_bills if p.method is not Method.cash
         ],
     )
 

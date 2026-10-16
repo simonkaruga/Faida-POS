@@ -22,7 +22,7 @@ from app.expenses.models import Expense
 from app.floor.models import Bill, BillLine, BillStatus
 from app.floor.service import amounts, display_name, place
 from app.menu.models import Category, MenuItem, SellOption
-from app.payments.models import Method, Payment
+from app.payments.models import Payment
 from app.settings.service import get_settings
 from app.shifts.models import CashMovement, CashMovementKind, Handover, Shift, ShiftStatus, ShortageStatus
 from app.staff.models import Staff
@@ -49,9 +49,9 @@ def finished_bills(db: Session, bid: uuid.UUID, p: Period) -> list[Bill]:
 
 
 def sales(db: Session, bid: uuid.UUID, p: Period) -> dict:
-    """Sales and how they were paid. cash + mpesa + credit + unpaid = total."""
+    """Sales and how they were paid. cash + mpesa + card + credit + unpaid = total."""
     bills = finished_bills(db, bid, p)
-    out = dict(bills=len(bills), total=0, cash=0, mpesa=0, credit=0, unpaid=0, discounts=0, tips=0)
+    out = dict(bills=len(bills), total=0, cash=0, mpesa=0, card=0, credit=0, unpaid=0, discounts=0, tips=0)
     for bill in bills:
         a = amounts(db, bill)
         out["total"] += a.total
@@ -65,7 +65,7 @@ def sales(db: Session, bid: uuid.UUID, p: Period) -> dict:
             select(Payment.method, func.sum(Payment.amount), func.sum(Payment.tip))
             .where(Payment.bill_id.in_([b.id for b in bills]), Payment.reversed_at.is_(None)).group_by(Payment.method)
         ):
-            out["cash" if method is Method.cash else "mpesa"] += total
+            out[method.value] += total
             out["tips"] += tips
     out["average_bill"] = round(out["total"] / len(bills)) if bills else 0
     return out
@@ -110,6 +110,22 @@ def voids_and_discounts(db: Session, bid: uuid.UUID, p: Period) -> dict:
                                   reason=bill.cancel_reason.value, asked_by=asked, approved_by=approved))
     return dict(voids=voids, void_total=sum(v["price"] for v in voids), discounts=sorted(discounts, key=lambda d: d["bill"]),
                 discount_total=sum(d["amount"] for d in discounts), cancelled=sorted(cancelled, key=lambda c: c["bill"]))
+
+
+def comps(db: Session, bid: uuid.UUID, p: Period) -> dict:
+    """Items given free (on the house, staff drinks, owner's guests), at menu price."""
+    bills = {b.id: b for b in db.scalars(select(Bill).where(Bill.business_id == bid, Bill.business_day.between(p.start, p.end)))}
+    rows = []
+    for line in db.scalars(select(BillLine).where(BillLine.bill_id.in_(bills), BillLine.comp_reason.is_not(None),
+                                                  BillLine.voided_at.is_(None)).order_by(BillLine.comped_at)):
+        entry = db.scalar(select(AuditEntry).where(AuditEntry.action == "bill_line.comped", AuditEntry.entity_id == line.id))
+        asked, approved = _who(db, entry)
+        rows.append(dict(bill=bills[line.bill_id].number, item=display_name(line.item_name, line.option_label),
+                         reason=line.comp_reason.value, value=line.unit_price, asked_by=asked, approved_by=approved))
+    by_reason: dict[str, int] = defaultdict(int)
+    for r in rows:
+        by_reason[r["reason"]] += r["value"]
+    return dict(items=rows, total=sum(r["value"] for r in rows), by_reason=dict(by_reason))
 
 
 def stock_money(db: Session, bid: uuid.UUID, p: Period) -> dict:
@@ -163,6 +179,8 @@ def breakdown(db: Session, bid: uuid.UUID, p: Period, tz: ZoneInfo) -> dict:
     by_category: dict[str, int] = defaultdict(int)
     by_hour: dict[int, int] = defaultdict(int)
     by_waiter: dict[str, dict] = {}
+    by_section: dict[str, int] = defaultdict(int)
+    by_station: dict[str, int] = defaultdict(int)
     option_category = {
         o: c for o, c in db.execute(select(SellOption.id, Category.name).join(MenuItem, MenuItem.id == SellOption.menu_item_id)
                                     .join(Category, Category.id == MenuItem.category_id).where(SellOption.business_id == bid))
@@ -171,10 +189,14 @@ def breakdown(db: Session, bid: uuid.UUID, p: Period, tz: ZoneInfo) -> dict:
         name = _name(db, bill.waiter_id)
         w = by_waiter.setdefault(name, dict(waiter=name, bills=0, sales=0))
         w["bills"] += 1
-        w["sales"] += amounts(db, bill).total
+        total = amounts(db, bill).total
+        w["sales"] += total
+        by_section[bill.section] += total
     if bills:
-        for line in db.scalars(select(BillLine).where(BillLine.bill_id.in_([b.id for b in bills]), BillLine.voided_at.is_(None))):
+        for line in db.scalars(select(BillLine).where(BillLine.bill_id.in_([b.id for b in bills]), BillLine.voided_at.is_(None),
+                                                      BillLine.comp_reason.is_(None), BillLine.combo_parent_id.is_(None))):
             key = display_name(line.item_name, line.option_label)
+            by_station[line.station.value] += line.unit_price
             row = by_item.setdefault(key, dict(item=key, quantity=0, sales=0))
             row["quantity"] += 1
             row["sales"] += line.unit_price
@@ -189,6 +211,8 @@ def breakdown(db: Session, bid: uuid.UUID, p: Period, tz: ZoneInfo) -> dict:
         by_item=items,
         by_category=[dict(category=c, sales=v) for c, v in sorted(by_category.items(), key=lambda kv: -kv[1])],
         by_waiter=sorted(by_waiter.values(), key=lambda r: -r["sales"]),
+        by_section=[dict(section=k, sales=v) for k, v in sorted(by_section.items(), key=lambda kv: -kv[1])],
+        by_station=[dict(station=k, sales=v) for k, v in sorted(by_station.items(), key=lambda kv: -kv[1])],
         # In business-day order: a bar's night runs past midnight, so 23:00 comes before 00:00.
         by_hour=[dict(hour=h, sales=by_hour[h]) for h in sorted(by_hour, key=lambda h: (h - cutoff) % 24)],
         best=items[:5],
@@ -281,13 +305,13 @@ def cash_box(db: Session, bid: uuid.UUID, day: date) -> dict:
 
 
 def credit_collected(db: Session, bid: uuid.UUID, p: Period) -> dict:
-    out = dict(cash=0, mpesa=0)
+    out = dict(cash=0, mpesa=0, card=0)
     for method, total in db.execute(select(CreditCollection.method, func.sum(CreditCollection.amount))
                                     .where(CreditCollection.business_id == bid,
                                            CreditCollection.business_day.between(p.start, p.end))
                                     .group_by(CreditCollection.method)):
         out[method.value] = total
-    out["total"] = out["cash"] + out["mpesa"]
+    out["total"] = out["cash"] + out["mpesa"] + out["card"]
     return out
 
 
@@ -316,6 +340,8 @@ def closing_report(db: Session, bid: uuid.UUID, day: date, tz: ZoneInfo, money: 
         shortages=[s for s in shifts if s["difference"] < 0],
         overs=[s for s in shifts if s["difference"] > 0],
         **voids_and_discounts(db, bid, p),
+        comps=comps(db, bid, p),
+        sections=breakdown(db, bid, p, tz)["by_section"],
         unpaid_bills=unpaid,
         stock_variance=variance_history(db, bid, p, money),
         stock=stock_status(db, bid, money),

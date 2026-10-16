@@ -10,7 +10,8 @@ from app.db import Base, Record, str_enum
 
 class Method(enum.StrEnum):
     cash = "cash"
-    mpesa = "mpesa"
+    mpesa = "mpesa"  # to the business till, recorded by the code's last characters
+    card = "card"  # on the bank's card machine, recorded by the slip's reference
 
 
 class Payment(Record, Base):
@@ -31,6 +32,7 @@ class Payment(Record, Base):
     tip: Mapped[int] = mapped_column(Integer, default=0)
     # Last 4 characters of the M-Pesa code, or the full code, per the owner's setting.
     mpesa_ref: Mapped[str | None] = mapped_column(String(12))
+    card_ref: Mapped[str | None] = mapped_column(String(12))  # last 4 of the card slip's reference
     business_day: Mapped[date] = mapped_column(Date)
     # The shift of the person who took it: cash is in their hands until hand-over.
     shift_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shifts.id"), index=True)

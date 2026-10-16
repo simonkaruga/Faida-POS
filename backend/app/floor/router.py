@@ -11,12 +11,13 @@ from app.auth import service as auth
 from app.auth.deps import Actor, CurrentActor, Db, require
 from app.auth.permissions import Action, Level, level
 from app.db import now
-from app.floor.models import Bill, BillHandover, BillLine, BillStatus, DiscountKind, Table, VoidReason
+from app.floor.models import Bill, BillHandover, BillLine, BillStatus, CompReason, DiscountKind, Table, VoidReason
 from app.floor.schemas import BillOut, Person, bill_detail
 from app.floor.service import (
     Printing, amounts, bill_lines, group_items, load_bill, place, table_has_open_bill, totals,
 )
-from app.menu.models import MenuItem, SellOption, Station
+from app.menu import service as menu_service
+from app.menu.models import ComboComponent, ItemModifierGroup, MenuItem, ModifierGroup, ModifierOption, SellOption, Station
 from app.printing import layouts
 from app.printing.models import PrinterName, PrintStatus, Ticket, TicketKind
 from app.sequences import next_number
@@ -42,15 +43,20 @@ def _printing(request: Request) -> Printing:
 class TableOut(BaseModel):
     id: uuid.UUID
     name: str
+    section: str
+    sort_order: int = 0
+    active: bool = True
 
 
 class TableIn(BaseModel):
     name: Annotated[str, Field(min_length=1, max_length=30)]
+    section: Annotated[str, Field(min_length=1, max_length=30)] = "Main"
     sort_order: int = 0
 
 
 class TablePatch(BaseModel):
     name: Annotated[str, Field(min_length=1, max_length=30)] | None = None
+    section: Annotated[str, Field(min_length=1, max_length=30)] | None = None
     sort_order: int | None = None
     active: bool | None = None
 
@@ -63,7 +69,7 @@ def create_table(body: TableIn, actor: Owner, db: Db) -> TableOut:
     audit.record(db, business_id=actor.business_id, actor_id=actor.staff.id, action="table.created",
                  entity_type="table", entity_id=table.id, details={"name": table.name})
     db.commit()
-    return TableOut(id=table.id, name=table.name)
+    return TableOut.model_validate(table, from_attributes=True)
 
 
 @router.patch("/tables/{table_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -89,6 +95,7 @@ class FloorBill(BaseModel):
     id: uuid.UUID
     number: int
     place: str
+    section: str
     table_id: uuid.UUID | None
     tab_name: str | None
     waiter: Person
@@ -125,12 +132,12 @@ def floor(actor: CurrentActor, db: Db) -> FloorOut:
         ) is not None
         waiter = db.get(Staff, bill.waiter_id)
         bills.append(FloorBill(
-            id=bill.id, number=bill.number, place=place(db, bill), table_id=bill.table_id,
+            id=bill.id, number=bill.number, place=place(db, bill), section=bill.section, table_id=bill.table_id,
             tab_name=bill.tab_name, waiter=Person(id=waiter.id, name=waiter.name), mine=mine,
             opened_at=bill.created_at, total=total, balance=None if total is None else total - paid,
             not_printed=unprinted if visible else None,
         ))
-    return FloorOut(tables=[TableOut(id=t.id, name=t.name) for t in tables], bills=bills)
+    return FloorOut(tables=[TableOut.model_validate(t, from_attributes=True) for t in tables], bills=bills)
 
 
 # Bills
@@ -139,16 +146,18 @@ def floor(actor: CurrentActor, db: Db) -> FloorOut:
 class OpenBill(BaseModel):
     table_id: uuid.UUID | None = None
     tab_name: Annotated[str, Field(min_length=1, max_length=40)] | None = None
+    quick: bool = False  # a quick sale at the bar: no table, no customer name
 
     @model_validator(mode="after")
     def one_place(self):
-        if (self.table_id is None) == (self.tab_name is None):
-            raise ValueError("Give either a table or a tab name.")
+        if sum([self.table_id is not None, self.tab_name is not None, self.quick]) != 1:
+            raise ValueError("Give a table, a tab name, or a quick sale.")
         return self
 
 
 @router.post("/bills", status_code=status.HTTP_201_CREATED)
 def open_bill(body: OpenBill, actor: Annotated[Actor, Depends(require(Action.open_bill))], request: Request, db: Db) -> BillOut:
+    section = get_settings(db, actor.business_id).tab_section
     if body.table_id:
         table = db.get(Table, body.table_id)
         if table is None or table.business_id != actor.business_id or not table.active:
@@ -156,10 +165,12 @@ def open_bill(body: OpenBill, actor: Annotated[Actor, Depends(require(Action.ope
         if existing := table_has_open_bill(db, actor.business_id, table.id):
             owner = db.get(Staff, existing.waiter_id).name
             raise HTTPException(status.HTTP_409_CONFLICT, f"{table.name} already has an open bill ({owner}).")
+        section = table.section
+    number = next_number(db, actor.business_id, "bill")
     bill = Bill(
-        business_id=actor.business_id, created_by=actor.staff.id,
-        number=next_number(db, actor.business_id, "bill"),
-        table_id=body.table_id, tab_name=body.tab_name.strip() if body.tab_name else None,
+        business_id=actor.business_id, created_by=actor.staff.id, number=number, section=section,
+        table_id=body.table_id,
+        tab_name=f"Quick sale {number:04d}" if body.quick else body.tab_name.strip() if body.tab_name else None,
         waiter_id=actor.staff.id, business_day=today(db, actor.business_id, request.app.state.tz),
     )
     db.add(bill)
@@ -177,6 +188,7 @@ class RoundItem(BaseModel):
     sell_option_id: uuid.UUID
     quantity: Annotated[int, Field(ge=1, le=50)] = 1
     note: Annotated[str, Field(max_length=120)] | None = None
+    modifier_option_ids: list[uuid.UUID] = Field(default_factory=list, max_length=12)
 
 
 class SendIn(BaseModel):
@@ -187,51 +199,120 @@ class SendIn(BaseModel):
 def send(bill_id: uuid.UUID, body: SendIn, actor: CurrentActor, request: Request, db: Db) -> BillOut:
     """SEND a round: drinks print on a bar slip at the counter, food on a kitchen ticket.
 
-    Prices are taken from the menu now and fixed on the bill. The round is saved even
-    if a printer is down; its ticket then shows "Not printed".
+    Prices are taken from the menu now (with any happy hour running) and fixed on the
+    bill. Modifiers are checked against the item's groups. A combo is charged on its
+    own line and its parts are sent to their stations. The round is saved even if a
+    printer is down; its ticket then shows "Not printed".
     """
     bill = load_bill(db, actor, bill_id, Action.open_bill)
+    bid, tz, sent_at = actor.business_id, request.app.state.tz, now()
     options = {
         o.id: (o, i)
         for o, i in db.execute(
             select(SellOption, MenuItem).join(MenuItem, MenuItem.id == SellOption.menu_item_id)
             .where(SellOption.id.in_({it.sell_option_id for it in body.items}),
-                   SellOption.business_id == actor.business_id, SellOption.active, MenuItem.active)
+                   SellOption.business_id == bid, SellOption.active, MenuItem.active)
         )
     }
     if {it.sell_option_id for it in body.items} - options.keys():
         raise HTTPException(status.HTTP_409_CONFLICT, "An item is no longer on the menu. Refresh and try again.")
+    for _, item in options.values():
+        if not item.available:
+            raise HTTPException(status.HTTP_409_CONFLICT, f"{item.name} is sold out. Take it off the round.")
 
-    printing, sent_at = _printing(request), now()
+    chosen_ids = {m for it in body.items for m in it.modifier_option_ids}
+    modifiers = {
+        m.id: (m, g)
+        for m, g in db.execute(
+            select(ModifierOption, ModifierGroup).join(ModifierGroup, ModifierGroup.id == ModifierOption.group_id)
+            .where(ModifierOption.id.in_(chosen_ids), ModifierOption.business_id == bid,
+                   ModifierOption.active, ModifierGroup.active)
+        )
+    } if chosen_ids else {}
+    if chosen_ids - modifiers.keys():
+        raise HTTPException(status.HTTP_409_CONFLICT, "A choice is no longer available. Refresh and try again.")
+    item_ids = {i.id for _, i in options.values()}
+    groups_of: dict[uuid.UUID, list[ModifierGroup]] = {}
+    for link, group in db.execute(
+        select(ItemModifierGroup, ModifierGroup).join(ModifierGroup, ModifierGroup.id == ItemModifierGroup.group_id)
+        .where(ItemModifierGroup.menu_item_id.in_(item_ids), ModifierGroup.active)
+        .order_by(ItemModifierGroup.sort_order)
+    ):
+        groups_of.setdefault(link.menu_item_id, []).append(group)
+    parts_of: dict[uuid.UUID, list[tuple[SellOption, MenuItem, int]]] = {}
+    for comp, o, i in db.execute(
+        select(ComboComponent, SellOption, MenuItem).join(SellOption, SellOption.id == ComboComponent.sell_option_id)
+        .join(MenuItem, MenuItem.id == SellOption.menu_item_id)
+        .where(ComboComponent.combo_item_id.in_(item_ids))
+    ):
+        parts_of.setdefault(comp.combo_item_id, []).append((o, i, comp.quantity))
+
+    rules = menu_service.rules_on(db, bid, sent_at, tz)
+    parents: list[BillLine] = []  # charged combo lines: not printed at a station
+    lines: list[BillLine] = []  # everything that goes to a station
+    for it in body.items:
+        option, item = options[it.sell_option_id]
+        chosen = [modifiers[m] for m in it.modifier_option_ids]
+        allowed = {g.id: g for g in groups_of.get(item.id, [])}
+        for m, g in chosen:
+            if g.id not in allowed:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"{m.label} isn't a choice for {item.name}.")
+        for g in allowed.values():
+            count = sum(1 for _, cg in chosen if cg.id == g.id)
+            if count < g.min_select:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Choose {g.name.lower()} for {item.name}.")
+            if count > g.max_select:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    f"Choose at most {g.max_select} {g.name.lower()} for {item.name}.")
+        if item.is_combo and not parts_of.get(item.id):
+            raise HTTPException(status.HTTP_409_CONFLICT, f"The combo {item.name} has no parts set up.")
+        rule = menu_service.best_rule(rules, item.category_id)
+        mods = [{"id": str(m.id), "group": g.name, "label": m.label, "price": m.price} for m, g in chosen]
+        note = it.note.strip() if it.note and it.note.strip() else None
+        common = dict(business_id=bid, created_by=actor.staff.id, created_at=sent_at, bill_id=bill.id)
+        for _ in range(it.quantity):
+            line = BillLine(
+                id=uuid.uuid4(), sell_option_id=option.id, item_name=item.name, option_label=option.label,
+                station=item.station, unit_price=menu_service.offer_price(option.price, rule) + sum(m["price"] for m in mods),
+                list_price=option.price if rule else None, price_rule=rule.name if rule else None,
+                modifiers=mods, note=note, **common,
+            )
+            if not item.is_combo:
+                lines.append(line)
+                continue
+            parents.append(line)
+            for part, part_item, qty in parts_of[item.id]:
+                for _ in range(qty):
+                    lines.append(BillLine(
+                        sell_option_id=part.id, item_name=part_item.name, option_label=part.label,
+                        station=part_item.station, unit_price=0, modifiers=[], note=note,
+                        combo_parent_id=line.id, **common,
+                    ))
+
+    printing = _printing(request)
     header = printing.header(db, bill, sent_at)
-    tickets, sent = [], []
+    tickets = []
     for station, kind, printer, layout in (
         (Station.bar, TicketKind.bar_slip, PrinterName.counter, layouts.bar_slip),
         (Station.kitchen, TicketKind.kitchen_ticket, PrinterName.kitchen, layouts.kitchen_ticket),
     ):
-        items = [it for it in body.items if options[it.sell_option_id][1].station is station]
-        if not items:
+        at_station = [l for l in lines if l.station is station]
+        if not at_station:
             continue
-        number = next_number(db, actor.business_id, kind.value)
-        ticket = printing.new_ticket(db, actor, bill, kind, printer, content=[], number=number)
-        lines = []
-        for it in items:
-            option, item = options[it.sell_option_id]
-            note = it.note.strip() if it.note and it.note.strip() else None
-            for _ in range(it.quantity):
-                lines.append(BillLine(
-                    business_id=actor.business_id, created_by=actor.staff.id, created_at=sent_at,
-                    bill_id=bill.id, sell_option_id=option.id, item_name=item.name,
-                    option_label=option.label, station=station, unit_price=option.price,
-                    note=note, ticket_id=ticket.id,
-                ))
-        db.add_all(lines)
-        ticket.content = layout(header, number, group_items(lines))
+        number = next_number(db, bid, kind.value)
+        ticket = printing.new_ticket(db, actor, bill, kind, printer,
+                                     content=layout(header, number, group_items(at_station)), number=number)
+        for l in at_station:
+            l.ticket_id = ticket.id
         tickets.append(ticket)
-        sent.extend(lines)
+    for p in parents:  # a combo line belongs to the ticket of its first part
+        p.ticket_id = next(l.ticket_id for l in lines if l.combo_parent_id == p.id)
+    db.add_all(parents)
     db.flush()
-    stock.record_sale(db, sent, tot_size=get_settings(db, actor.business_id).tot_size_ml, actor_id=actor.staff.id,
-                      day=today(db, actor.business_id, request.app.state.tz))
+    db.add_all(lines)
+    db.flush()
+    stock.record_sale(db, lines, tot_size=get_settings(db, bid).tot_size_ml, actor_id=actor.staff.id,
+                      day=today(db, bid, tz))
     db.commit()
     request.app.state.printing.print_tickets(tickets)
     return bill_detail(db, bill)
@@ -246,7 +327,7 @@ def print_bill(bill_id: uuid.UUID, actor: CurrentActor, request: Request, db: Db
         raise HTTPException(status.HTTP_409_CONFLICT, "Nothing has been sent on this bill yet.")
     a = amounts(db, bill)
     printing = _printing(request)
-    content = layouts.bill(printing.header(db, bill, now()), group_items(lines), a.gross, a.discount, a.paid,
+    content = layouts.bill(printing.header(db, bill, now()), group_items(lines, for_customer=True), a.gross, a.discount, a.paid,
                            get_settings(db, actor.business_id).mpesa_till_number)
     ticket = printing.new_ticket(db, actor, bill, TicketKind.bill, PrinterName.counter, content, bill.number)
     db.commit()
@@ -269,16 +350,56 @@ def void_line(bill_id: uuid.UUID, line_id: uuid.UUID, body: VoidIn, actor: Curre
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found on this bill.")
     if line.voided_at:
         raise HTTPException(status.HTTP_409_CONFLICT, "This item was already removed.")
+    if line.combo_parent_id:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This is part of a combo. Remove the whole combo.")
     approval = auth.authorize(db, actor, Action.void_item, body.approval_id)
-    line.voided_at, line.voided_by, line.void_reason = now(), actor.staff.id, body.reason
+    parts = list(db.scalars(select(BillLine).where(BillLine.combo_parent_id == line.id)))
+    stamp = now()
+    for l in [line, *parts]:
+        l.voided_at, l.voided_by, l.void_reason = stamp, actor.staff.id, body.reason
     db.flush()
     if amounts(db, bill).balance < 0:
         db.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, "Payments already taken are more than the new total.")
-    stock.reverse_sale(db, line, body.reason, actor_id=actor.staff.id,
-                       day=today(db, actor.business_id, request.app.state.tz), note=f"Void, bill #{bill.number:04d}")
+    day = today(db, actor.business_id, request.app.state.tz)
+    for l in [line, *parts]:
+        stock.reverse_sale(db, l, body.reason, actor_id=actor.staff.id, day=day, note=f"Void, bill #{bill.number:04d}")
     audit.record(
         db, business_id=actor.business_id, actor_id=actor.staff.id, action="bill_line.voided",
+        entity_type="bill_line", entity_id=line.id, approval=approval,
+        details={"bill": bill.number, "item": line.item_name, "option": line.option_label,
+                 "price": line.unit_price, "reason": body.reason.value},
+    )
+    db.commit()
+    return bill_detail(db, bill)
+
+
+class CompIn(BaseModel):
+    reason: CompReason
+    approval_id: uuid.UUID | None = None
+
+
+@router.post("/bills/{bill_id}/lines/{line_id}/comp")
+def comp_line(bill_id: uuid.UUID, line_id: uuid.UUID, body: CompIn, actor: CurrentActor, db: Db) -> BillOut:
+    """Give an item free: on the house, a staff drink, the owner's guest. It still came out
+    of stock, so it stays on the bill at no charge and shows in the daily closing.
+    Waiters need an Owner or Supervisor PIN."""
+    bill = load_bill(db, actor, bill_id, Action.comp_item)
+    line = db.get(BillLine, line_id)
+    if line is None or line.bill_id != bill.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found on this bill.")
+    if line.voided_at or line.comp_reason:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This item was already removed or given free.")
+    if line.combo_parent_id:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This is part of a combo. Give the whole combo free.")
+    approval = auth.authorize(db, actor, Action.comp_item, body.approval_id)
+    line.comp_reason, line.comped_by, line.comped_at = body.reason, actor.staff.id, now()
+    db.flush()
+    if amounts(db, bill).balance < 0:
+        db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Payments already taken are more than the new total.")
+    audit.record(
+        db, business_id=actor.business_id, actor_id=actor.staff.id, action="bill_line.comped",
         entity_type="bill_line", entity_id=line.id, approval=approval,
         details={"bill": bill.number, "item": line.item_name, "option": line.option_label,
                  "price": line.unit_price, "reason": body.reason.value},
@@ -300,7 +421,7 @@ def move_bill(bill_id: uuid.UUID, body: MoveIn, actor: CurrentActor, db: Db) -> 
     if table_has_open_bill(db, actor.business_id, table.id):
         raise HTTPException(status.HTTP_409_CONFLICT, f"{table.name} already has an open bill.")
     before = place(db, bill)
-    bill.table_id, bill.tab_name = table.id, None
+    bill.table_id, bill.tab_name, bill.section = table.id, None, table.section
     audit.record(db, business_id=actor.business_id, actor_id=actor.staff.id, action="bill.moved",
                  entity_type="bill", entity_id=bill.id,
                  details={"bill": bill.number, "from": before, "to": table.name})
@@ -371,12 +492,13 @@ def split(bill_id: uuid.UUID, body: SplitIn, actor: CurrentActor, request: Reque
     chosen = set(body.line_ids)
     if not chosen <= lines.keys():
         raise HTTPException(status.HTTP_409_CONFLICT, "Some items are not on this bill.")
+    chosen |= {l.id for l in lines.values() if l.combo_parent_id in chosen}  # a combo moves with its parts
     if chosen == lines.keys():
         raise HTTPException(status.HTTP_409_CONFLICT, "Leave at least one item on this bill.")
     new = Bill(
         business_id=actor.business_id, created_by=actor.staff.id,
         number=next_number(db, actor.business_id, "bill"), table_id=bill.table_id,
-        tab_name=bill.tab_name, waiter_id=bill.waiter_id,
+        tab_name=bill.tab_name, waiter_id=bill.waiter_id, section=bill.section,
         business_day=today(db, actor.business_id, request.app.state.tz),
     )
     db.add(new)

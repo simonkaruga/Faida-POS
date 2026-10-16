@@ -53,7 +53,7 @@ def bill_lines(db: Session, bill: Bill) -> list[BillLine]:
 
 @dataclass
 class Amounts:
-    gross: int  # sum of items still on the bill
+    gross: int  # sum of items still on the bill (not voided, not given free)
     discount: int
     total: int  # gross - discount: what the customer owes, and the sale
     paid: int
@@ -76,7 +76,7 @@ def amounts(db: Session, bill: Bill) -> Amounts:
     """Voided lines don't count, reversed payments don't count, tips are not part of the bill."""
     gross = db.scalar(
         select(func.coalesce(func.sum(BillLine.unit_price), 0))
-        .where(BillLine.bill_id == bill.id, BillLine.voided_at.is_(None))
+        .where(BillLine.bill_id == bill.id, BillLine.voided_at.is_(None), BillLine.comp_reason.is_(None))
     )
     paid, tips = db.execute(
         select(func.coalesce(func.sum(Payment.amount), 0), func.coalesce(func.sum(Payment.tip), 0))
@@ -109,16 +109,41 @@ def table_has_open_bill(db: Session, business_id: uuid.UUID, table_id: uuid.UUID
     )
 
 
-def group_items(lines: list[BillLine]) -> list[layouts.ItemRow]:
-    """Identical lines (same item, option, price and note) print as one row: "2 x Tusker"."""
+COMP_LABEL = {
+    "house": "On the house",
+    "staff_drink": "Staff drink",
+    "owner_guest": "Owner's guest",
+    "complaint": "Complaint",
+    "promotion": "Promotion",
+}
+
+
+def charged(line: BillLine) -> int:
+    """What a line adds to the bill: nothing once voided or given free."""
+    return 0 if line.voided_at or line.comp_reason else line.unit_price
+
+
+def group_items(lines: list[BillLine], *, for_customer: bool = False) -> list[layouts.ItemRow]:
+    """Identical lines print as one row: "2 x Tusker". Modifiers print under the item.
+
+    For the customer (bill, receipt) a combo is one priced line with its parts hidden,
+    and happy hour or free items say so; for a station slip, every part is listed."""
     groups: OrderedDict[tuple, layouts.ItemRow] = OrderedDict()
     for line in lines:
-        key = (line.item_name, line.option_label, line.unit_price, line.note)
+        if for_customer and line.combo_parent_id:
+            continue
+        extras = [f"+ {m['label']}" + (f"  {m['price']:,}" if m.get("price") else "") for m in line.modifiers or []]
+        if for_customer and line.price_rule and line.list_price:
+            extras.append(f"{line.price_rule} (was {line.list_price:,})")
+        if for_customer and line.comp_reason:
+            extras.append(f"{COMP_LABEL[line.comp_reason.value]} (free)")
+        key = (line.item_name, line.option_label, line.unit_price, line.note, tuple(extras))
         if key in groups:
             groups[key].quantity += 1
-            groups[key].amount += line.unit_price
+            groups[key].amount += charged(line)
         else:
-            groups[key] = layouts.ItemRow(1, display_name(line.item_name, line.option_label), line.note, line.unit_price)
+            groups[key] = layouts.ItemRow(1, display_name(line.item_name, line.option_label), line.note,
+                                          charged(line), extras)
     return list(groups.values())
 
 

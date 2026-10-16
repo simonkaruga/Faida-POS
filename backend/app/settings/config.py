@@ -53,6 +53,13 @@ class Config(BaseSettings):
     admin_token: str | None = None
     alert_webhook: str | None = None
 
+    # Email for the daily closing report (any SMTP account, e.g. Gmail with an app password).
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
+
     # Built frontend to serve (the cloud serves the owner's phone view from here).
     static_dir: str | None = None
 

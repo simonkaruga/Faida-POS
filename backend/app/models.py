@@ -6,10 +6,12 @@ from app.credit.models import CreditCollection, CreditCustomer
 from app.db import Base
 from app.expenses.models import Expense
 from app.floor.models import Bill, BillHandover, BillLine, Table
-from app.menu.models import Category, MenuItem, SellOption
+from app.menu.models import (
+    Category, ComboComponent, ItemModifierGroup, MenuItem, ModifierGroup, ModifierOption, PriceRule, SellOption,
+)
 from app.payments.models import Payment
 from app.printing.models import Ticket
-from app.reports.models import DailyClosing
+from app.reports.models import DailyClosing, EmailOutbox
 from app.sequences import Sequence
 from app.settings.models import Business, BusinessSettings
 from app.shifts.models import CashMovement, Handover, Shift, ShortageStatus
@@ -25,5 +27,6 @@ __all__ = [
     "Staff", "Table", "Ticket", "CreditCustomer", "CreditCollection", "Shift", "Handover",
     "ShortageStatus", "CashMovement", "Delivery", "DeliveryLine", "RecipeLine", "StockItem",
     "StockMovement", "StockTake", "StockTakeLine", "Supplier", "Expense", "DailyClosing", "Device",
-    "OwnerAccount", "SyncQueueEntry",
+    "OwnerAccount", "SyncQueueEntry", "ComboComponent", "ItemModifierGroup", "ModifierGroup", "ModifierOption",
+    "PriceRule", "EmailOutbox",
 ]
