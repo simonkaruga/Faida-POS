@@ -615,3 +615,7 @@ select.text-input { appearance: auto; }
 
 /* Choosing an item: its picture across the top of the pop-up. */
 .dialog-photo { width: calc(100% + 48px); margin: -4px -24px 4px; height: 120px; object-fit: cover; object-position: center 35%; mask-image: linear-gradient(180deg, #000 60%, transparent); }
+
+/* Bright theme: livelier category tints on tiles without a picture. */
+:root[data-theme="light"] .item-tile:not(.with-image) { background: linear-gradient(160deg, color-mix(in srgb, var(--c) 20%, #fff), #fff 70%); border-color: color-mix(in srgb, var(--c) 30%, var(--border)); }
+:root[data-theme="light"] .item-watermark { opacity: 0.22; }

@@ -27,6 +27,12 @@
     linear-gradient(90deg, rgb(5 9 22 / 0.55) 0%, rgb(5 9 22 / 0.72) 45%, rgb(5 9 22 / 0.9) 100%),
     radial-gradient(700px 500px at 10% 0%, rgb(59 130 246 / 0.25), transparent 65%);
 }
+:root[data-theme="light"] .pin-login::after {
+  background:
+    linear-gradient(90deg, rgb(8 38 75 / 0.35) 0%, rgb(8 38 75 / 0.45) 50%, rgb(8 38 75 / 0.6) 100%),
+    radial-gradient(700px 500px at 10% 0%, rgb(252 110 17 / 0.25), transparent 65%);
+}
+:root[data-theme="light"] .pin-login::before { filter: blur(3px) saturate(1.25) brightness(1.2); }
 @keyframes pin-drift { to { transform: scale(1.1) translate(-12px, 8px); } }
 @media (prefers-reduced-motion: reduce) { .pin-login::before { animation: none; } }
 

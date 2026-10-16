@@ -712,9 +712,9 @@ export function SettingsEditor() {
   const [newEmail, setNewEmail] = useState("");
   const [theme, setTheme] = useState(() => {
     try {
-      return localStorage.getItem("faida-theme") ?? "dark";
+      return localStorage.getItem("faida-theme") ?? "light";
     } catch {
-      return "dark";
+      return "light";
     }
   });
   useEffect(() => {
@@ -765,9 +765,9 @@ export function SettingsEditor() {
         <div className="row" style={{ marginTop: 10 }}>
           <span className="muted">This screen:</span>
           <div className="segmented">
-            {["dark", "light"].map((t) => (
+            {["light", "dark"].map((t) => (
               <button key={t} className={theme === t ? "on" : ""} onClick={() => changeTheme(t)}>
-                {t === "dark" ? "Dark (dim bar)" : "Light"}
+                {t === "dark" ? "Dark (dim bar)" : "Bright"}
               </button>
             ))}
           </div>

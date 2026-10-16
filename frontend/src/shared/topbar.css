@@ -25,3 +25,19 @@
 .status.muted { color: #9fb0d4; }
 .topbar-clock { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 20px; text-align: right; line-height: 1.05; }
 .topbar-clock small { display: block; font-size: 12px; font-weight: 500; color: #b8c4e0; }
+
+/* Bright theme: a white bar with the brand navy, an orange line under it. */
+:root[data-theme="light"] .topbar {
+  background: #fff;
+  color: var(--navy);
+  border-bottom: 3px solid var(--orange);
+  box-shadow: 0 4px 18px rgb(10 42 85 / 0.08);
+}
+:root[data-theme="light"] .topbar-staff { background: var(--surface-raised); }
+:root[data-theme="light"] .topbar-staff small, :root[data-theme="light"] .topbar-clock small { color: var(--text-muted); }
+:root[data-theme="light"] .status { background: var(--surface-raised); color: var(--text); }
+:root[data-theme="light"] .status.green svg { color: var(--green); }
+:root[data-theme="light"] .status.yellow, :root[data-theme="light"] .status.orange { color: var(--orange); }
+:root[data-theme="light"] .status.red { background: var(--red-soft); color: var(--red); }
+:root[data-theme="light"] .status.muted { color: var(--text-muted); }
+:root[data-theme="light"] .faida-mark { box-shadow: 0 2px 8px rgb(10 42 85 / 0.15), inset 0 0 0 1px rgb(10 42 85 / 0.1); }

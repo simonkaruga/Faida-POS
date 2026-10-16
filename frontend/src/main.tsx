@@ -3,13 +3,14 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import "./shared/theme.css";
 
-// Each screen remembers its own light/dark choice (Owner area > Settings).
+// Bright unless this screen was switched to dark (Owner area > Settings).
+let theme = "light";
 try {
-  const theme = localStorage.getItem("faida-theme");
-  if (theme) document.documentElement.dataset.theme = theme;
+  theme = localStorage.getItem("faida-theme") ?? "light";
 } catch {
-  // storage unavailable: stay dark
+  // storage unavailable: stay bright
 }
+document.documentElement.dataset.theme = theme;
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
