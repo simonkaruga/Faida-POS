@@ -663,3 +663,6 @@ select.text-input { appearance: auto; }
 /* Order screen: the order number, and the table if there is one (tap to set it). */
 .place-badge.as-button { border: none; font: inherit; cursor: pointer; }
 .add-table { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; border: 1px dashed var(--blue); background: transparent; color: var(--blue); font: inherit; font-size: 14px; font-weight: 750; cursor: pointer; }
+
+/* PRINT BILL: easy to find next to SEND and PAY. */
+.btn-bill { background: linear-gradient(180deg, #1d3f7a, var(--navy)); color: #fff; font-weight: 800; }

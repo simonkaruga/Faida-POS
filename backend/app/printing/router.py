@@ -33,7 +33,7 @@ class PrintoutOut(BaseModel):
     printed_at: datetime | None
     reprints: int
     last_error: str | None
-    title: str  # "T2 · Bill #0142" or "Hand-over · Jane"
+    title: str  # "T2 · Order #0142", "Order #0142" or "Hand-over · Jane"
 
 
 class PrintoutDoc(PrintoutOut):
@@ -44,7 +44,8 @@ class PrintoutDoc(PrintoutOut):
 def _title(db: Db, ticket: Ticket) -> str:
     if ticket.bill_id:
         bill = db.get(Bill, ticket.bill_id)
-        return f"{place(db, bill)} · Bill #{bill.number:04d}"
+        where = place(db, bill)
+        return where if where.startswith("Order #") else f"{where} · Order #{bill.number:04d}"
     shift = db.get(Shift, ticket.shift_id)
     return f"Hand-over · {db.get(Staff, shift.staff_id).name}"
 

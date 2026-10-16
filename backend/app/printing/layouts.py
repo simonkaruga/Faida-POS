@@ -48,7 +48,7 @@ def _station_ticket(title: str, h: Header, number: int, items: list[ItemRow], bi
     doc = [
         text(h.place.upper(), size=2, bold=True),
         text(h.waiter, size=2),
-        text(f"{title} {number}   {_time(h)}   Bill {bill_no(h.bill_number)}"),
+        text(f"{title} {number}   {_time(h)}   Order {bill_no(h.bill_number)}"),
         rule(),
     ]
     for item in items:
@@ -84,7 +84,8 @@ def _head(h: Header, title: str) -> list[Row]:
         text(h.business, size=2, bold=True, align="center"),
         text(title, bold=True, align="center"),
         rule(),
-        cols(h.place, f"Bill {bill_no(h.bill_number)}"),
+        # Orders without a table are already named by their number.
+        cols(h.place, "" if h.place.startswith("Order #") else f"Order {bill_no(h.bill_number)}"),
         cols(f"Served by {h.waiter}", _time(h)),
         rule(),
     ]

@@ -10,7 +10,6 @@ import {
   PartyPopper,
   Plus,
   Printer,
-  ReceiptText,
   Repeat,
   Search,
   SearchX,
@@ -76,6 +75,7 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
   const [viewing, setViewing] = useState<string | null>(null);
   const [soldOutMode, setSoldOutMode] = useState(false);
   const [pickingTable, setPickingTable] = useState(false);
+  const [showBill, setShowBill] = useState<string | null>(null);
   const canMarkSoldOut = session.permissions.mark_sold_out === "allow";
 
   useEffect(() => {
@@ -174,16 +174,30 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
     }
   };
 
+  /** PRINT BILL: anything not yet sent goes to the bar and kitchen first, then the bill
+   * prints and shows on screen (so it can be checked, or printed here if the printer is down). */
   const doPrintBill = async () => {
-    if (draft.length) return setMessage({ text: "Send the new round first.", tone: "error" });
+    if (busy) return;
+    if (!draft.length && !bill?.lines.some((l) => !l.voided)) return setMessage({ text: "Add items first, then print the bill.", tone: "error" });
+    setBusy(true);
     try {
+      if (draft.length) {
+        await sendRound(
+          billId,
+          draft.map((l) => ({ sell_option_id: l.optionId, quantity: l.quantity, note: l.note, modifier_option_ids: l.modifiers.map((m) => m.id) })),
+        );
+        setDraft([]);
+      }
       const updated = await printBill(billId);
       setBill(updated);
       const last = updated.tickets[updated.tickets.length - 1];
-      if (last.status === "not_printed") toast("Bill NOT printed. Check the printer.", "warning");
+      setShowBill(last.id);
+      if (last.status === "not_printed") toast("Bill NOT printed. Check the printer, or tap Print here.", "warning");
       else toast(`Bill for ${updated.place} printed`);
     } catch (e) {
       fail(e);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -456,8 +470,8 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
             <button className="btn btn-quiet" onClick={() => setMore(true)}>
               <Ellipsis size={20} /> More
             </button>
-            <button className="btn btn-quiet" onClick={doPrintBill}>
-              <ReceiptText size={20} /> BILL
+            <button className="btn btn-bill" onClick={doPrintBill} disabled={busy}>
+              <Printer size={20} /> PRINT BILL
             </button>
           </div>
           <div className="bill-buttons">
@@ -516,6 +530,7 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
         />
       )}
       {pickingTable && <TableDialog bill={bill} onDone={(b) => (setBill(b), setPickingTable(false), toast(`Order #${String(b.number).padStart(4, "0")} is at ${b.place}`))} onClose={() => setPickingTable(false)} />}
+      {showBill && <ReceiptDialog id={showBill} title={hasTable ? `Bill: ${bill.place} · order #${String(bill.number).padStart(4, "0")}` : `Bill: order #${String(bill.number).padStart(4, "0")}`} onClose={() => setShowBill(null)} />}
     </main>
   );
 }
