@@ -11,6 +11,7 @@ import "./counter/counter.css";
 import { getMenu, lock, setToken, setUnauthorizedHandler, type Menu, type Session } from "./services/api";
 import { useHealth } from "./services/useHealth";
 import { Toaster } from "./shared/Toast";
+import { FaidaLogo } from "./shared/Brand";
 import { TopBar } from "./shared/TopBar";
 
 export type Notice = { text: string; warning?: boolean };
@@ -124,7 +125,8 @@ export function App() {
       <Toaster />
       {health && !health.set_up ? (
         <main className="pin-login">
-          <div className="pin-setup">
+          <div className="pin-setup always-dark">
+            <FaidaLogo height={64} />
             <h1>This counter is not set up yet</h1>
             <p className="pin-prompt">Run the install steps in docs/install-checklist.md.</p>
           </div>

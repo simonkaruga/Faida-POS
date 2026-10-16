@@ -57,3 +57,21 @@ def test_health_check_wants_the_new_version(health_server):
     assert not ops.healthy("http://127.0.0.1:9/api/health", None)[0]
     with pytest.raises(SystemExit, match="Not healthy"):
         ops.main(["wait-healthy", "--url", health_server, "--version", "9.9.9", "--seconds", "0"])
+
+
+def test_installed_counter_serves_the_screens_and_icons(config, printers, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "counter.js").write_text("// app")
+    (tmp_path / "index.html").write_text("<title>Faida POS</title>")
+    (tmp_path / "favicon.png").write_bytes(b"\x89PNG icon")
+    app = create_app(config.model_copy(update={"static_dir": str(tmp_path)}), printers=printers)
+    with TestClient(app) as c:
+        assert c.get("/favicon.png").content == b"\x89PNG icon"
+        assert c.get("/assets/counter.js").text == "// app"
+        assert "Faida POS" in c.get("/tables/anything").text  # app screens get the page
+        assert "Faida POS" in c.get("/../backend/.env").text  # never a file outside the build
+        assert c.get("/api/health").json()["mode"] == "local"

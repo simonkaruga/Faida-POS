@@ -70,3 +70,4 @@ body { overflow: auto; }
 @media (max-width: 420px) {
   .rp-bar-row { grid-template-columns: minmax(80px, 34%) 1fr auto; font-size: 15px; }
 }
+.ph-logo { margin-bottom: 8px; }

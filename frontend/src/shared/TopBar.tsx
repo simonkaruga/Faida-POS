@@ -1,4 +1,5 @@
-import { Cloud, CloudOff, Printer, Store } from "lucide-react";
+import { Cloud, CloudOff, Printer } from "lucide-react";
+import { FaidaMark } from "./Brand";
 import { useEffect, useState } from "react";
 import type { Health, Role } from "../services/api";
 import { initials } from "./look";
@@ -37,9 +38,7 @@ export function TopBar({ health, reachable, staff }: Props) {
   return (
     <header className="topbar">
       <span className="brand">
-        <span className="brand-mark">
-          <Store size={18} />
-        </span>
+        <FaidaMark size={36} />
         {health?.business_name ?? "Faida POS"}
       </span>
       {staff && (

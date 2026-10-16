@@ -1,7 +1,8 @@
-import { CheckCircle2, LockKeyhole, ShieldCheck, Store, TriangleAlert } from "lucide-react";
+import { CheckCircle2, LockKeyhole, ShieldCheck, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Notice } from "../App";
 import { ApiError, login, type Health, type Session } from "../services/api";
+import { FaidaMark, FaidaWordmark } from "../shared/Brand";
 import { Keypad } from "../shared/Keypad";
 import "./pin-login.css";
 
@@ -48,11 +49,9 @@ export function PinLogin({ health, notice, onLogin }: Props) {
 
   return (
     <main className="pin-login">
-      <section className="pin-brand">
+      <section className="pin-brand always-dark">
         <div className="pin-business">
-          <span className="pin-logo">
-            <Store size={30} />
-          </span>
+          <FaidaMark size={68} className="pin-logo" />
           <div>
             <h1>{health?.business_name ?? "Faida POS"}</h1>
             <span>Karibu · {greeting(now)}</span>
@@ -95,7 +94,7 @@ export function PinLogin({ health, notice, onLogin }: Props) {
             onEnter={submit}
             disabled={busy}
           />
-          <p className="pin-maker">Faida POS</p>
+          <FaidaWordmark height={30} className="pin-maker" />
         </div>
       </section>
     </main>

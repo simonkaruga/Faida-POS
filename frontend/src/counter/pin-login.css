@@ -39,15 +39,7 @@
   color: #fff;
 }
 .pin-business { display: flex; align-items: center; gap: 16px; animation: rise 420ms var(--ease) both; }
-.pin-logo {
-  display: grid;
-  place-items: center;
-  width: 64px;
-  height: 64px;
-  border-radius: 20px;
-  background: linear-gradient(135deg, #5b9bff, #6250d6);
-  box-shadow: 0 10px 30px rgb(59 130 246 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.35);
-}
+.pin-logo { box-shadow: 0 10px 30px rgb(0 0 0 / 0.45); }
 .pin-brand h1 { margin: 0; font-size: 38px; letter-spacing: -0.02em; line-height: 1.1; text-shadow: 0 2px 12px rgb(0 0 0 / 0.5); }
 .pin-business span { color: rgb(255 255 255 / 0.75); font-size: 18px; font-weight: 600; }
 .pin-clock { animation: rise 420ms 80ms var(--ease) both; }
@@ -120,7 +112,7 @@
 .pin-card .key { background: color-mix(in srgb, var(--surface-raised) 70%, transparent); }
 .pin-card .key-quiet { background: color-mix(in srgb, var(--surface) 60%, transparent); }
 .pin-card .key-enter { background: linear-gradient(180deg, #4b8ff8, var(--blue-strong)); }
-.pin-maker { margin: 14px 0 0; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
+.pin-maker { margin-top: 16px; opacity: 0.9; }
 .pin-setup { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; color: #fff; }
 
 .lock-message {

@@ -1,5 +1,6 @@
 import { BookUser, CalendarCheck2, House, Package, TrendingUp, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { FaidaLogo } from "../shared/Brand";
 import { formatKsh } from "../shared/money";
 import { BarList, Big, ClosingView, ProfitBlock, Row, SalesBlock, Section } from "../shared/ReportParts";
 import {
@@ -81,7 +82,7 @@ function Login({ onDone }: { onDone: () => void }) {
   };
   return (
     <form className="ph-login" onSubmit={submit}>
-      <h1>Faida</h1>
+      <FaidaLogo height={52} className="ph-logo" />
       <p className="ph-muted">Owner login</p>
       <label>
         Email

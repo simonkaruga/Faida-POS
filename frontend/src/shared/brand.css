@@ -1,0 +1,19 @@
+/* The Faida logo (frontend/src/shared/brand, from "FAIDA POS Terminal Logo"). */
+.faida-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 24%;
+  background: #fff;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.25), inset 0 0 0 1px rgb(8 38 75 / 0.08);
+}
+.faida-mark img { width: 74%; height: 74%; object-fit: contain; }
+.faida-wordmark { display: inline-flex; align-items: center; }
+.faida-wordmark img { height: 100%; width: auto; }
+.faida-wordmark .on-light { display: none; }
+:root[data-theme="light"] .faida-wordmark .on-dark { display: none; }
+:root[data-theme="light"] .faida-wordmark .on-light { display: inline; }
+/* Places that are dark in both themes (the photo side of the PIN screen, the top bar). */
+.always-dark .faida-wordmark .on-dark { display: inline !important; }
+.always-dark .faida-wordmark .on-light { display: none !important; }
+.faida-logo { display: inline-flex; align-items: center; gap: 12px; }

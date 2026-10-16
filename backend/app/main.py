@@ -125,6 +125,9 @@ def create_app(
 
         @app.get("/{path:path}", include_in_schema=False)
         def spa(path: str) -> FileResponse:
-            return FileResponse(static / page)
+            # Files at the top of the build (favicon, phone icon) as themselves; any other
+            # path is a screen of the app.
+            top = {f.name for f in static.iterdir() if f.is_file()}
+            return FileResponse(static / path if path in top else static / page)
 
     return app
