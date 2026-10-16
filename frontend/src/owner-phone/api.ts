@@ -1,7 +1,7 @@
 /** The phone view talks to the cloud. In development the cloud runs separately and is
  * reached through the dev server's /cloud proxy. */
 
-import type { ClosingReport, Profit, SalesSummary } from "../services/api";
+import type { ClosingReport, Dashboard, Profit, SalesSummary } from "../services/api";
 
 const BASE = import.meta.env.DEV ? "/cloud/api/phone" : "/api/phone";
 const KEY = "faida-owner-token";
@@ -61,6 +61,7 @@ async function call<T>(path: string, init: { body?: unknown } = {}): Promise<T> 
 type Fresh = { last_updated: string | null };
 export type Today = Fresh & {
   business_name: string;
+  dash: Dashboard;
   day: string;
   sales: SalesSummary;
   credit_collected: { total: number };

@@ -1,5 +1,6 @@
 import { BookUser, CalendarCheck2, House, Package, TrendingUp, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { BestSellers, HourChart, Kpi, PaymentMix, weekday } from "../counter/Dashboard";
 import { FaidaLogo } from "../shared/Brand";
 import { formatKsh } from "../shared/money";
 import { BarList, Big, ClosingView, ProfitBlock, Row, SalesBlock, Section } from "../shared/ReportParts";
@@ -138,6 +139,8 @@ const Loading = ({ error }: { error: string | null }) => <p className={error ? "
 function TodayView() {
   const { data: t, error } = useLoad<Today>(getToday);
   if (!t) return <Loading error={error} />;
+  const d = t.dash;
+  const lastDay = `last ${weekday(d.compare_day)}`;
   return (
     <>
       <Header title={t.business_name} updated={t.last_updated}>
@@ -156,14 +159,49 @@ function TodayView() {
           ))}
         </div>
       )}
-      <div className="ph-pad">
-        <div className="rp-bigs">
-          <Big label="Sales" value={formatKsh(t.sales.total)} />
-          <Big label="Cash" value={formatKsh(t.sales.cash)} />
-          <Big label="M-Pesa" value={formatKsh(t.sales.mpesa)} />
-          {t.sales.card > 0 && <Big label="Card" value={formatKsh(t.sales.card)} />}
-          <Big label="Credit" value={formatKsh(t.sales.credit)} />
+      <div className="ph-pad dash">
+        <div className="kpis">
+          <Kpi label="Sales" value={formatKsh(d.today.sales)} now={d.today.sales} then={d.last_week_so_far.sales} lastDay={lastDay} big />
+          <Kpi label="Bills" value={String(d.today.bills)} now={d.today.bills} then={d.last_week_so_far.bills} lastDay={lastDay} />
+          <Kpi label="Average bill" value={formatKsh(d.today.average_bill)} now={d.today.average_bill} then={d.last_week_so_far.average_bill} lastDay={lastDay} />
+          {d.gross_profit && (
+            <div className="kpi">
+              <span className="kpi-label">Gross profit</span>
+              <strong className="kpi-value">{formatKsh(d.gross_profit.amount)}</strong>
+              <span className="kpi-note">{d.gross_profit.margin === null ? "No sales yet" : `${d.gross_profit.margin}% of sales`}</span>
+            </div>
+          )}
+          <div className="kpi">
+            <span className="kpi-label">Open now</span>
+            <strong className="kpi-value">{formatKsh(d.live.open_value)}</strong>
+            <span className="kpi-note">
+              {d.live.open_bills} bills · {d.live.tables_in_use}/{d.live.tables} tables
+            </span>
+          </div>
         </div>
+        <section className="card">
+          <header className="card-head">
+            <h3>Sales by hour</h3>
+            <span className="legend">
+              <i className="sw today" /> Today <i className="sw before" /> {lastDay}
+            </span>
+          </header>
+          <HourChart data={d} compact />
+        </section>
+        <section className="card">
+          <header className="card-head">
+            <h3>How customers paid</h3>
+          </header>
+          <PaymentMix payments={d.payments} />
+        </section>
+        {d.best.length > 0 && (
+          <section className="card">
+            <header className="card-head">
+              <h3>Best sellers</h3>
+            </header>
+            <BestSellers best={d.best} />
+          </section>
+        )}
         <Section title="Today">
           <Row label="Bills" value={t.sales.bills} />
           <Row label="Credit collected" value={formatKsh(t.credit_collected.total)} />

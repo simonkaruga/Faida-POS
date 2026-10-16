@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.auth.owner import LoginGuard, OwnerToken, check_password, check_totp, issue_token, read_token
 from app.db import get_db, now
 from app.reports import service as reports
+from app.reports.dashboard import dashboard
 from app.reports.models import DailyClosing
 from app.settings.models import Business, BusinessSettings
 from app.settings.service import today
@@ -84,6 +85,9 @@ def today_view(owner: Owner, request: Request, db: Db) -> dict:
         alerts.append(f"{len(stock['low'])} items low on stock")
     for device in db.scalars(select(Device).where(Device.business_id == bid, Device.active)):
         alerts += [problem for problem in device_problems(device, now())]
+    # The counter's dashboard figures; pictures stay on the counter, so none here.
+    dash = dashboard(db, bid, day, tz, now(), money=True)
+    dash["best"] = [{**b, "image": None} for b in dash["best"]]
     return {
         "business_name": db.get(Business, bid).name,
         "day": day.isoformat(),
@@ -98,6 +102,7 @@ def today_view(owner: Owner, request: Request, db: Db) -> dict:
         "closed": db.scalar(select(DailyClosing.id).where(DailyClosing.business_id == bid,
                                                           DailyClosing.business_day == day)) is not None,
         "alerts": alerts,
+        "dash": dash,
     }
 
 

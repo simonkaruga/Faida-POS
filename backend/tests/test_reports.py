@@ -141,3 +141,36 @@ def test_expenses_are_reversed_not_deleted(client, owner, people):
     rows = client.get(f"/api/expenses?start={day}&end={day}", headers=owner).json()
     assert len(rows) == 2 and any(row["reversed"] for row in rows)
     assert client.post("/api/expenses", headers=login(client, SAM), json={"category": "rent", "amount": 1}).status_code == 403
+
+
+def test_dashboard_compares_with_the_same_time_last_week(client, owner, opts, people, db):
+    from sqlalchemy import text
+
+    tusker = opts["Tusker"]
+    sell_and_pay(client, owner, [(tusker, 2)], tab="A")                       # today
+    early = sell_and_pay(client, owner, [(tusker, 1)], tab="B")               # last week, before this time
+    late = sell_and_pay(client, owner, [(tusker, 3)], tab="C")                # last week, later in the day
+    db.execute(text("UPDATE bills SET business_day = business_day - 7, closed_at = closed_at - interval '7 days' WHERE id = :id"),
+               {"id": early["id"]})
+    db.execute(text("UPDATE bills SET business_day = business_day - 7, closed_at = closed_at - interval '7 days' + interval '2 hours' "
+                    "WHERE id = :id"), {"id": late["id"]})
+    db.commit()
+    open_bill = client.post("/api/bills", json={"tab_name": "Still drinking"}, headers=owner).json()
+    client.post(f"/api/bills/{open_bill['id']}/send", headers=owner, json={"items": [{"sell_option_id": tusker, "quantity": 1}]})
+
+    d = client.get("/api/dashboard", headers=owner).json()
+    price = early["total"]
+    assert d["today"]["sales"] == 2 * price and d["today"]["bills"] == 1
+    assert d["last_week_so_far"]["sales"] == price           # the later bill hadn't happened yet
+    assert d["last_week_total"] == 4 * price
+    assert sum(d["by_hour"]["today"]) == 2 * price and sum(d["by_hour"]["last_week"]) == 4 * price
+    assert d["best"][0]["item"] == "Tusker" and d["best"][0]["quantity"] == 2
+    assert d["payments"]["cash"] == 2 * price
+    assert d["live"]["open_bills"] == 1 and d["live"]["open_value"] == price
+    assert [s["staff"] for s in d["live"]["on_shift"]] == ["Njeri"]
+    assert d["recent"][0]["paid_by"] == "cash"
+    assert d["gross_profit"] is not None
+
+    sam = login(client, SAM)
+    assert client.get("/api/dashboard", headers=sam).json()["gross_profit"] is None  # supervisors: no profit
+    assert client.get("/api/dashboard", headers=login(client, JANE)).status_code == 403

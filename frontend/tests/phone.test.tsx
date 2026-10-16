@@ -21,6 +21,24 @@ const today = {
   open_shifts: [],
   closed: false,
   alerts: ["Jane short KSh 50"],
+  dash: {
+    day: "2026-10-16",
+    compare_day: "2026-10-09",
+    cutoff_hour: 6,
+    now_slot: 14,
+    today: { sales: 2050, bills: 3, average_bill: 683, items: 7 },
+    last_week_so_far: { sales: 1640, bills: 2, average_bill: 820 },
+    last_week_total: 4000,
+    by_hour: { today: Array.from({ length: 24 }, (_, i) => (i === 14 ? 2050 : 0)), last_week: Array(24).fill(0) },
+    payments: { cash: 1550, mpesa: 500, card: 0, credit: 0, unpaid: 0 },
+    best: [{ item: "Tusker", image: null, quantity: 4, sales: 1200 }],
+    by_category: [],
+    by_waiter: [],
+    live: { open_bills: 1, open_value: 300, tables: 10, tables_in_use: 1, oldest_open: null, on_shift: [] },
+    alerts: [],
+    recent: [],
+    gross_profit: { amount: 900, margin: 44 },
+  },
 };
 
 describe("owner phone", () => {
@@ -36,6 +54,7 @@ describe("owner phone", () => {
 
     expect(await screen.findByText("⚠ Jane short KSh 50")).toBeTruthy();
     expect(screen.getByText("2,050")).toBeTruthy();
+    expect(screen.getByText("25% vs last Fri")).toBeTruthy(); // 2,050 against 1,640 by this time
     expect(screen.getByText(/Last updated/)).toBeTruthy();
     const body = JSON.parse(String(fetchMock.mock.calls[0][1]!.body));
     expect(body).toEqual({ email: "owner@demobar.test", password: "secret password", code: "123456" });

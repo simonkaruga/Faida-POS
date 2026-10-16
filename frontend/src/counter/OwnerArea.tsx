@@ -5,6 +5,7 @@ import {
   CalendarCheck2,
   ChartColumn,
   HandCoins,
+  LayoutDashboard,
   Package,
   Printer,
   ReceiptText,
@@ -45,11 +46,13 @@ import { Modal } from "../shared/Modal";
 import { formatKsh } from "../shared/money";
 import { getPrintouts, KIND_NAME, ReceiptDialog, StatusPill, type Printout } from "../shared/Receipt";
 import { FinishedBills } from "./FinishedBills";
+import { Dashboard } from "./Dashboard";
 import { ClosingTab, ExpensesTab, ReportsTab } from "./OwnerReports";
 import { ChoicesEditor, MenuEditor, SettingsEditor, StaffEditor, TablesEditor } from "./OwnerSetup";
 import { StockTab } from "./StockTab";
 
 type Tab =
+  | "dashboard"
   | "shifts" | "credit" | "cash" | "stock" | "bills" | "printers" | "closing" | "reports" | "expenses"
   | "menu" | "choices" | "tables" | "staff" | "settings";
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong.");
@@ -61,10 +64,11 @@ type NavItem = { tab: Tab; label: string; icon: LucideIcon; hint: string };
 /** Counter screens behind an Owner or Supervisor PIN (masterplan 9.4). Supervisors see
  * the same screens without owner-only pages and actions. */
 export function OwnerArea({ session, onBack }: { session: Session; onBack: () => void }) {
-  const [tab, setTab] = useState<Tab>("shifts");
+  const [tab, setTab] = useState<Tab>("dashboard");
   const isOwner = session.permissions.view_financials === "allow";
   const groups: [string, NavItem[]][] = [
     ["Today", [
+      { tab: "dashboard", label: "Dashboard", icon: LayoutDashboard, hint: "Today at a glance" },
       { tab: "shifts", label: "Shifts & hand-overs", icon: Users, hint: "Floats, cash-ups, shortages" },
       { tab: "bills", label: "Today's bills", icon: ReceiptText, hint: "Receipts, cancellations" },
       { tab: "cash", label: "Cash box", icon: Vault, hint: "Pay-outs and cash in the box" },
@@ -118,6 +122,7 @@ export function OwnerArea({ session, onBack }: { session: Session; onBack: () =>
           </div>
         </header>
         <div className="owner-body">
+          {tab === "dashboard" && <Dashboard onOpen={setTab} />}
           {tab === "shifts" && <ShiftsTab session={session} />}
           {tab === "credit" && <CreditTab session={session} />}
           {tab === "cash" && <CashTab session={session} />}

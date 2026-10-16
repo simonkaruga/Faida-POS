@@ -458,6 +458,34 @@ export type Expense = { id: string; category: string; amount: number; note: stri
 export const getClosing = (day?: string) => api<Closing>(`/closing${day ? `?day=${day}` : ""}`);
 export const closeDay = (day: string, cashBoxCounted?: number, note?: string) =>
   api<Closing>("/closing", { body: { day, cash_box_counted: cashBoxCounted, note } });
+export type DashSummary = { sales: number; bills: number; average_bill: number };
+export type Dashboard = {
+  day: string;
+  compare_day: string;
+  cutoff_hour: number;
+  now_slot: number;
+  today: DashSummary & { items: number };
+  last_week_so_far: DashSummary;
+  last_week_total: number;
+  by_hour: { today: number[]; last_week: number[] };
+  payments: { cash: number; mpesa: number; card: number; credit: number; unpaid: number };
+  best: { item: string; image: string | null; quantity: number; sales: number }[];
+  by_category: { category: string; sales: number }[];
+  by_waiter: { waiter: string; bills: number; sales: number }[];
+  live: {
+    open_bills: number;
+    open_value: number;
+    tables: number;
+    tables_in_use: number;
+    oldest_open: string | null;
+    on_shift: { staff: string; since: string; role: Role }[];
+  };
+  alerts: { tone: "warn" | "bad"; text: string }[];
+  recent: { number: number; place: string; waiter: string; total: number; closed_at: string; paid_by: string }[];
+  gross_profit: { amount: number; margin: number | null } | null;
+};
+export const getDashboard = () => api<Dashboard>("/dashboard");
+
 export const getReport = (start: string, end: string) => api<Report>(`/reports?start=${start}&end=${end}`);
 export const getExpenses = (start: string, end: string) => api<Expense[]>(`/expenses?start=${start}&end=${end}`);
 export const addExpense = (body: { category: string; amount: number; note?: string; from_cash_box: boolean }) =>

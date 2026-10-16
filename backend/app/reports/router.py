@@ -8,7 +8,9 @@ from sqlalchemy import select
 from app.audit import service as audit
 from app.auth.deps import Actor, Db, require
 from app.auth.permissions import Action, Level, level
+from app.db import now
 from app.reports import export, mailer
+from app.reports.dashboard import dashboard
 from app.reports import service as reports
 from app.reports.models import DailyClosing
 from app.settings.models import Business
@@ -42,6 +44,14 @@ def _strip(report: dict) -> dict:
     out["stock"] = {**report["stock"], "value": None}
     out["stock_variance"] = [{**v, "value": None} for v in report["stock_variance"]]
     return out
+
+
+@router.get("/dashboard")
+def get_dashboard(actor: Closer, request: Request, db: Db) -> dict[str, Any]:
+    """The owner area's home page: today so far against the same day last week, what's
+    selling, who's on shift and what needs attention. Profit for the owner only."""
+    tz = request.app.state.tz
+    return dashboard(db, actor.business_id, today(db, actor.business_id, tz), tz, now(), _money(actor))
 
 
 @router.get("/closing")
