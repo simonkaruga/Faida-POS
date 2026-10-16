@@ -8,7 +8,6 @@ import {
   getFloor,
   handOver,
   mergeBill,
-  moveBill,
   reprint,
   splitBill,
   voidLine,
@@ -23,6 +22,7 @@ import { Keypad } from "../shared/Keypad";
 import { Modal } from "../shared/Modal";
 import { formatKsh } from "../shared/money";
 import { COMP_LABEL, groupLines, type LineGroup } from "./billLines";
+import { TableDialog } from "./TableDialog";
 
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong.");
 
@@ -209,10 +209,10 @@ export function MoreMenu({
   const open = bill.status === "open";
   const empty = bill.total === 0 && bill.paid === 0;
 
+  if (panel === "move") return <TableDialog bill={bill} onDone={(b) => (onChanged(b), onClose())} onClose={() => setPanel("menu")} />;
+
   const body = () => {
     switch (panel) {
-      case "move":
-        return <MovePanel onPick={(tableId) => run(moveBill(bill.id, tableId))} />;
       case "handover":
         return <HandoverPanel onPin={(pin) => run(handOver(bill.id, pin), onClosed)} error={error} />;
       case "split":
@@ -226,7 +226,7 @@ export function MoreMenu({
       default:
         return (
           <div className="choice-list">
-            {open && <Choice label="Move to another table" onClick={() => setPanel("move")} />}
+            {open && <Choice label={bill.table_id || bill.table_label ? "Change table" : "Add a table"} onClick={() => setPanel("move")} />}
             {open && <Choice label="Hand over to another waiter" onClick={() => setPanel("handover")} />}
             {open && bill.lines.some((l) => !l.voided) && <Choice label="Split bill by items" onClick={() => setPanel("split")} />}
             {open && <Choice label="Merge another of my bills into this one" onClick={() => setPanel("merge")} />}
@@ -242,7 +242,7 @@ export function MoreMenu({
 
   const titles: Record<Panel, string> = {
     menu: `${bill.place} · More`,
-    move: "Move to which table?",
+    move: "",
     handover: "Hand over",
     split: "Split: move items to a new bill",
     merge: "Merge which bill into this one?",
@@ -277,23 +277,6 @@ function useFloor() {
     getFloor().then(setFloor, () => {});
   }, []);
   return floor;
-}
-
-function MovePanel({ onPick }: { onPick: (tableId: string) => void }) {
-  const floor = useFloor();
-  if (!floor) return <p className="muted">Loading…</p>;
-  const busy = new Set(floor.bills.map((b) => b.table_id));
-  const free = floor.tables.filter((t) => !busy.has(t.id));
-  return (
-    <div className="choice-grid">
-      {free.map((t) => (
-        <button key={t.id} className="choice" onClick={() => onPick(t.id)}>
-          {t.name}
-        </button>
-      ))}
-      {!free.length && <p className="muted">No free tables.</p>}
-    </div>
-  );
 }
 
 function HandoverPanel({ onPin, error }: { onPin: (pin: string) => void; error: string | null }) {

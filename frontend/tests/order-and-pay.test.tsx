@@ -69,6 +69,7 @@ const bill: Bill = {
   number: 142,
   place: "T2",
   table_id: "x",
+  table_label: null,
   tab_name: null,
   section: "Main",
   waiter: { id: "s1", name: "Jane" },

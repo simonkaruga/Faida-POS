@@ -67,6 +67,7 @@ class BillOut(BaseModel):
     number: int
     place: str
     table_id: uuid.UUID | None
+    table_label: str | None
     tab_name: str | None
     section: str
     waiter: Person
@@ -102,7 +103,7 @@ def bill_detail(db: Session, bill: Bill) -> BillOut:
     )
     return BillOut(
         id=bill.id, number=bill.number, place=place(db, bill), table_id=bill.table_id,
-        tab_name=bill.tab_name, section=bill.section, waiter=Person(id=waiter.id, name=waiter.name), status=bill.status,
+        table_label=bill.table_label, tab_name=bill.tab_name, section=bill.section, waiter=Person(id=waiter.id, name=waiter.name), status=bill.status,
         business_day=bill.business_day, opened_at=bill.created_at,
         lines=[
             LineOut(

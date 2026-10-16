@@ -58,7 +58,8 @@ class DiscountKind(enum.StrEnum):
 
 
 class Bill(Record, Base):
-    """An open table or a named tab. Belongs to exactly one waiter at a time."""
+    """An order, known by its number (#0031). It may have a table: one set up in Tables &
+    sections, or a number typed by the waiter (table_label). Belongs to one waiter at a time."""
 
     __tablename__ = "bills"
     __table_args__ = (UniqueConstraint("business_id", "number", name="uq_bills_number"),)
@@ -67,6 +68,7 @@ class Bill(Record, Base):
     section: Mapped[str] = mapped_column(String(30), default="Main")  # where it was sold, for reports
     table_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tables.id"))
     tab_name: Mapped[str | None] = mapped_column(String(40))
+    table_label: Mapped[str | None] = mapped_column(String(30))
     waiter_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("staff.id"), index=True)
     status: Mapped[BillStatus] = mapped_column(
         str_enum(BillStatus, "bill_status"), default=BillStatus.open, index=True

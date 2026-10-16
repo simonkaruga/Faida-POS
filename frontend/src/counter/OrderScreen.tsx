@@ -44,6 +44,7 @@ import { LineActions, MoreMenu } from "./BillActions";
 import { ItemDialog, PriceTag, type ItemChoice } from "./ItemDialog";
 import { groupLines, type LineGroup } from "./billLines";
 import { addToDraft, draftTotal, getDraft, saveDraft, type DraftLine } from "./drafts";
+import { TableDialog } from "./TableDialog";
 
 type Props = {
   session: Session;
@@ -74,6 +75,7 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
   const [popped, setPopped] = useState<string | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const [soldOutMode, setSoldOutMode] = useState(false);
+  const [pickingTable, setPickingTable] = useState(false);
   const canMarkSoldOut = session.permissions.mark_sold_out === "allow";
 
   useEffect(() => {
@@ -213,6 +215,7 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
   if (!bill) return <main className="screen screen-loading">{message?.text ?? <span className="spinner" />}</main>;
 
   const rounds = roundsOf(bill);
+  const hasTable = Boolean(bill.table_id || bill.table_label);
   const unprinted = bill.tickets.filter((t) => t.status === "not_printed" && t.kind !== "bill");
   const roundTotal = draftTotal(draft);
   const canVoid = session.permissions.void_item !== "deny";
@@ -315,12 +318,25 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
 
       <aside className="bill-panel">
         <header className="bill-head">
-          <button className="icon-btn" onClick={back} aria-label="Back to tables">
+          <button className="icon-btn" onClick={back} aria-label="Back to orders">
             <ArrowLeft size={22} />
           </button>
-          <span className="place-badge">{bill.place}</span>
+          <button
+            className="place-badge as-button"
+            onClick={() => bill.status === "open" && setPickingTable(true)}
+            aria-label={hasTable ? `Table ${bill.place}, tap to change` : "Add a table"}
+          >
+            {hasTable ? bill.place.replace(/^Table /, "") : `#${bill.number}`}
+          </button>
           <div className="bill-meta grow">
-            <strong>Bill #{String(bill.number).padStart(4, "0")}</strong>
+            <strong>
+              Order #{String(bill.number).padStart(4, "0")}{" "}
+              {!hasTable && bill.status === "open" && (
+                <button className="add-table" onClick={() => setPickingTable(true)}>
+                  + Table
+                </button>
+              )}
+            </strong>
             <span>
               <span className="avatar sm">{initials(bill.waiter.name)}</span> {bill.waiter.name} · <Clock3 size={14} /> {since(bill.opened_at)}
             </span>
@@ -499,6 +515,7 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
           onClose={() => setMore(false)}
         />
       )}
+      {pickingTable && <TableDialog bill={bill} onDone={(b) => (setBill(b), setPickingTable(false), toast(`Order #${String(b.number).padStart(4, "0")} is at ${b.place}`))} onClose={() => setPickingTable(false)} />}
     </main>
   );
 }

@@ -20,7 +20,7 @@ import { formatKsh } from "../shared/money";
 type Props = {
   session: Session;
   onOpen: (billId: string) => void;
-  onNavigate: (screen: "endShift" | "myBills" | "owner") => void;
+  onNavigate: (screen: "endShift" | "myBills" | "owner" | "home") => void;
   onLock: () => void;
 };
 
@@ -54,7 +54,7 @@ export function TablesScreen({ session, onOpen, onNavigate, onLock }: Props) {
     return () => (clearInterval(tick), clearInterval(refresh));
   }, []);
 
-  const start = async (place: { table_id: string } | { tab_name: string } | { quick: true }) => {
+  const start = async (place: { table_id: string } | { tab_name: string } | Record<string, never>) => {
     try {
       onOpen((await openBill(place)).id);
     } catch (e) {
@@ -156,8 +156,8 @@ export function TablesScreen({ session, onOpen, onNavigate, onLock }: Props) {
 
         <div className="section-bar">
           <h2 className="section-title">Tables</h2>
-          <button className="btn btn-quiet" onClick={() => start({ quick: true })}>
-            <Zap size={20} /> Quick sale
+          <button className="btn btn-quiet" onClick={() => start({})}>
+            <Zap size={20} /> New order, no table
           </button>
           <span className="grow" />
           <div className="segmented">
@@ -191,8 +191,8 @@ export function TablesScreen({ session, onOpen, onNavigate, onLock }: Props) {
         </div>
       </div>
       <footer className="screen-actions">
-        <button className="btn btn-quiet" onClick={() => onNavigate("myBills")}>
-          <ReceiptText size={20} /> My bills
+        <button className="btn btn-quiet" onClick={() => onNavigate("home")}>
+          <ReceiptText size={20} /> ‹ My orders
         </button>
         {session.permissions.receive_handover === "allow" && (
           <button className="btn btn-quiet" onClick={() => onNavigate("owner")}>

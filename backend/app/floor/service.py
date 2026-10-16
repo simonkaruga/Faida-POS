@@ -24,9 +24,24 @@ def display_name(item_name: str, option_label: str) -> str:
 
 
 def place(db: Session, bill: Bill) -> str:
+    """Where the order is: its table if it has one, else its number ("Order #0031")."""
     if bill.table_id:
         return db.get(Table, bill.table_id).name
-    return f"Tab - {bill.tab_name}"
+    if bill.table_label:
+        return f"Table {bill.table_label}"
+    if bill.tab_name:
+        return f"Tab - {bill.tab_name}"
+    return f"Order #{bill.number:04d}"
+
+
+def find_table(db: Session, business_id, label: str) -> Table | None:
+    """A typed table number matched to one set up in Tables & sections ("7" finds "T7")."""
+    wanted = label.strip().lower()
+    for table in db.scalars(select(Table).where(Table.business_id == business_id, Table.active)):
+        name = table.name.lower()
+        if wanted in (name, name.removeprefix("t"), name.removeprefix("table ").strip()):
+            return table
+    return None
 
 
 def load_bill(db: Session, actor: Actor, bill_id: uuid.UUID, action: Action, *, open_only: bool = True) -> Bill:

@@ -92,10 +92,39 @@ def test_sold_out_items_cannot_be_sent(client, owner, people, m):
     assert send(client, jane, tab(client, jane, "Otieno"), (m["opts"]["Tusker"], 1, [])).status_code == 200
 
 
-def test_quick_sale_needs_no_table(client, owner, m):
-    bill = client.post("/api/bills", json={"quick": True}, headers=owner).json()
-    assert bill["place"] == f"Tab - Quick sale {bill['number']:04d}" and bill["section"] == "Bar"
+def test_an_order_needs_nothing_but_its_number(client, owner, m, printers):
+    bill = client.post("/api/bills", json={}, headers=owner).json()
+    assert bill["place"] == f"Order #{bill['number']:04d}" and bill["section"] == "Bar"
+    send(client, owner, bill, (m["opts"]["Tusker"], 1, []))
+    assert f"ORDER #{bill['number']:04d}" in printers[PrinterName.counter].printed[-1]  # the runner finds it by number
+    quick = client.post("/api/bills", json={"quick": True}, headers=owner).json()  # older screens
+    assert quick["place"] == f"Order #{quick['number']:04d}"
+    # Tapping NEW ORDER again while that one is still empty gives the same order back.
+    assert client.post("/api/bills", json={}, headers=owner).json()["id"] == quick["id"]
     assert client.post("/api/bills", json={"quick": True, "tab_name": "x"}, headers=owner).status_code == 422
+
+
+def test_a_typed_table_number(client, owner, m, people):
+    floor = client.get("/api/floor", headers=owner).json()["tables"]
+    t7 = next(t for t in floor if t["name"] == "T7")
+    # "7" is a table that's set up: the order sits there, with its section.
+    seven = client.post("/api/bills", json={"table": "7"}, headers=owner).json()
+    assert seven["table_id"] == t7["id"] and seven["place"] == "T7" and seven["section"] == t7["section"]
+    jane = login(client, JANE)
+    r = client.post("/api/bills", json={"table": "t7"}, headers=jane)
+    assert r.status_code == 409 and "Njeri" in r.json()["detail"]
+    # "S12" isn't set up (a table brought out from the stall): it's used as typed.
+    stall = client.post("/api/bills", json={"table": "S12"}, headers=jane).json()
+    assert stall["place"] == "Table S12" and stall["table_id"] is None and stall["table_label"] == "S12"
+    assert client.post("/api/bills", json={"table": "<b>"}, headers=jane).status_code == 422
+    # An order by number gets a table later.
+    order = client.post("/api/bills", json={}, headers=jane).json()
+    moved = client.post(f"/api/bills/{order['id']}/move", json={"table": "57"}, headers=jane).json()
+    assert moved["place"] == "Table 57" and moved["number"] == order["number"]
+    moved = client.post(f"/api/bills/{order['id']}/move", json={"table": "T8"}, headers=jane).json()
+    assert moved["place"] == "T8" and moved["table_label"] is None
+    mine = [b for b in client.get("/api/floor", headers=jane).json()["bills"] if b["mine"]]
+    assert {b["place"] for b in mine} == {"Table S12", "T8"}
 
 
 def test_comps_are_free_but_still_leave_stock(client, owner, people, m, printers):

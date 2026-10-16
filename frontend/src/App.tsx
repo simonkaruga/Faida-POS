@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { EndShift } from "./counter/EndShift";
 import { FinishedBills } from "./counter/FinishedBills";
+import { HomeScreen } from "./counter/HomeScreen";
 import { OrderScreen } from "./counter/OrderScreen";
 import { OwnerArea } from "./counter/OwnerArea";
 import { PayScreen } from "./counter/PayScreen";
@@ -8,15 +9,16 @@ import { PinLogin } from "./counter/PinLogin";
 import { TablesScreen } from "./counter/TablesScreen";
 import { useAutoLock } from "./counter/useAutoLock";
 import "./counter/counter.css";
-import { getMenu, lock, setToken, setUnauthorizedHandler, type Menu, type Session } from "./services/api";
+import { getMenu, lock, openBill, setToken, setUnauthorizedHandler, type Menu, type Session } from "./services/api";
 import { useHealth } from "./services/useHealth";
 import { Toaster } from "./shared/Toast";
 import { FaidaLogo } from "./shared/Brand";
+import { getStartScreen } from "./shared/device";
 import { TopBar } from "./shared/TopBar";
 
 export type Notice = { text: string; warning?: boolean };
 type View =
-  | { screen: "tables" | "endShift" | "myBills" | "owner" }
+  | { screen: "home" | "floor" | "endShift" | "myBills" | "owner" | "starting" }
   | { screen: "order"; billId: string }
   | { screen: "pay"; billId: string };
 
@@ -24,7 +26,12 @@ type View =
 const COUNTING_IDLE_SECONDS = 300;
 
 function SignedIn({ session, onLock }: { session: Session; onLock: (notice?: Notice) => void }) {
-  const [view, setView] = useState<View>({ screen: "tables" });
+  // A counter screen set to "menu" opens straight on a new order (an empty one is reused).
+  const [view, setView] = useState<View>({ screen: getStartScreen() === "menu" ? "starting" : "home" });
+  useEffect(() => {
+    if (view.screen === "starting")
+      openBill().then((b) => setView({ screen: "order", billId: b.id }), () => setView({ screen: "home" }));
+  }, [view.screen]);
   useAutoLock(view.screen === "endShift" ? Math.max(session.auto_lock_seconds, COUNTING_IDLE_SECONDS) : session.auto_lock_seconds, () => onLock());
   const [menu, setMenu] = useState<Menu | null>(null);
 
@@ -33,7 +40,7 @@ function SignedIn({ session, onLock }: { session: Session; onLock: (notice?: Not
     reloadMenu();
   }, [reloadMenu]);
 
-  const tables = () => setView({ screen: "tables" });
+  const tables = () => setView({ screen: "home" });
   // Auto-lock after each SEND and each completed payment (masterplan 4.4).
   const lockWith = (text: string, warning?: boolean) => onLock({ text, warning });
 
@@ -73,16 +80,27 @@ function SignedIn({ session, onLock }: { session: Session; onLock: (notice?: Not
           </div>
           <footer className="screen-actions">
             <button className="btn btn-quiet" onClick={tables}>
-              ‹ Tables
+              ‹ Orders
             </button>
           </footer>
         </main>
       );
     case "owner":
       return <OwnerArea session={session} onBack={tables} />;
-    default:
+    case "starting":
+      return <main className="screen screen-loading"><span className="spinner" /> New order…</main>;
+    case "floor":
       return (
         <TablesScreen
+          session={session}
+          onOpen={(billId) => setView({ screen: "order", billId })}
+          onNavigate={(screen) => setView({ screen })}
+          onLock={() => onLock()}
+        />
+      );
+    default:
+      return (
+        <HomeScreen
           session={session}
           onOpen={(billId) => setView({ screen: "order", billId })}
           onNavigate={(screen) => setView({ screen })}

@@ -55,6 +55,7 @@ export type FloorBill = {
   place: string;
   section: string;
   table_id: string | null;
+  table_label: string | null;
   tab_name: string | null;
   waiter: Person;
   mine: boolean;
@@ -112,6 +113,7 @@ export type Bill = {
   number: number;
   place: string;
   table_id: string | null;
+  table_label: string | null;
   tab_name: string | null;
   section: string;
   waiter: Person;
@@ -206,14 +208,16 @@ export const getMenu = () => api<Menu>("/menu");
 export const getFloor = () => api<Floor>("/floor");
 export const getBill = (id: string) => api<Bill>(`/bills/${id}`);
 
-export const openBill = (place: { table_id: string } | { tab_name: string } | { quick: true }) => api<Bill>("/bills", { body: place });
+/** An order by its number ({}), or at a table: set up (table_id) or typed ("57", "S12"). */
+export const openBill = (place: Record<string, never> | { table_id: string } | { table: string } | { tab_name: string } = {}) =>
+  api<Bill>("/bills", { body: place });
 
 export type RoundItem = { sell_option_id: string; quantity: number; note: string | null; modifier_option_ids: string[] };
 export const sendRound = (billId: string, items: RoundItem[]) => api<Bill>(`/bills/${billId}/send`, { body: { items } });
 export const printBill = (billId: string) => api<Bill>(`/bills/${billId}/print`, { method: "POST" });
 export const voidLine = (billId: string, lineId: string, reason: string, approvalId?: string) =>
   api<Bill>(`/bills/${billId}/lines/${lineId}/void`, { body: { reason, approval_id: approvalId } });
-export const moveBill = (billId: string, tableId: string) => api<Bill>(`/bills/${billId}/move`, { body: { table_id: tableId } });
+export const moveBill = (billId: string, to: { table_id: string } | { table: string }) => api<Bill>(`/bills/${billId}/move`, { body: to });
 export const handOver = (billId: string, toPin: string) => api<Bill>(`/bills/${billId}/handover`, { body: { to_pin: toPin } });
 export const mergeBill = (billId: string, fromBillId: string) =>
   api<Bill>(`/bills/${billId}/merge`, { body: { from_bill_id: fromBillId } });

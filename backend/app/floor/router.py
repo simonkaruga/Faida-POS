@@ -14,7 +14,7 @@ from app.db import now
 from app.floor.models import Bill, BillHandover, BillLine, BillStatus, CompReason, DiscountKind, Table, VoidReason
 from app.floor.schemas import BillOut, Person, bill_detail
 from app.floor.service import (
-    Printing, amounts, bill_lines, group_items, load_bill, place, table_has_open_bill, totals,
+    Printing, amounts, bill_lines, find_table, group_items, load_bill, place, table_has_open_bill, totals,
 )
 from app.menu import service as menu_service
 from app.menu.models import ComboComponent, ItemModifierGroup, MenuItem, ModifierGroup, ModifierOption, SellOption, Station
@@ -97,6 +97,7 @@ class FloorBill(BaseModel):
     place: str
     section: str
     table_id: uuid.UUID | None
+    table_label: str | None
     tab_name: str | None
     waiter: Person
     mine: bool
@@ -133,7 +134,7 @@ def floor(actor: CurrentActor, db: Db) -> FloorOut:
         waiter = db.get(Staff, bill.waiter_id)
         bills.append(FloorBill(
             id=bill.id, number=bill.number, place=place(db, bill), section=bill.section, table_id=bill.table_id,
-            tab_name=bill.tab_name, waiter=Person(id=waiter.id, name=waiter.name), mine=mine,
+            table_label=bill.table_label, tab_name=bill.tab_name, waiter=Person(id=waiter.id, name=waiter.name), mine=mine,
             opened_at=bill.created_at, total=total, balance=None if total is None else total - paid,
             not_printed=unprinted if visible else None,
         ))
@@ -143,34 +144,54 @@ def floor(actor: CurrentActor, db: Db) -> FloorOut:
 # Bills
 
 
+TableLabel = Annotated[str, Field(min_length=1, max_length=30, pattern=r"^[\w -]+$")]
+
+
 class OpenBill(BaseModel):
+    """Nothing at all opens an order by its number. Optionally: a table set up in Tables
+    & sections, a table number typed on the keypad, or a name."""
+
     table_id: uuid.UUID | None = None
+    table: TableLabel | None = None
     tab_name: Annotated[str, Field(min_length=1, max_length=40)] | None = None
-    quick: bool = False  # a quick sale at the bar: no table, no customer name
+    quick: bool = False  # older screens: the same as giving nothing
 
     @model_validator(mode="after")
     def one_place(self):
-        if sum([self.table_id is not None, self.tab_name is not None, self.quick]) != 1:
-            raise ValueError("Give a table, a tab name, or a quick sale.")
+        if sum([self.table_id is not None, self.table is not None, self.tab_name is not None, self.quick]) > 1:
+            raise ValueError("Give a table, a name, or nothing.")
         return self
+
+
+def _resolve_table(db, actor: Actor, table_id: uuid.UUID | None, label: str | None) -> tuple[Table | None, str | None]:
+    """(set-up table, typed label). A typed number that matches a set-up table uses it."""
+    table = db.get(Table, table_id) if table_id else find_table(db, actor.business_id, label) if label else None
+    if table_id and (table is None or table.business_id != actor.business_id or not table.active):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Table not found.")
+    if table and (existing := table_has_open_bill(db, actor.business_id, table.id)):
+        owner = db.get(Staff, existing.waiter_id).name
+        raise HTTPException(status.HTTP_409_CONFLICT, f"{table.name} already has an open order ({owner}).")
+    return table, None if table or not label else label.strip()
 
 
 @router.post("/bills", status_code=status.HTTP_201_CREATED)
 def open_bill(body: OpenBill, actor: Annotated[Actor, Depends(require(Action.open_bill))], request: Request, db: Db) -> BillOut:
-    section = get_settings(db, actor.business_id).tab_section
-    if body.table_id:
-        table = db.get(Table, body.table_id)
-        if table is None or table.business_id != actor.business_id or not table.active:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Table not found.")
-        if existing := table_has_open_bill(db, actor.business_id, table.id):
-            owner = db.get(Staff, existing.waiter_id).name
-            raise HTTPException(status.HTTP_409_CONFLICT, f"{table.name} already has an open bill ({owner}).")
-        section = table.section
+    if not (body.table_id or body.table or body.tab_name):
+        # A second tap on NEW ORDER, or the counter screen opening again, reuses the
+        # waiter's empty order instead of leaving empty ones behind.
+        for empty in db.scalars(select(Bill).where(
+            Bill.business_id == actor.business_id, Bill.waiter_id == actor.staff.id, Bill.status == BillStatus.open,
+            Bill.table_id.is_(None), Bill.table_label.is_(None), Bill.tab_name.is_(None),
+        ).order_by(Bill.number.desc())):
+            if not bill_lines(db, empty) and not totals(db, empty)[1]:
+                return bill_detail(db, empty)
+    table, label = _resolve_table(db, actor, body.table_id, body.table)
+    section = table.section if table else get_settings(db, actor.business_id).tab_section
     number = next_number(db, actor.business_id, "bill")
     bill = Bill(
         business_id=actor.business_id, created_by=actor.staff.id, number=number, section=section,
-        table_id=body.table_id,
-        tab_name=f"Quick sale {number:04d}" if body.quick else body.tab_name.strip() if body.tab_name else None,
+        table_id=table.id if table else None, table_label=label,
+        tab_name=body.tab_name.strip() if body.tab_name else None,
         waiter_id=actor.staff.id, business_day=today(db, actor.business_id, request.app.state.tz),
     )
     db.add(bill)
@@ -409,22 +430,30 @@ def comp_line(bill_id: uuid.UUID, line_id: uuid.UUID, body: CompIn, actor: Curre
 
 
 class MoveIn(BaseModel):
-    table_id: uuid.UUID
+    """A table set up in Tables & sections, or a typed table number."""
+
+    table_id: uuid.UUID | None = None
+    table: TableLabel | None = None
+
+    @model_validator(mode="after")
+    def one_table(self):
+        if (self.table_id is None) == (self.table is None):
+            raise ValueError("Give one table.")
+        return self
 
 
 @router.post("/bills/{bill_id}/move")
 def move_bill(bill_id: uuid.UUID, body: MoveIn, actor: CurrentActor, db: Db) -> BillOut:
     bill = load_bill(db, actor, bill_id, Action.move_bill_table)
-    table = db.get(Table, body.table_id)
-    if table is None or table.business_id != actor.business_id or not table.active:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Table not found.")
-    if table_has_open_bill(db, actor.business_id, table.id):
-        raise HTTPException(status.HTTP_409_CONFLICT, f"{table.name} already has an open bill.")
+    if body.table_id and body.table_id == bill.table_id:
+        raise HTTPException(status.HTTP_409_CONFLICT, "The order is already at this table.")
+    table, label = _resolve_table(db, actor, body.table_id, body.table)
     before = place(db, bill)
-    bill.table_id, bill.tab_name, bill.section = table.id, None, table.section
+    bill.table_id, bill.table_label, bill.tab_name = (table.id if table else None), label, None
+    bill.section = table.section if table else get_settings(db, actor.business_id).tab_section
     audit.record(db, business_id=actor.business_id, actor_id=actor.staff.id, action="bill.moved",
                  entity_type="bill", entity_id=bill.id,
-                 details={"bill": bill.number, "from": before, "to": table.name})
+                 details={"bill": bill.number, "from": before, "to": place(db, bill)})
     db.commit()
     return bill_detail(db, bill)
 
@@ -497,7 +526,7 @@ def split(bill_id: uuid.UUID, body: SplitIn, actor: CurrentActor, request: Reque
         raise HTTPException(status.HTTP_409_CONFLICT, "Leave at least one item on this bill.")
     new = Bill(
         business_id=actor.business_id, created_by=actor.staff.id,
-        number=next_number(db, actor.business_id, "bill"), table_id=bill.table_id,
+        number=next_number(db, actor.business_id, "bill"), table_id=bill.table_id, table_label=bill.table_label,
         tab_name=bill.tab_name, waiter_id=bill.waiter_id, section=bill.section,
         business_day=today(db, actor.business_id, request.app.state.tz),
     )

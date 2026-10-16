@@ -40,6 +40,7 @@ import {
   type StockItem,
   type TableRow,
 } from "../services/api";
+import { getStartScreen, setStartScreen } from "../shared/device";
 import { Keypad } from "../shared/Keypad";
 import { Modal } from "../shared/Modal";
 import { formatKsh } from "../shared/money";
@@ -709,6 +710,7 @@ export function SettingsEditor() {
   const { data, error, reload } = useData<Settings>(getSettings);
   const [form, setForm] = useState<Settings | null>(null);
   const [newNote, setNewNote] = useState("");
+  const [start, setStart] = useState(getStartScreen);
   const [newEmail, setNewEmail] = useState("");
   const [theme, setTheme] = useState(() => {
     try {
@@ -761,6 +763,16 @@ export function SettingsEditor() {
           <Field label="Tabs and quick sales count in section">
             <input className="text-input" value={form.tab_section} maxLength={30} onChange={(e) => set("tab_section", e.target.value)} />
           </Field>
+        </div>
+        <div className="row" style={{ marginTop: 10 }}>
+          <span className="muted">This screen opens on:</span>
+          <div className="segmented">
+            {(["orders", "menu"] as const).map((v) => (
+              <button key={v} className={start === v ? "on" : ""} onClick={() => (setStartScreen(v), setStart(v), toast(v === "menu" ? "This screen now opens on the menu" : "This screen now opens on the orders"))}>
+                {v === "orders" ? "Orders (waiters)" : "Menu (bar counter)"}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="row" style={{ marginTop: 10 }}>
           <span className="muted">This screen:</span>

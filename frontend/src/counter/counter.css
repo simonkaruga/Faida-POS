@@ -619,3 +619,47 @@ select.text-input { appearance: auto; }
 /* Bright theme: livelier category tints on tiles without a picture. */
 :root[data-theme="light"] .item-tile:not(.with-image) { background: linear-gradient(160deg, color-mix(in srgb, var(--c) 20%, #fff), #fff 70%); border-color: color-mix(in srgb, var(--c) 30%, var(--border)); }
 :root[data-theme="light"] .item-watermark { opacity: 0.22; }
+
+/* Home: my open orders and NEW ORDER (the order is the thing; a table is optional). */
+.home-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.home-head h1 { margin: 0; font-size: 30px; letter-spacing: -0.02em; }
+.home-head p { margin: 4px 0 0; font-size: 17px; }
+.home-actions { display: flex; gap: 14px; align-items: stretch; margin: 18px 0 6px; flex-wrap: wrap; }
+.new-order {
+  display: inline-flex; align-items: center; gap: 16px; min-height: 96px; padding: 0 30px 0 18px;
+  border: none; border-radius: 22px; cursor: pointer; font: inherit; text-align: left;
+  background: linear-gradient(135deg, #3d86ff, var(--blue-strong)); color: #fff;
+  font-size: 28px; font-weight: 850; letter-spacing: 0.01em;
+  box-shadow: 0 12px 30px rgb(31 107 255 / 0.35);
+  transition: transform 120ms var(--ease), box-shadow 160ms;
+}
+.new-order:active:not(:disabled) { transform: scale(0.97); }
+.new-order:disabled { opacity: 0.6; }
+.new-order small { display: block; font-size: 15px; font-weight: 600; opacity: 0.85; letter-spacing: 0; }
+.new-order-icon { display: grid; place-items: center; width: 62px; height: 62px; border-radius: 18px; background: rgb(255 255 255 / 0.2); }
+.home-search { max-width: none; flex: 1; min-width: 280px; align-self: center; }
+.home-search input { min-height: 64px; font-size: 19px; }
+.order-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 12px; }
+.order-card {
+  display: flex; flex-direction: column; gap: 6px; min-height: 150px; padding: 14px 16px;
+  border-radius: 18px; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: inherit; text-align: left; cursor: pointer; box-shadow: var(--shadow-sm);
+  animation: rise 260ms var(--ease) both; transition: transform 120ms var(--ease), border-color 160ms;
+}
+.order-card:active:not(:disabled) { transform: scale(0.97); }
+.order-card.mine { border-color: color-mix(in srgb, var(--blue) 45%, var(--border)); border-top: 5px solid var(--blue); }
+.order-card.others { opacity: 0.85; }
+.order-card.others:disabled { opacity: 0.5; cursor: default; }
+.order-card.attention { border-color: var(--orange); box-shadow: 0 0 0 3px var(--orange-soft); }
+.order-top { display: flex; align-items: center; justify-content: space-between; }
+.order-no { font-size: 26px; font-weight: 850; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.order-place { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 3px 10px; border-radius: 999px; background: var(--blue-soft); color: var(--blue); font-size: 15px; font-weight: 750; }
+.order-place.standing { background: var(--surface-raised); color: var(--text-muted); font-weight: 650; }
+.order-amount { margin-top: auto; font-size: 26px; font-weight: 850; font-variant-numeric: tabular-nums; }
+.order-card .table-time { background: var(--surface-raised); }
+.order-card .table-time.long { background: var(--orange); color: #1b1203; }
+.order-card .table-time.very-long { background: var(--red); color: #fff; }
+
+/* Order screen: the order number, and the table if there is one (tap to set it). */
+.place-badge.as-button { border: none; font: inherit; cursor: pointer; }
+.add-table { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; border: 1px dashed var(--blue); background: transparent; color: var(--blue); font: inherit; font-size: 14px; font-weight: 750; cursor: pointer; }
