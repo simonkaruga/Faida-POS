@@ -1,4 +1,4 @@
-import { ArrowLeft, Banknote, BookUser, CheckCircle2, ReceiptText, Smartphone, TriangleAlert, UserX } from "lucide-react";
+import { ArrowLeft, Banknote, BookUser, CheckCircle2, CreditCard, ReceiptText, Smartphone, TriangleAlert, UserX } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   ApiError,
@@ -27,10 +27,10 @@ type Props = {
   onDone: (message: string, warning?: boolean) => void;
 };
 
-type Field = "amount" | "given" | "tip" | "code";
+type Field = "amount" | "given" | "tip" | "code" | "card";
 type Done = {
   change: number;
-  method: "cash" | "mpesa" | "credit" | "unpaid";
+  method: "cash" | "mpesa" | "card" | "credit" | "unpaid";
   receiptPrinted: boolean;
   receiptId?: string;
   place: string;
@@ -45,7 +45,8 @@ const num = (s: string) => (s ? parseInt(s, 10) : 0);
 export function PayScreen({ session, billId, onBack, onDone }: Props) {
   const [bill, setBill] = useState<Bill | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [method, setMethod] = useState<"cash" | "mpesa">("cash");
+  const [method, setMethod] = useState<"cash" | "mpesa" | "card">("cash");
+  const [cardRef, setCardRef] = useState("");
   const [amount, setAmount] = useState("");
   const [given, setGiven] = useState("");
   const [tip, setTip] = useState("");
@@ -69,17 +70,19 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
   const codeLength = CODE_LENGTH[settings.mpesa_code_entry];
   const due = num(amount);
   const change = num(given) - due;
-  const values: Record<Exclude<Field, "code">, [string, (v: string) => void]> = {
+  const values: Record<Exclude<Field, "code" | "card">, [string, (v: string) => void]> = {
     amount: [amount, setAmount],
     given: [given, setGiven],
     tip: [tip, setTip],
   };
   const ready =
-    due > 0 && due <= bill.balance && (method === "cash" ? !given || num(given) >= due : code.length === codeLength);
+    due > 0 &&
+    due <= bill.balance &&
+    (method === "cash" ? !given || num(given) >= due : method === "card" ? cardRef.length === 4 : code.length === codeLength);
 
-  const switchTo = (m: "cash" | "mpesa") => {
+  const switchTo = (m: "cash" | "mpesa" | "card") => {
     setMethod(m);
-    setField(m === "cash" ? "given" : codeLength ? "code" : "amount");
+    setField(m === "cash" ? "given" : m === "card" ? "card" : codeLength ? "code" : "amount");
     setError(null);
     setDuplicate(null);
   };
@@ -92,7 +95,9 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
       const body: PaymentIn =
         method === "cash"
           ? { method, amount: due, tendered: given ? num(given) : due }
-          : { method, amount: due, tip: num(tip), mpesa_code: codeLength ? code : undefined, ...extra };
+          : method === "card"
+            ? { method, amount: due, card_ref: cardRef }
+            : { method, amount: due, tip: num(tip), mpesa_code: codeLength ? code : undefined, ...extra };
       const { bill: updated, change } = await takePayment(bill.id, body);
       setDuplicate(null);
       if (updated.status === "paid") {
@@ -104,6 +109,7 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
         setGiven("");
         setTip("");
         setCode("");
+        setCardRef("");
         setError(null);
       }
     } catch (e) {
@@ -167,7 +173,7 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
     );
   }
 
-  const [fieldValue, setFieldValue] = values[field === "code" ? "amount" : field];
+  const [fieldValue, setFieldValue] = values[field === "code" || field === "card" ? "amount" : field];
   const dupApproval = session.permissions.mpesa_duplicate_override;
 
   return (
@@ -188,13 +194,13 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
               of {formatKsh(bill.total)} · paid so far{" "}
               {bill.payments
                 .filter((p) => !p.reversed)
-                .map((p) => `${p.method === "cash" ? "cash" : `M-Pesa ${p.mpesa_ref ?? ""}`} ${formatKsh(p.amount)}`)
+                .map((p) => `${p.method === "cash" ? "cash" : p.method === "card" ? `card ${p.card_ref ?? ""}` : `M-Pesa ${p.mpesa_ref ?? ""}`} ${formatKsh(p.amount)}`)
                 .join(", ")}
             </small>
           )}
         </div>
 
-        <div className="method-tabs">
+        <div className="method-tabs three">
           <button className={`method ${method === "cash" ? "on" : ""}`} onClick={() => switchTo("cash")}>
             <span className="method-icon">
               <Banknote size={24} />
@@ -207,6 +213,12 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
             </span>
             M-Pesa
           </button>
+          <button className={`method card ${method === "card" ? "on" : ""}`} onClick={() => switchTo("card")}>
+            <span className="method-icon">
+              <CreditCard size={24} />
+            </span>
+            Card
+          </button>
         </div>
 
         <FieldBox label="Amount for this bill" value={amount} active={field === "amount"} onClick={() => setField("amount")} note={due < bill.balance ? "Part payment" : undefined} />
@@ -218,6 +230,11 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
               <strong>{given ? formatKsh(Math.abs(change)) : "—"}</strong>
             </div>
           </>
+        ) : method === "card" ? (
+          <button className={`field-box ${field === "card" ? "active" : ""}`} onClick={() => setField("card")}>
+            <span className="muted">Card slip reference (last 4)</span>
+            <strong className="code-value">{cardRef.padEnd(4, "·")}</strong>
+          </button>
         ) : (
           <>
             {codeLength > 0 && (
@@ -253,8 +270,8 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
           {error ?? ""}
         </p>
         <button className={`btn btn-primary pay-go ${method}`} disabled={!ready || busy} onClick={() => submit()}>
-          {method === "cash" ? <Banknote size={26} /> : <Smartphone size={26} />}
-          {method === "cash" ? "TAKE CASH" : "RECORD M-PESA"} {due > 0 ? formatKsh(due) : ""}
+          {method === "cash" ? <Banknote size={26} /> : method === "card" ? <CreditCard size={26} /> : <Smartphone size={26} />}
+          {method === "cash" ? "TAKE CASH" : method === "card" ? "RECORD CARD" : "RECORD M-PESA"} {due > 0 ? formatKsh(due) : ""}
         </button>
         <div className="row">
           {session.permissions.approve_credit !== "deny" && (
@@ -271,7 +288,14 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
       </section>
 
       <section className="pay-pad">
-        {field === "code" ? (
+        {field === "card" ? (
+          <div className="pay-code">
+            <p className="muted" style={{ margin: "0 0 8px", fontSize: 18 }}>
+              Charge {formatKsh(due)} on the card machine, then enter the last 4 characters of the slip's reference
+            </p>
+            <CodeKeypad value={cardRef} length={4} onChange={setCardRef} />
+          </div>
+        ) : field === "code" ? (
           <div className="pay-code">
             <p className="muted" style={{ margin: "0 0 8px", fontSize: 18 }}>
               {codeLength === 4 ? "Last 4 characters" : "Full code"} from the customer's M-Pesa message

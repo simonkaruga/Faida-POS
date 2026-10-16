@@ -160,6 +160,7 @@ function TodayView() {
           <Big label="Sales" value={formatKsh(t.sales.total)} />
           <Big label="Cash" value={formatKsh(t.sales.cash)} />
           <Big label="M-Pesa" value={formatKsh(t.sales.mpesa)} />
+          {t.sales.card > 0 && <Big label="Card" value={formatKsh(t.sales.card)} />}
           <Big label="Credit" value={formatKsh(t.sales.credit)} />
         </div>
         <Section title="Today">

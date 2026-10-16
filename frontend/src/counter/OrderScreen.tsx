@@ -1,14 +1,17 @@
 import {
   ArrowLeft,
+  Ban,
   CheckCircle2,
   ChefHat,
   Clock3,
   Ellipsis,
   GlassWater,
   Minus,
+  PartyPopper,
   Plus,
   Printer,
   ReceiptText,
+  Repeat,
   Search,
   SearchX,
   Send,
@@ -26,6 +29,7 @@ import {
   printBill,
   reprint,
   sendRound,
+  setAvailability,
   type Bill,
   type Menu,
   type MenuItem,
@@ -36,7 +40,8 @@ import { Modal } from "../shared/Modal";
 import { formatKsh } from "../shared/money";
 import { ReceiptDialog } from "../shared/Receipt";
 import { toast } from "../shared/Toast";
-import { MoreMenu, VoidDialog } from "./BillActions";
+import { LineActions, MoreMenu } from "./BillActions";
+import { ItemDialog, PriceTag, type ItemChoice } from "./ItemDialog";
 import { groupLines, type LineGroup } from "./billLines";
 import { addToDraft, draftTotal, getDraft, saveDraft, type DraftLine } from "./drafts";
 
@@ -48,12 +53,13 @@ type Props = {
   onPay: (billId: string) => void;
   onOpen: (billId: string) => void;
   onSent: (message: string, warning?: boolean) => void;
+  onMenuChanged: () => void;
 };
 
 const FAVOURITES = "fav";
 const STATION_TICKET = { bar_slip: "Bar slip", kitchen_ticket: "Kitchen ticket", bill: "Bill", receipt: "Receipt" } as const;
 
-export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSent }: Props) {
+export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSent, onMenuChanged }: Props) {
   const staffId = session.staff.id;
   const [bill, setBill] = useState<Bill | null>(null);
   const [draft, setDraftState] = useState<DraftLine[]>(() => getDraft(staffId, billId));
@@ -67,6 +73,8 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
   const [busy, setBusy] = useState(false);
   const [popped, setPopped] = useState<string | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
+  const [soldOutMode, setSoldOutMode] = useState(false);
+  const canMarkSoldOut = session.permissions.mark_sold_out === "allow";
 
   useEffect(() => {
     getBill(billId).then(setBill, (e) => setMessage({ text: e.message, tone: "error" }));
@@ -87,16 +95,56 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
     return menu.categories.find((c) => c.id === category)?.items ?? [];
   }, [menu, category, search]);
 
-  const add = (item: MenuItem, optionIndex = 0) => {
-    const option = item.options[optionIndex];
+  const add = (item: MenuItem, choice: ItemChoice = { optionIndex: 0, modifiers: [], quantity: 1 }) => {
+    const option = item.options[choice.optionIndex];
     const name = option.label ? `${item.name} - ${option.label}` : item.name;
-    setDraft(addToDraft(draft, { optionId: option.id, name, price: option.price, note: null, station: item.station }));
+    const price = (option.offer_price ?? option.price) + choice.modifiers.reduce((sum, m) => sum + m.price, 0);
+    setDraft(addToDraft(draft, { optionId: option.id, name, price, note: null, station: item.station, modifiers: choice.modifiers, quantity: choice.quantity }));
     setMessage(null);
     setPopped(null);
     requestAnimationFrame(() => setPopped(item.id));
   };
 
-  const tapItem = (item: MenuItem) => (item.options.length > 1 ? setChoosing(item) : add(item));
+  const tapItem = async (item: MenuItem) => {
+    if (soldOutMode) {
+      try {
+        await setAvailability(item.id, !item.available);
+        toast(item.available ? `${item.name} marked sold out` : `${item.name} is back on`, item.available ? "warning" : "success");
+        onMenuChanged();
+      } catch (e) {
+        fail(e);
+      }
+      return;
+    }
+    if (!item.available) return toast(`${item.name} is sold out`, "warning");
+    if (item.options.length > 1 || item.modifier_groups.length > 0) setChoosing(item);
+    else add(item);
+  };
+
+  /** "Same again": the round's items, with their choices and notes, into a new round. */
+  const sameAgain = (lines: Bill["lines"]) => {
+    const byOption = new Map(menu.categories.flatMap((c) => c.items.flatMap((i) => i.options.map((o) => [o.id, { item: i, option: o }] as const))));
+    let next = draft;
+    let skipped = 0;
+    for (const line of lines.filter((l) => !l.voided && !l.combo_parent_id)) {
+      const found = byOption.get(line.sell_option_id);
+      if (!found || !found.item.available) {
+        skipped += 1;
+        continue;
+      }
+      const price = (found.option.offer_price ?? found.option.price) + line.modifiers.reduce((s, m) => s + m.price, 0);
+      next = addToDraft(next, {
+        optionId: line.sell_option_id,
+        name: line.option_label ? `${line.item_name} - ${line.option_label}` : line.item_name,
+        price,
+        note: line.note,
+        station: line.station,
+        modifiers: line.modifiers.map((m) => ({ id: m.id, label: m.label, price: m.price })),
+      });
+    }
+    setDraft(next);
+    toast(skipped ? `Added again. ${skipped} item(s) are sold out or off the menu.` : "Same again: added to the new round", skipped ? "warning" : "success");
+  };
 
   const changeQty = (line: DraftLine, delta: number) =>
     setDraft(draft.flatMap((l) => (l.key !== line.key ? [l] : l.quantity + delta > 0 ? [{ ...l, quantity: l.quantity + delta }] : [])));
@@ -107,7 +155,7 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
     try {
       const updated = await sendRound(
         billId,
-        draft.map((l) => ({ sell_option_id: l.optionId, quantity: l.quantity, note: l.note })),
+        draft.map((l) => ({ sell_option_id: l.optionId, quantity: l.quantity, note: l.note, modifier_option_ids: l.modifiers.map((m) => m.id) })),
       );
       setDraft([]);
       const before = new Set(bill?.tickets.map((t) => t.id));
@@ -188,7 +236,19 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
               <X size={18} /> Clear
             </button>
           )}
+          <span className="grow" />
+          {menu.happy_hours.map((h) => (
+            <span key={h.name} className="happy-banner">
+              <PartyPopper size={18} /> {h.name}: {h.percent_off}% off until {h.until}
+            </span>
+          ))}
+          {canMarkSoldOut && (
+            <button className={`btn ${soldOutMode ? "btn-orange" : "btn-quiet"}`} onClick={() => setSoldOutMode(!soldOutMode)}>
+              <Ban size={18} /> {soldOutMode ? "Done" : "Sold out"}
+            </button>
+          )}
         </div>
+        {soldOutMode && <div className="soldout-hint">Tap items to mark them sold out, or back on. Tap Done when finished.</div>}
         <div className="category-bar">
           <button
             className={`cat ${category === FAVOURITES && !search ? "selected" : ""}`}
@@ -218,17 +278,22 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
             return (
               <button
                 key={item.id}
-                className={`item-tile ${popped === item.id ? "pop" : ""}`}
+                className={`item-tile ${popped === item.id ? "pop" : ""} ${item.available ? "" : "sold-out"} ${item.image ? "with-image" : ""} ${soldOutMode ? "editing" : ""}`}
                 style={{ "--c": colorOf.get(categoryOf.get(item.id) ?? "") ?? "var(--cat-other)" } as React.CSSProperties}
                 onClick={() => tapItem(item)}
               >
+                {item.image && <img className="item-image" src={item.image} alt="" loading="lazy" />}
                 {n > 0 && <span className="item-badge">{n}</span>}
+                {!item.available && <span className="sold-out-tag">SOLD OUT</span>}
                 <span className="item-name">{item.name}</span>
+                {item.is_combo && <span className="item-parts">{item.combo_parts.join(" + ")}</span>}
                 <span className="item-foot">
-                  <span className="item-price">
-                    {item.options.length > 1 ? `from ${formatKsh(Math.min(...item.options.map((o) => o.price)))}` : formatKsh(item.options[0].price)}
-                  </span>
-                  <Station size={16} className="item-station" aria-label={item.station === "kitchen" ? "Kitchen" : "Bar"} />
+                  {item.options.length > 1 ? (
+                    <span className="price-tag">from {formatKsh(Math.min(...item.options.map((o) => o.offer_price ?? o.price)))}</span>
+                  ) : (
+                    <PriceTag price={item.options[0].price} offer={item.options[0].offer_price} />
+                  )}
+                  {item.is_combo ? <span className="pill blue">Combo</span> : <Station size={16} className="item-station" aria-label={item.station === "kitchen" ? "Kitchen" : "Bar"} />}
                 </span>
               </button>
             );
@@ -281,6 +346,11 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
                     <CheckCircle2 size={15} />
                   </span>
                 ) : null}
+                {bill.status === "open" && (
+                  <button className="same-again" onClick={() => sameAgain(round.lines)}>
+                    <Repeat size={15} /> Same again
+                  </button>
+                )}
               </div>
               {groupLines(round.lines).map((g) => (
                 <button
@@ -291,10 +361,13 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
                   <span className="qty">{g.lines.length || g.voided}×</span>
                   <span className="grow">
                     {g.name}
+                    {g.modifiers.length > 0 && <span className="line-mods">+ {g.modifiers.join(", ")}</span>}
+                    {g.parts.length > 0 && <span className="line-mods">{g.parts.join(" + ")}</span>}
                     {g.note && <span className="line-note">"{g.note}"</span>}
+                    {g.offer && <span className="line-offer">{g.offer}</span>}
                     {g.voided > 0 && g.lines.length > 0 && <span className="line-note">{g.voided} removed</span>}
                   </span>
-                  <span className="amount">{formatKsh(g.unitPrice * g.lines.length)}</span>
+                  {g.free ? <span className="pill green">{g.free}</span> : <span className="amount">{formatKsh(g.unitPrice * g.lines.length)}</span>}
                 </button>
               ))}
             </div>
@@ -313,6 +386,7 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
                   </button>
                   <button className="grow line-name" onClick={() => setNoteFor(l)}>
                     {l.name}
+                    {l.modifiers.length > 0 && <span className="line-mods">+ {l.modifiers.map((m) => m.label).join(", ")}</span>}
                     <span className="line-note">{l.note ? `"${l.note}"` : "+ note"}</span>
                   </button>
                   <span className="amount">{formatKsh(l.price * l.quantity)}</span>
@@ -375,18 +449,7 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
         </footer>
       </aside>
 
-      {choosing && (
-        <Modal title={choosing.name} onClose={() => setChoosing(null)}>
-          <div className="choice-list">
-            {choosing.options.map((o, i) => (
-              <button key={o.id} className="choice" onClick={() => (add(choosing, i), setChoosing(null))}>
-                <span>{o.label}</span>
-                <span className="pill blue">{formatKsh(o.price)}</span>
-              </button>
-            ))}
-          </div>
-        </Modal>
-      )}
+      {choosing && <ItemDialog item={choosing} onAdd={(choice) => (add(choosing, choice), setChoosing(null))} onClose={() => setChoosing(null)} />}
 
       {noteFor && (
         <NoteDialog
@@ -401,11 +464,11 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
       )}
 
       {voiding && (
-        <VoidDialog
+        <LineActions
           session={session}
           bill={bill}
           group={voiding}
-          onDone={(updated) => (setBill(updated), setVoiding(null), toast("Item removed from the bill"))}
+          onDone={(updated) => (setBill(updated), setVoiding(null), toast("Bill updated"))}
           onClose={() => setVoiding(null)}
         />
       )}

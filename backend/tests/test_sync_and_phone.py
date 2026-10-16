@@ -106,7 +106,7 @@ def test_uploads_are_safe_to_repeat(linked, cloud_db, db):
     owner = pin(counter, OWNER_PIN)
     counter.post("/api/payouts", headers=owner, json={"amount": 300, "reason": "Ice"})
     entries = db.scalars(select(SyncQueueEntry).order_by(SyncQueueEntry.seq)).all()
-    body = {"software_version": "0.1.0", "counter_time": now().isoformat(),
+    body = {"software_version": "0.2.0", "counter_time": now().isoformat(),
             "entries": [dict(seq=e.seq, table=e.table_name, op=e.op, id=str(e.row_id), data=e.payload) for e in entries]}
     for _ in range(2):  # the answer to the first upload was lost; the counter sends it again
         r = link.cloud.post("/api/sync/upload", json=body, headers={"Authorization": f"Bearer {token}"})
@@ -130,7 +130,7 @@ def test_a_counter_can_only_upload_its_own_business(linked, cloud, cloud_db, db)
     counter.app.state.sync.push_all()
     _, other_token = new_device(cloud_db, uuid.uuid4(), "Someone else's counter")
     staff_row = db.execute(text("SELECT to_jsonb(s) FROM staff s LIMIT 1")).scalar()
-    body = {"software_version": "0.1.0", "counter_time": now().isoformat(),
+    body = {"software_version": "0.2.0", "counter_time": now().isoformat(),
             "entries": [dict(seq=1, table="staff", op="upsert", id=staff_row["id"], data={**staff_row, "name": "Hacked"})]}
     r = cloud.post("/api/sync/upload", json=body, headers={"Authorization": f"Bearer {other_token}"})
     assert r.status_code == 403
@@ -142,10 +142,10 @@ def test_old_counters_keep_syncing_but_too_old_ones_are_refused(linked, cloud, c
     upload = lambda version, at=None: cloud.post(  # noqa: E731
         "/api/sync/upload", headers={"Authorization": f"Bearer {token}"},
         json={"software_version": version, "counter_time": (at or now()).isoformat(), "entries": []})
-    assert upload("0.1.0").status_code == 200
-    assert upload("0.0.9").status_code == 200  # the previous minor version
+    assert upload("0.2.0").status_code == 200
+    assert upload("0.1.0").status_code == 200  # the previous minor version
     assert upload("1.0.0").status_code == 426
-    r = upload("0.1.0", now() + timedelta(minutes=12))
+    r = upload("0.2.0", now() + timedelta(minutes=12))
     assert r.json()["clock_warning"] is True
     device = cloud_db.scalar(select(Device))
     cloud_db.refresh(device)

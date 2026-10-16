@@ -1,0 +1,10 @@
+[Unit]
+Description=Faida POS nightly backup
+
+[Timer]
+# After closing. If the PC was off at 04:30, it runs as soon as it starts.
+OnCalendar=*-*-* 04:30
+Persistent=true
+
+[Install]
+WantedBy=timers.target

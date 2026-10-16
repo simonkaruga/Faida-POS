@@ -4,16 +4,19 @@ Business settings that the owner changes (cut-off, auto-lock, tot size...) live 
 database instead; see app/settings/models.py.
 """
 
+import os
 from functools import lru_cache
 from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 
 class Config(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="FAIDA_", env_file=".env", extra="ignore")
+    # An installed counter keeps its settings outside the app folder, so updates and
+    # rollbacks never touch them (deploy/ sets FAIDA_ENV_FILE).
+    model_config = SettingsConfigDict(env_prefix="FAIDA_", env_file=os.environ.get("FAIDA_ENV_FILE", ".env"), extra="ignore")
 
     # local = the counter PC (prints, queues sync); cloud = the shared Faida server.
     mode: Literal["local", "cloud"] = "local"

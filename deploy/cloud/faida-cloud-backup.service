@@ -1,0 +1,13 @@
+[Unit]
+Description=Faida POS cloud encrypted backup
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=faida
+Group=faida
+WorkingDirectory=/opt/faida/current/backend
+Environment=FAIDA_ENV_FILE=/etc/faida/cloud.env
+ExecStart=/opt/faida/current/backend/.venv/bin/python -m app.backup create --to /var/backups/faida --keep 30
+# Copy off the server too (configure rclone once: rclone config, remote "offsite").
+ExecStartPost=-/bin/sh -c 'command -v rclone >/dev/null && rclone copy /var/backups/faida offsite:faida-backups --max-age 2d'

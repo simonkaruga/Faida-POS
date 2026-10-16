@@ -10,3 +10,4 @@ dist/
 prints/
 .env.cloud
 state/
+releases/

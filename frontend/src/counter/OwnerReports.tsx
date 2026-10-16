@@ -1,6 +1,8 @@
+import { FileSpreadsheet, Printer } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   addExpense,
+  download,
   ApiError,
   closeDay,
   getClosing,
@@ -12,8 +14,10 @@ import {
   type Report,
 } from "../services/api";
 import { Keypad } from "../shared/Keypad";
+import { toast } from "../shared/Toast";
 import { Modal } from "../shared/Modal";
 import { formatKsh } from "../shared/money";
+import { COMP_LABEL } from "./billLines";
 import { BarList, ClosingView, ProfitBlock, Row, SalesBlock, Section } from "../shared/ReportParts";
 
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong.");
@@ -23,6 +27,21 @@ const shift = (day: string, days: number) => {
   d.setDate(d.getDate() + days);
   return iso(d);
 };
+/** Excel for the accountant, and Print / Save as PDF (the browser's print dialog, with
+ * the owner screens' chrome hidden by the print stylesheet). */
+function ExportButtons({ onExcel }: { onExcel: () => Promise<unknown> }) {
+  return (
+    <>
+      <button className="btn btn-quiet no-print" onClick={() => onExcel().catch((e) => toast(errorText(e), "error"))}>
+        <FileSpreadsheet size={18} /> Excel
+      </button>
+      <button className="btn btn-quiet no-print" onClick={() => window.print()}>
+        <Printer size={18} /> Print / PDF
+      </button>
+    </>
+  );
+}
+
 const nice = (day: string) => new Date(`${day}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 
 /** The business day's closing (masterplan 4.9). Supervisors see it without profit. */
@@ -62,6 +81,7 @@ export function ClosingTab() {
           ›
         </button>
         <span className="grow" />
+        <ExportButtons onExcel={() => download(`/closing/export?day=${closing.day}`, `closing-${closing.day}.xlsx`)} />
         {closing.closed ? (
           <span className="status-tag paid">
             Closed by {closing.closed_by} at {new Date(closing.closed_at!).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
@@ -163,6 +183,8 @@ export function ReportsTab() {
         <input className="text-input" type="date" value={period[0]} max={period[1]} onChange={(e) => (setPreset(null), setPeriod([e.target.value, period[1]]))} />
         <span className="muted">to</span>
         <input className="text-input" type="date" value={period[1]} min={period[0]} max={today} onChange={(e) => (setPreset(null), setPeriod([period[0], e.target.value]))} />
+        <span className="grow" />
+        <ExportButtons onExcel={() => download(`/reports/export?start=${period[0]}&end=${period[1]}`, `report-${period[0]}-to-${period[1]}.xlsx`)} />
       </div>
       <p className="error-text">{error ?? ""}</p>
       {!report || !b ? (
@@ -182,12 +204,29 @@ export function ReportsTab() {
           <Section title="Sales by category">
             <BarList rows={b.by_category.map((c) => ({ label: c.category, value: c.sales }))} />
           </Section>
+          {b.by_section.length > 1 && (
+            <Section title="Sales by section">
+              <BarList rows={b.by_section.map((r) => ({ label: r.section, value: r.sales }))} />
+            </Section>
+          )}
+          <Section title="Bar and kitchen">
+            <BarList rows={b.by_station.map((r) => ({ label: r.station === "bar" ? "Bar" : "Kitchen", value: r.sales }))} />
+          </Section>
           <Section title="Sales by waiter">
             <BarList rows={b.by_waiter.map((w) => ({ label: w.waiter, value: w.sales, note: `${w.bills} bills` }))} />
           </Section>
           <Section title="Best sellers">
             <BarList rows={b.best.map((i) => ({ label: i.item, value: i.sales, note: `× ${i.quantity}` }))} />
           </Section>
+          {report.comps.items.length > 0 && (
+            <Section title={`Given free: ${formatKsh(report.comps.total)} at menu price`}>
+              {Object.entries(
+                report.comps.items.reduce<Record<string, number>>((acc, c) => ((acc[c.reason] = (acc[c.reason] ?? 0) + c.value), acc), {}),
+              ).map(([reason, value]) => (
+                <Row key={reason} label={COMP_LABEL[reason] ?? reason} value={formatKsh(value)} />
+              ))}
+            </Section>
+          )}
           <Section title="Worst sellers">
             {b.worst.map((i) => (
               <Row key={i.item} label={i.item} value={i.quantity ? `${formatKsh(i.sales)} × ${i.quantity}` : "not sold"} />

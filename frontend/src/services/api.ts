@@ -22,15 +22,38 @@ export type Session = {
   auto_lock_seconds: number;
 };
 
-export type SellOption = { id: string; label: string; price: number };
-export type MenuItem = { id: string; name: string; station: "bar" | "kitchen"; favourite: boolean; options: SellOption[] };
-export type Menu = { categories: { id: string; name: string; items: MenuItem[] }[]; note_presets: string[] };
+export type SellOption = { id: string; label: string; price: number; offer_price: number | null; offer: string | null };
+export type ModifierGroup = {
+  id: string;
+  name: string;
+  min_select: number;
+  max_select: number;
+  options: { id: string; label: string; price: number }[];
+};
+export type MenuItem = {
+  id: string;
+  name: string;
+  station: "bar" | "kitchen";
+  favourite: boolean;
+  available: boolean;
+  image: string | null;
+  is_combo: boolean;
+  combo_parts: string[];
+  modifier_groups: ModifierGroup[];
+  options: SellOption[];
+};
+export type Menu = {
+  categories: { id: string; name: string; items: MenuItem[] }[];
+  note_presets: string[];
+  happy_hours: { name: string; percent_off: number; until: string }[];
+};
 
 export type Person = { id: string; name: string };
 export type FloorBill = {
   id: string;
   number: number;
   place: string;
+  section: string;
   table_id: string | null;
   tab_name: string | null;
   waiter: Person;
@@ -40,10 +63,12 @@ export type FloorBill = {
   balance: number | null;
   not_printed: boolean | null;
 };
-export type Floor = { tables: { id: string; name: string }[]; bills: FloorBill[] };
+export type TableRow = { id: string; name: string; section: string; sort_order: number; active: boolean };
+export type Floor = { tables: TableRow[]; bills: FloorBill[] };
 
 export type BillLine = {
   id: string;
+  sell_option_id: string;
   item_name: string;
   option_label: string;
   station: "bar" | "kitchen";
@@ -53,7 +78,13 @@ export type BillLine = {
   ticket_id: string;
   voided: boolean;
   void_reason: "not_prepared" | "already_prepared" | null;
+  modifiers: { id: string; group: string; label: string; price: number }[];
+  list_price: number | null;
+  price_rule: string | null;
+  comp_reason: CompReason | null;
+  combo_parent_id: string | null;
 };
+export type CompReason = "house" | "staff_drink" | "owner_guest" | "complaint" | "promotion";
 export type Ticket = {
   id: string;
   kind: "bar_slip" | "kitchen_ticket" | "bill" | "receipt";
@@ -66,11 +97,12 @@ export type Ticket = {
 };
 export type Payment = {
   id: string;
-  method: "cash" | "mpesa";
+  method: "cash" | "mpesa" | "card";
   amount: number;
   tendered: number | null;
   tip: number;
   mpesa_ref: string | null;
+  card_ref: string | null;
   created_at: string;
   taken_by: string;
   reversed: boolean;
@@ -81,6 +113,7 @@ export type Bill = {
   place: string;
   table_id: string | null;
   tab_name: string | null;
+  section: string;
   waiter: Person;
   status: "open" | "paid" | "credit" | "unpaid_responsible" | "cancelled" | "merged";
   opened_at: string;
@@ -101,9 +134,15 @@ export type Bill = {
 };
 
 export type Settings = {
+  business_day_cutoff: string;
+  auto_lock_seconds: number;
+  tot_size_ml: number | null;
   mpesa_code_entry: "last4" | "full" | "none";
   mpesa_till_number: string | null;
+  receipt_footer: string;
   note_presets: string[];
+  tab_section: string;
+  report_emails: string[];
 };
 
 export class ApiError extends Error {
@@ -167,9 +206,9 @@ export const getMenu = () => api<Menu>("/menu");
 export const getFloor = () => api<Floor>("/floor");
 export const getBill = (id: string) => api<Bill>(`/bills/${id}`);
 
-export const openBill = (place: { table_id: string } | { tab_name: string }) => api<Bill>("/bills", { body: place });
+export const openBill = (place: { table_id: string } | { tab_name: string } | { quick: true }) => api<Bill>("/bills", { body: place });
 
-export type RoundItem = { sell_option_id: string; quantity: number; note: string | null };
+export type RoundItem = { sell_option_id: string; quantity: number; note: string | null; modifier_option_ids: string[] };
 export const sendRound = (billId: string, items: RoundItem[]) => api<Bill>(`/bills/${billId}/send`, { body: { items } });
 export const printBill = (billId: string) => api<Bill>(`/bills/${billId}/print`, { method: "POST" });
 export const voidLine = (billId: string, lineId: string, reason: string, approvalId?: string) =>
@@ -184,11 +223,12 @@ export const reprint = (ticketId: string, approvalId?: string) =>
   api<Bill>(`/tickets/${ticketId}/reprint`, { body: { approval_id: approvalId } });
 
 export type PaymentIn = {
-  method: "cash" | "mpesa";
+  method: "cash" | "mpesa" | "card";
   amount: number;
   tendered?: number;
   tip?: number;
   mpesa_code?: string;
+  card_ref?: string;
   approval_id?: string;
   confirm_duplicate?: boolean;
 };
@@ -241,6 +281,7 @@ export type CashUp = {
   bills: number;
   total_sales: number;
   mpesa: number;
+  card: number;
   credit: number;
   cash_taken_by_others: number;
   cash_due_from_sales: number;
@@ -249,7 +290,7 @@ export type CashUp = {
   float_amount: number;
   mpesa_tips: number;
   cash_to_hand_over: number;
-  mpesa_payments: { bill_number: number; amount: number; tip: number; ref: string | null; at: string }[];
+  mpesa_payments: { bill_number: number; amount: number; tip: number; ref: string | null; at: string; method: "mpesa" | "card" }[];
 };
 export type ShiftInfo = { id: string; staff: Person; business_day: string; started_at: string; float_amount: number };
 export type MyShift = {
@@ -359,7 +400,7 @@ export const setRecipe = (optionId: string, lines: RecipeLine[]) =>
   api<Recipe>(`/stock/recipes/${optionId}`, { method: "PUT", body: { lines } });
 
 // Daily closing, reports, expenses
-export type SalesSummary = { bills: number; total: number; cash: number; mpesa: number; credit: number; unpaid: number; discounts: number; tips: number; average_bill: number };
+export type SalesSummary = { bills: number; total: number; cash: number; mpesa: number; card: number; credit: number; unpaid: number; discounts: number; tips: number; average_bill: number };
 export type Profit = { sales: number; cost_of_sales: number; gross_profit: number; waste: number; variance: number; expenses: number; expenses_by_category: Record<string, number>; real_profit: number };
 export type WaiterHandover = { staff: string; day: string; expected: number; received: number; difference: number; receiver: string; agrees: boolean | null; forced: boolean; shortage_status: string | null };
 export type ClosingReport = {
@@ -375,11 +416,18 @@ export type ClosingReport = {
   discounts: { bill: number; amount: number; reason: string | null; asked_by: string | null; approved_by: string | null }[];
   discount_total: number;
   cancelled: { bill: number; total: number | null; reason: string; asked_by: string | null; approved_by: string | null }[];
+  comps: Comps;
+  sections: { section: string; sales: number }[];
   unpaid_bills: { bill: number; place: string; waiter: string; amount: number }[];
   stock_variance: { day: string; item: string; variance: string; value: number | null }[];
   stock: { low: { item: string; level: string }[]; check: { item: string; level: string }[]; value: number | null };
   blockers: { open_shifts: string[]; open_bills: { bill: number; place: string; waiter: string }[] };
   profit?: Profit;
+};
+export type Comps = {
+  items: { bill: number; item: string; reason: CompReason; value: number; asked_by: string | null; approved_by: string | null }[];
+  total: number;
+  by_reason: Record<string, number>;
 };
 export type Closing = { day: string; closed: boolean; closed_by: string | null; closed_at: string | null; cash_box_counted: number | null; note: string | null; report: ClosingReport };
 export type Report = {
@@ -392,6 +440,8 @@ export type Report = {
     by_category: { category: string; sales: number }[];
     by_waiter: { waiter: string; bills: number; sales: number }[];
     by_hour: { hour: number; sales: number }[];
+    by_section: { section: string; sales: number }[];
+    by_station: { station: string; sales: number }[];
     best: { item: string; quantity: number; sales: number }[];
     worst: { item: string; quantity: number; sales: number }[];
   };
@@ -401,6 +451,7 @@ export type Report = {
   debtors: { name: string; phone: string | null; owed: number; limit: number; since: string | null }[];
   stock: { low: { item: string; level: string }[]; check: { item: string; level: string }[]; value: number | null };
   credit_collected: { cash: number; mpesa: number; total: number };
+  comps: Comps;
 };
 export type Expense = { id: string; category: string; amount: number; note: string | null; business_day: string; from_cash_box: boolean; reversed: boolean; is_reversal: boolean; by: string };
 
@@ -412,3 +463,105 @@ export const getExpenses = (start: string, end: string) => api<Expense[]>(`/expe
 export const addExpense = (body: { category: string; amount: number; note?: string; from_cash_box: boolean }) =>
   api<Expense>("/expenses", { body });
 export const reverseExpense = (id: string) => api<Expense>(`/expenses/${id}/reverse`, { method: "POST" });
+
+// Selling extras
+export const compLine = (billId: string, lineId: string, reason: CompReason, approvalId?: string) =>
+  api<Bill>(`/bills/${billId}/lines/${lineId}/comp`, { body: { reason, approval_id: approvalId } });
+export const setAvailability = (itemId: string, available: boolean) =>
+  api<void>(`/menu/items/${itemId}/availability`, { body: { available } });
+
+// Downloads (Excel) need the session, so they are fetched and saved from here.
+export async function download(path: string, fallbackName: string) {
+  const r = await fetch(`/api${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!r.ok) {
+    const data = await r.json().catch(() => ({}));
+    throw new ApiError(r.status, typeof data.detail === "string" ? data.detail : "Couldn't download it.");
+  }
+  const name = /filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") ?? "")?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(await r.blob());
+  const a = Object.assign(document.createElement("a"), { href: url, download: name });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
+// Owner: menu, tables, staff, settings
+export type ManageOption = { id: string; label: string; price: number; sort_order: number; active: boolean };
+export type ManageItem = {
+  id: string;
+  category_id: string;
+  name: string;
+  station: "bar" | "kitchen";
+  favourite: boolean;
+  available: boolean;
+  active: boolean;
+  sort_order: number;
+  image: string | null;
+  is_combo: boolean;
+  combo: { sell_option_id: string; quantity: number }[];
+  modifier_group_ids: string[];
+  options: ManageOption[];
+};
+export type ManageGroup = ModifierGroup & { active: boolean };
+export type PriceRuleRow = {
+  id: string;
+  name: string;
+  percent_off: number;
+  days: number[];
+  start_time: string;
+  end_time: string;
+  category_ids: string[];
+  active: boolean;
+};
+export type ManageMenu = {
+  categories: { id: string; name: string; sort_order: number; active: boolean }[];
+  items: ManageItem[];
+  modifier_groups: ManageGroup[];
+  price_rules: PriceRuleRow[];
+};
+export const getManageMenu = () => api<ManageMenu>("/menu/manage");
+export const createCategory = (name: string, sort_order = 0) => api<{ id: string }>("/menu/categories", { body: { name, sort_order } });
+export const updateCategory = (id: string, body: Partial<{ name: string; sort_order: number; active: boolean }>) =>
+  api<void>(`/menu/categories/${id}`, { method: "PATCH", body });
+export const createItem = (body: {
+  category_id: string;
+  name: string;
+  station: "bar" | "kitchen";
+  favourite: boolean;
+  options: { label: string; price: number }[];
+}) => api<{ id: string }>("/menu/items", { body });
+export const updateItem = (id: string, body: Partial<{ category_id: string; name: string; station: string; favourite: boolean; active: boolean; sort_order: number }>) =>
+  api<void>(`/menu/items/${id}`, { method: "PATCH", body });
+export const addOption = (itemId: string, body: { label: string; price: number }) => api<{ id: string }>(`/menu/items/${itemId}/options`, { body });
+export const updateOption = (id: string, body: Partial<{ label: string; price: number; active: boolean }>) =>
+  api<void>(`/menu/options/${id}`, { method: "PATCH", body });
+export const setItemImage = (itemId: string, dataUrl: string) => api<{ image: string }>(`/menu/items/${itemId}/image`, { body: { data_url: dataUrl } });
+export const removeItemImage = (itemId: string) => api<void>(`/menu/items/${itemId}/image`, { method: "DELETE" });
+export const setItemGroups = (itemId: string, groupIds: string[]) =>
+  api<void>(`/menu/items/${itemId}/modifier-groups`, { method: "PUT", body: { group_ids: groupIds } });
+export const setCombo = (itemId: string, parts: { sell_option_id: string; quantity: number }[]) =>
+  api<void>(`/menu/items/${itemId}/combo`, { method: "PUT", body: { parts } });
+export const createGroup = (body: { name: string; min_select: number; max_select: number }) => api<{ id: string }>("/menu/modifier-groups", { body });
+export const updateGroup = (id: string, body: Partial<{ name: string; min_select: number; max_select: number; active: boolean }>) =>
+  api<void>(`/menu/modifier-groups/${id}`, { method: "PATCH", body });
+export const addModOption = (groupId: string, body: { label: string; price: number; stock_item_id?: string | null; stock_quantity?: number | null }) =>
+  api<{ id: string }>(`/menu/modifier-groups/${groupId}/options`, { body });
+export const updateModOption = (id: string, body: Partial<{ label: string; price: number; active: boolean }>) =>
+  api<void>(`/menu/modifier-options/${id}`, { method: "PATCH", body });
+export const createRule = (body: Omit<PriceRuleRow, "id" | "active">) => api<{ id: string }>("/menu/price-rules", { body });
+export const updateRule = (id: string, body: Partial<Omit<PriceRuleRow, "id">>) => api<void>(`/menu/price-rules/${id}`, { method: "PATCH", body });
+
+export const createTable = (body: { name: string; section: string; sort_order?: number }) => api<TableRow>("/tables", { body });
+export const updateTable = (id: string, body: Partial<{ name: string; section: string; active: boolean; sort_order: number }>) =>
+  api<void>(`/tables/${id}`, { method: "PATCH", body });
+export const getAllTables = () => getFloor().then((f) => f.tables);
+
+export type StaffRow = { id: string; name: string; role: Role; active: boolean; created_at: string; deactivated_at: string | null };
+export const getStaff = () => api<StaffRow[]>("/staff");
+export const createStaff = (body: { name: string; role: Role; pin: string }) => api<StaffRow>("/staff", { body });
+export const updateStaff = (id: string, body: Partial<{ name: string; role: Role }>) => api<StaffRow>(`/staff/${id}`, { method: "PATCH", body });
+export const resetPin = (id: string, pin: string) => api<void>(`/staff/${id}/pin`, { body: { pin } });
+export const deactivateStaff = (id: string) => api<StaffRow>(`/staff/${id}/deactivate`, { method: "POST" });
+
+export const updateSettings = (body: Partial<Settings>) => api<Settings>("/settings", { method: "PATCH", body });

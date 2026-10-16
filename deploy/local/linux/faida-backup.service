@@ -1,0 +1,12 @@
+[Unit]
+Description=Faida POS encrypted backup to the USB drive
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=faida
+Group=faida
+WorkingDirectory=/opt/faida/current/backend
+Environment=FAIDA_ENV_FILE=/etc/faida/counter.env
+# Fails (and the cloud alerts Avinaya) if the drive isn't plugged in.
+ExecStart=/opt/faida/current/backend/.venv/bin/python -m app.backup create --to /mnt/faida-usb/faida

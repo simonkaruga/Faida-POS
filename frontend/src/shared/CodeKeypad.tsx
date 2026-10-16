@@ -13,7 +13,7 @@ export function CodeKeypad({ value, length, onChange }: Props) {
   const press = (c: string) => value.length < length && onChange(value + c);
   return (
     <div className="code-keypad">
-      <div className="code-boxes" aria-label={`M-Pesa code ${value}`}>
+      <div className="code-boxes" aria-label={`Code typed: ${value}`}>
         {Array.from({ length }, (_, i) => (
           <span key={i} className={i === value.length ? "code-box current" : "code-box"}>
             {value[i] ?? ""}

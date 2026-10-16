@@ -260,11 +260,12 @@ export function EndShift({ session, onPay, onBack, onDone }: Props) {
             <input className="text-input" placeholder="Note (optional)" value={receiverNote} maxLength={200} onChange={(e) => setReceiverNote(e.target.value)} />
             {cash.mpesa_payments.length > 0 && (
               <details className="mpesa-check">
-                <summary>Check {cash.mpesa_payments.length} M-Pesa payments against the till</summary>
+                <summary>Check {cash.mpesa_payments.length} M-Pesa and card payments against the till and card machine</summary>
                 {cash.mpesa_payments.map((m, i) => (
                   <button key={i} className={`mpesa-row ${ticked.has(i) ? "ticked" : ""}`} onClick={() => setTicked(new Set(ticked.has(i) ? [...ticked].filter((x) => x !== i) : [...ticked, i]))}>
                     <span>{ticked.has(i) ? "☑" : "☐"}</span>
                     <span>#{String(m.bill_number).padStart(4, "0")}</span>
+                    <span className="pill">{m.method === "card" ? "Card" : "M-Pesa"}</span>
                     <span className="code-value">{m.ref ?? "—"}</span>
                     <span className="grow" />
                     <span>

@@ -21,6 +21,7 @@ class Person(BaseModel):
 
 class LineOut(BaseModel):
     id: uuid.UUID
+    sell_option_id: uuid.UUID
     item_name: str
     option_label: str
     station: Station
@@ -105,7 +106,7 @@ def bill_detail(db: Session, bill: Bill) -> BillOut:
         business_day=bill.business_day, opened_at=bill.created_at,
         lines=[
             LineOut(
-                id=l.id, item_name=l.item_name, option_label=l.option_label, station=l.station,
+                id=l.id, sell_option_id=l.sell_option_id, item_name=l.item_name, option_label=l.option_label, station=l.station,
                 unit_price=l.unit_price, note=l.note, sent_at=l.created_at, ticket_id=l.ticket_id,
                 voided=l.voided_at is not None, void_reason=l.void_reason, modifiers=l.modifiers or [],
                 list_price=l.list_price, price_rule=l.price_rule, comp_reason=l.comp_reason,

@@ -14,6 +14,7 @@ export function CashUpTable({ cash }: { cash: CashUp }) {
     <div className="cashup">
       {row(`Total sales (${cash.bills} ${cash.bills === 1 ? "bill" : "bills"})`, cash.total_sales)}
       {row("− Paid by M-Pesa", cash.mpesa)}
+      {cash.card > 0 && row("− Paid by card", cash.card)}
       {row("− Approved credit", cash.credit)}
       {cash.cash_taken_by_others > 0 && row("− Cash taken by others on your bills", cash.cash_taken_by_others)}
       {row("= Cash due from sales", cash.cash_due_from_sales, "subtotal")}

@@ -1,0 +1,10 @@
+[Unit]
+Description=Faida POS health check (counters not syncing or not backing up)
+
+[Service]
+Type=oneshot
+User=faida
+Group=faida
+WorkingDirectory=/opt/faida/current/backend
+Environment=FAIDA_ENV_FILE=/etc/faida/cloud.env
+ExecStart=/opt/faida/current/backend/.venv/bin/python -m app.cli check-health

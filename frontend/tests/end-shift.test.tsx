@@ -10,9 +10,9 @@ afterEach(() => {
 
 const session: Session = { token: "t", staff: { id: "j", name: "Jane", role: "waiter" }, permissions: {}, auto_lock_seconds: 30 };
 const cash: CashUp = {
-  bills: 3, total_sales: 18500, mpesa: 9200, credit: 1200, cash_taken_by_others: 0, cash_due_from_sales: 8100,
+  bills: 3, total_sales: 18500, mpesa: 9200, card: 0, credit: 1200, cash_taken_by_others: 0, cash_due_from_sales: 8100,
   unpaid_responsible: 0, cash_taken_for_others: 0, float_amount: 500, mpesa_tips: 200, cash_to_hand_over: 8400,
-  mpesa_payments: [{ bill_number: 131, amount: 9200, tip: 200, ref: "P2QM", at: "2026-10-16T20:30:00Z" }],
+  mpesa_payments: [{ bill_number: 131, amount: 9200, tip: 200, ref: "P2QM", at: "2026-10-16T20:30:00Z", method: "mpesa" }],
 };
 
 describe("end my shift", () => {

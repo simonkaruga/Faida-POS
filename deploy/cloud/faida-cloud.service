@@ -1,0 +1,16 @@
+[Unit]
+Description=Faida POS cloud (owner phone view and counter uploads)
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+User=faida
+Group=faida
+WorkingDirectory=/opt/faida/current/backend
+Environment=FAIDA_ENV_FILE=/etc/faida/cloud.env
+ExecStart=/opt/faida/current/backend/.venv/bin/uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8100 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -12,6 +12,7 @@ afterEach(() => {
 
 const line = (over: Partial<BillLine>): BillLine => ({
   id: Math.random().toString(),
+  sell_option_id: "o1",
   item_name: "Tusker",
   option_label: "",
   station: "bar",
@@ -21,6 +22,11 @@ const line = (over: Partial<BillLine>): BillLine => ({
   ticket_id: "t",
   voided: false,
   void_reason: null,
+  modifiers: [],
+  list_price: null,
+  price_rule: null,
+  comp_reason: null,
+  combo_parent_id: null,
   ...over,
 });
 
@@ -64,6 +70,7 @@ const bill: Bill = {
   place: "T2",
   table_id: "x",
   tab_name: null,
+  section: "Main",
   waiter: { id: "s1", name: "Jane" },
   status: "open",
   opened_at: new Date().toISOString(),
@@ -88,6 +95,7 @@ function mockApi(onPayment: (body: Record<string, unknown>) => Response) {
     const url = String(input);
     if (url.endsWith("/settings")) return Response.json({ mpesa_code_entry: "last4", mpesa_till_number: null, note_presets: [] });
     if (url.endsWith("/payments")) return onPayment(JSON.parse(String(init!.body)));
+    if (url.includes("/tickets/")) return Response.json({ id: "r", kind: "receipt", number: 142, status: "printed", reprints: 0, copies: [], content: [], last_error: null });
     return Response.json(bill);
   });
 }

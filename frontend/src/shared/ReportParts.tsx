@@ -65,6 +65,7 @@ export function SalesBlock({ sales }: { sales: SalesSummary }) {
         <Big label="Sales" value={formatKsh(sales.total)} />
         <Big label="Cash" value={formatKsh(sales.cash)} />
         <Big label="M-Pesa" value={formatKsh(sales.mpesa)} />
+        {sales.card > 0 && <Big label="Card" value={formatKsh(sales.card)} />}
         <Big label="Credit" value={formatKsh(sales.credit)} />
       </div>
       <Row label={`Bills (average ${formatKsh(sales.average_bill)})`} value={sales.bills} />
@@ -94,6 +95,8 @@ export function ProfitBlock({ profit }: { profit: Profit }) {
   );
 }
 
+const COMP: Record<string, string> = { house: "On the house", staff_drink: "Staff drink", owner_guest: "Owner's guest", complaint: "Complaint", promotion: "Promotion" };
+
 const diff = (d: number) => (d === 0 ? "Balanced" : d < 0 ? `Short ${formatKsh(-d)}` : `Over ${formatKsh(d)}`);
 
 /** The daily closing (masterplan 4.9), as the counter and the phone both show it. */
@@ -107,6 +110,12 @@ export function ClosingView({ report }: { report: ClosingReport }) {
           <Row label={`Credit collected (cash ${formatKsh(report.credit_collected.cash)}, M-Pesa ${formatKsh(report.credit_collected.mpesa)})`} value={formatKsh(report.credit_collected.total)} />
         )}
       </Section>
+
+      {report.sections && report.sections.length > 1 && (
+        <Section title="Sales by section">
+          <BarList rows={report.sections.map((r) => ({ label: r.section, value: r.sales }))} />
+        </Section>
+      )}
 
       <Section title="Waiters' hand-overs">
         {report.waiters.map((w, i) => (
@@ -141,6 +150,14 @@ export function ClosingView({ report }: { report: ClosingReport }) {
           ))}
           {report.cancelled.map((c, i) => (
             <Row key={`c${i}`} label={`#${String(c.bill).padStart(4, "0")} cancelled after payment · ${c.asked_by} → ${c.approved_by}`} value={formatKsh(c.total ?? 0)} tone="warn" />
+          ))}
+        </Section>
+      )}
+
+      {report.comps && report.comps.items.length > 0 && (
+        <Section title={`Given free: ${formatKsh(report.comps.total)} at menu price`}>
+          {report.comps.items.map((c, i) => (
+            <Row key={i} label={`#${String(c.bill).padStart(4, "0")} ${c.item} · ${COMP[c.reason] ?? c.reason} · ${c.asked_by} → ${c.approved_by}`} value={formatKsh(c.value)} tone="warn" />
           ))}
         </Section>
       )}

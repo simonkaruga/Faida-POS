@@ -5,6 +5,14 @@ Offline-first point of sale for a bar and restaurant. What it does and why is in
 
 - `backend/`: Python + FastAPI. It holds every rule, all money logic and all data, and runs in **local** (counter) or **cloud** mode.
 - `frontend/`: React + TypeScript touchscreen app.
+- `deploy/`: counter installers (Windows, Linux), the cloud server set-up, and updates that roll back by themselves.
+- `docs/`: the masterplan, plus the handover papers: [install checklist](docs/install-checklist.md), [staff guide](docs/staff-guide.md), [house rules](docs/house-rules.md), [handover and acceptance](docs/handover-checklist.md).
+
+## Installing for a client
+
+1. Build a release: `deploy/make-release.sh` → `releases/faida-<version>.zip` / `.tar.gz`.
+2. Counter: follow [docs/install-checklist.md](docs/install-checklist.md). Layout, updates and restoring a backup are in [deploy/local/README.md](deploy/local/README.md).
+3. Cloud (once, shared by all clients): [deploy/cloud/README.md](deploy/cloud/README.md).
 
 ## Development
 
@@ -70,7 +78,11 @@ the newest 14 are kept. The result is sent to the cloud, and
 backups stopped, or whose clock is off.
 
 In development nothing goes to a real printer: slips, tickets, bills and receipts are
-written as text files to `backend/prints/`. Set `FAIDA_COUNTER_PRINTER` and
+written as text files to `backend/prints/`.
+
+Email of the daily closing needs `FAIDA_SMTP_HOST` (and user, password, from) in the
+settings; the owner chooses who receives it in Owner area > Settings. Without SMTP the
+emails wait in the outbox and are sent once it is set. Set `FAIDA_COUNTER_PRINTER` and
 `FAIDA_KITCHEN_PRINTER` to use real printers (formats in
 [printers.py](backend/app/printing/printers.py)).
 

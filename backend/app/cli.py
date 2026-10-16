@@ -61,7 +61,8 @@ def register_device(db: Session, config, args) -> None:
 
     device, token = new_device(db, args.business_id, args.name)
     print(f"Registered {device.name} for business {args.business_id}.", file=sys.stderr)
-    print("Put these in the counter's backend/.env (the token is shown only once):", file=sys.stderr)
+    print("Put these in the counter's settings file (/etc/faida/counter.env or C:\\Faida\\counter.env;"
+          " backend/.env in development). The token is shown only once:", file=sys.stderr)
     print(f"FAIDA_CLOUD_TOKEN={token}")
 
 

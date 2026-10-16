@@ -1,4 +1,5 @@
 import {
+  Armchair,
   ArrowLeft,
   BookUser,
   CalendarCheck2,
@@ -7,8 +8,11 @@ import {
   Package,
   Printer,
   ReceiptText,
+  Settings2,
+  SlidersHorizontal,
   TriangleAlert,
   Users,
+  UtensilsCrossed,
   Vault,
   type LucideIcon,
 } from "lucide-react";
@@ -42,9 +46,12 @@ import { formatKsh } from "../shared/money";
 import { getPrintouts, KIND_NAME, ReceiptDialog, StatusPill, type Printout } from "../shared/Receipt";
 import { FinishedBills } from "./FinishedBills";
 import { ClosingTab, ExpensesTab, ReportsTab } from "./OwnerReports";
+import { ChoicesEditor, MenuEditor, SettingsEditor, StaffEditor, TablesEditor } from "./OwnerSetup";
 import { StockTab } from "./StockTab";
 
-type Tab = "shifts" | "credit" | "cash" | "stock" | "bills" | "printers" | "closing" | "reports" | "expenses";
+type Tab =
+  | "shifts" | "credit" | "cash" | "stock" | "bills" | "printers" | "closing" | "reports" | "expenses"
+  | "menu" | "choices" | "tables" | "staff" | "settings";
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong.");
 const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "");
 const KIND = { handover: "Hand-over", float: "Float", payout: "Pay-out", credit_collected: "Credit paid", owner: "Owner" } as const;
@@ -72,6 +79,12 @@ export function OwnerArea({ session, onBack }: { session: Session; onBack: () =>
       ? ([["Owner", [
           { tab: "reports", label: "Reports", icon: ChartColumn, hint: "Sales, profit, sellers" },
           { tab: "expenses", label: "Expenses", icon: HandCoins, hint: "Rent, power, salaries" },
+        ]], ["Setup", [
+          { tab: "menu", label: "Menu & prices", icon: UtensilsCrossed, hint: "Items, sizes, prices, pictures, combos" },
+          { tab: "choices", label: "Choices & happy hour", icon: SlidersHorizontal, hint: "Mixers, sides, offers by time" },
+          { tab: "tables", label: "Tables & sections", icon: Armchair, hint: "Floor layout and sections" },
+          { tab: "staff", label: "Staff & PINs", icon: Users, hint: "Who can log in, and as what" },
+          { tab: "settings", label: "Settings", icon: Settings2, hint: "Business day, M-Pesa, receipts, emails" },
         ]]] as [string, NavItem[]][])
       : []),
   ];
@@ -114,6 +127,11 @@ export function OwnerArea({ session, onBack }: { session: Session; onBack: () =>
           {tab === "closing" && <ClosingTab />}
           {tab === "reports" && <ReportsTab />}
           {tab === "expenses" && <ExpensesTab />}
+          {tab === "menu" && <MenuEditor />}
+          {tab === "choices" && <ChoicesEditor />}
+          {tab === "tables" && <TablesEditor />}
+          {tab === "staff" && <StaffEditor session={session} />}
+          {tab === "settings" && <SettingsEditor />}
         </div>
       </section>
     </main>

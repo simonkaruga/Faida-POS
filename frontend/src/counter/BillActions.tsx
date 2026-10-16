@@ -1,7 +1,9 @@
+import { Gift, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   ApiError,
   closeEmpty,
+  compLine,
   discountBill,
   getFloor,
   handOver,
@@ -11,6 +13,7 @@ import {
   splitBill,
   voidLine,
   type Bill,
+  type CompReason,
   type Floor,
   type Session,
   type Ticket,
@@ -19,7 +22,7 @@ import { ApprovalDialog } from "../shared/ApprovalDialog";
 import { Keypad } from "../shared/Keypad";
 import { Modal } from "../shared/Modal";
 import { formatKsh } from "../shared/money";
-import { groupLines, type LineGroup } from "./billLines";
+import { COMP_LABEL, groupLines, type LineGroup } from "./billLines";
 
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong.");
 
@@ -27,6 +30,90 @@ const REASONS = [
   { value: "not_prepared", label: "Not prepared", hint: "goes back to stock" },
   { value: "already_prepared", label: "Already prepared / poured", hint: "recorded as waste" },
 ] as const;
+
+const COMP_REASONS: { value: CompReason; hint: string }[] = [
+  { value: "house", hint: "a round on the house" },
+  { value: "staff_drink", hint: "for staff" },
+  { value: "owner_guest", hint: "the owner's guest" },
+  { value: "complaint", hint: "to settle a complaint" },
+  { value: "promotion", hint: "an offer" },
+];
+
+/** Tapping a sent item: remove it (void) or give it free (comp). Both need an Owner or
+ * Supervisor PIN for a waiter. A free item still came out of stock. */
+export function LineActions({
+  session,
+  bill,
+  group,
+  onDone,
+  onClose,
+}: {
+  session: Session;
+  bill: Bill;
+  group: LineGroup;
+  onDone: (bill: Bill) => void;
+  onClose: () => void;
+}) {
+  const [mode, setMode] = useState<"pick" | "void" | "comp">("pick");
+  const [reason, setReason] = useState<CompReason | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const line = group.lines[group.lines.length - 1];
+  const canComp = session.permissions.comp_item !== "deny" && !group.free;
+  const needsApproval = session.permissions.comp_item === "approval";
+
+  if (mode === "void") return <VoidDialog session={session} bill={bill} group={group} onDone={onDone} onClose={onClose} />;
+  const giveFree = (r: CompReason, approvalId?: string) =>
+    compLine(bill.id, line.id, r, approvalId).then(onDone, (e) => (setReason(null), setError(errorText(e))));
+  if (reason && needsApproval) {
+    return (
+      <ApprovalDialog
+        action="comp_item"
+        what={`Give 1 × ${group.name} free (${formatKsh(group.unitPrice)}): ${COMP_LABEL[reason]}`}
+        requestedBy={session.staff.name}
+        reason={COMP_LABEL[reason]}
+        onApproved={(id) => giveFree(reason, id)}
+        onCancel={() => setReason(null)}
+      />
+    );
+  }
+  return (
+    <Modal title={`1 × ${group.name}`} onClose={onClose}>
+      {mode === "pick" ? (
+        <div className="choice-list">
+          <button className="choice" onClick={() => setMode("void")}>
+            <span className="row" style={{ gap: 10 }}>
+              <Trash2 size={22} /> Remove it
+            </span>
+            <small>not wanted, or a mistake</small>
+          </button>
+          {canComp && (
+            <button className="choice" onClick={() => setMode("comp")}>
+              <span className="row" style={{ gap: 10 }}>
+                <Gift size={22} /> Give it free
+              </span>
+              <small>on the house, staff drink…</small>
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          <p className="muted" style={{ margin: 0, fontSize: 17 }}>
+            It stays on the bill at 0 and still comes out of stock. The daily closing lists it.
+          </p>
+          <div className="choice-list">
+            {COMP_REASONS.map((r) => (
+              <button key={r.value} className="choice" onClick={() => (needsApproval ? setReason(r.value) : giveFree(r.value))}>
+                <span>{COMP_LABEL[r.value]}</span>
+                <small>{r.hint}</small>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      <p className="error-text">{error ?? ""}</p>
+    </Modal>
+  );
+}
 
 /** Remove one unit of an item already sent. Waiters need an Owner or Supervisor PIN,
  * who picks why: not prepared (back to stock) or already prepared (waste). */

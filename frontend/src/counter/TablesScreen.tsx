@@ -9,6 +9,7 @@ import {
   ReceiptText,
   UserRound,
   Wallet,
+  Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ApiError, getFloor, openBill, type Floor, type FloorBill, type Session } from "../services/api";
@@ -53,7 +54,7 @@ export function TablesScreen({ session, onOpen, onNavigate, onLock }: Props) {
     return () => (clearInterval(tick), clearInterval(refresh));
   }, []);
 
-  const start = async (place: { table_id: string } | { tab_name: string }) => {
+  const start = async (place: { table_id: string } | { tab_name: string } | { quick: true }) => {
     try {
       onOpen((await openBill(place)).id);
     } catch (e) {
@@ -70,6 +71,7 @@ export function TablesScreen({ session, onOpen, onNavigate, onLock }: Props) {
   const myAmount = mine.reduce((s, b) => s + (b.balance ?? 0), 0);
   const free = floor.tables.filter((t) => !byTable.has(t.id)).length;
   const unprinted = floor.bills.filter((b) => b.not_printed).length;
+  const sections = [...new Set(floor.tables.map((t) => t.section))];
   const show = (bill: FloorBill | undefined) => filter === "all" || (filter === "mine" ? bill?.mine : !bill);
 
   const tile = (bill: FloorBill | undefined, label: string, onFree?: () => void, i = 0) => {
@@ -154,6 +156,10 @@ export function TablesScreen({ session, onOpen, onNavigate, onLock }: Props) {
 
         <div className="section-bar">
           <h2 className="section-title">Tables</h2>
+          <button className="btn btn-quiet" onClick={() => start({ quick: true })}>
+            <Zap size={20} /> Quick sale
+          </button>
+          <span className="grow" />
           <div className="segmented">
             {(["all", "mine", "free"] as Filter[]).map((f) => (
               <button key={f} className={filter === f ? "on" : ""} onClick={() => setFilter(f)}>
@@ -162,9 +168,16 @@ export function TablesScreen({ session, onOpen, onNavigate, onLock }: Props) {
             ))}
           </div>
         </div>
-        <div className="table-grid">
-          {floor.tables.filter((t) => show(byTable.get(t.id))).map((t, i) => tile(byTable.get(t.id), t.name, () => start({ table_id: t.id }), i))}
-        </div>
+        {sections.map((section) => {
+          const tables = floor.tables.filter((t) => t.section === section && show(byTable.get(t.id)));
+          if (!tables.length) return null;
+          return (
+            <div key={section}>
+              {sections.length > 1 && <h3 className="section-sub">{section}</h3>}
+              <div className="table-grid">{tables.map((t, i) => tile(byTable.get(t.id), t.name, () => start({ table_id: t.id }), i))}</div>
+            </div>
+          );
+        })}
 
         <div className="section-bar">
           <h2 className="section-title">Tabs</h2>

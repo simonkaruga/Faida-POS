@@ -27,9 +27,10 @@ function SignedIn({ session, onLock }: { session: Session; onLock: (notice?: Not
   useAutoLock(view.screen === "endShift" ? Math.max(session.auto_lock_seconds, COUNTING_IDLE_SECONDS) : session.auto_lock_seconds, () => onLock());
   const [menu, setMenu] = useState<Menu | null>(null);
 
+  const reloadMenu = useCallback(() => getMenu().then(setMenu, () => {}), []);
   useEffect(() => {
-    getMenu().then(setMenu, () => {});
-  }, []);
+    reloadMenu();
+  }, [reloadMenu]);
 
   const tables = () => setView({ screen: "tables" });
   // Auto-lock after each SEND and each completed payment (masterplan 4.4).
@@ -48,6 +49,7 @@ function SignedIn({ session, onLock }: { session: Session; onLock: (notice?: Not
           onPay={(billId) => setView({ screen: "pay", billId })}
           onOpen={(billId) => setView({ screen: "order", billId })}
           onSent={lockWith}
+          onMenuChanged={reloadMenu}
         />
       );
     case "pay":

@@ -1,0 +1,9 @@
+[Unit]
+Description=Faida POS cloud daily backup
+
+[Timer]
+OnCalendar=*-*-* 02:15 Africa/Nairobi
+Persistent=true
+
+[Install]
+WantedBy=timers.target
