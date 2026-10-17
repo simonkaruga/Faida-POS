@@ -670,3 +670,6 @@ select.text-input { appearance: auto; }
 .owner-fold { display: flex; align-items: center; justify-content: space-between; border: none; background: none; font-family: inherit; cursor: pointer; min-height: 32px; }
 .owner-fold svg { transition: transform 160ms var(--ease); transform: rotate(-90deg); }
 .owner-fold svg.open { transform: none; }
+.owner-top { display: flex; gap: 8px; }
+.owner-top .btn { flex: 1; padding: 0 10px; min-height: 52px; font-size: 17px; }
+.owner-lock { box-shadow: none; }

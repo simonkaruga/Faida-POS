@@ -22,17 +22,22 @@ type View =
   | { screen: "order"; billId: string }
   | { screen: "pay"; billId: string };
 
-// Counting a hand-over by hand takes longer than the usual idle lock.
+// Idle lock for counting a hand-over or reading the owner panel (5 minutes).
 const COUNTING_IDLE_SECONDS = 300;
 
 function SignedIn({ session, onLock }: { session: Session; onLock: (notice?: Notice) => void }) {
-  // A counter screen set to "menu" opens straight on a new order (an empty one is reused).
-  const [view, setView] = useState<View>({ screen: getStartScreen() === "menu" ? "starting" : "home" });
+  // The owner lands on her own panel (dashboard); staff on their orders. A counter screen
+  // set to "menu" opens staff straight on a new order (an empty one is reused).
+  const [view, setView] = useState<View>({
+    screen: session.staff.role === "owner" ? "owner" : getStartScreen() === "menu" ? "starting" : "home",
+  });
   useEffect(() => {
     if (view.screen === "starting")
       openBill().then((b) => setView({ screen: "order", billId: b.id }), () => setView({ screen: "home" }));
   }, [view.screen]);
-  useAutoLock(view.screen === "endShift" ? Math.max(session.auto_lock_seconds, COUNTING_IDLE_SECONDS) : session.auto_lock_seconds, () => onLock());
+  // Counting a hand-over, or reading reports in the owner panel, takes longer than the till's idle lock.
+  const slow = view.screen === "endShift" || view.screen === "owner";
+  useAutoLock(slow ? Math.max(session.auto_lock_seconds, COUNTING_IDLE_SECONDS) : session.auto_lock_seconds, () => onLock());
   const [menu, setMenu] = useState<Menu | null>(null);
 
   const reloadMenu = useCallback(() => getMenu().then(setMenu, () => {}), []);
@@ -86,7 +91,7 @@ function SignedIn({ session, onLock }: { session: Session; onLock: (notice?: Not
         </main>
       );
     case "owner":
-      return <OwnerArea session={session} onBack={tables} />;
+      return <OwnerArea session={session} onBack={tables} onLock={() => onLock()} />;
     case "starting":
       return <main className="screen screen-loading"><span className="spinner" /> New order…</main>;
     case "floor":

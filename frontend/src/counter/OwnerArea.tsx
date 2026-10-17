@@ -7,6 +7,7 @@ import {
   ChartColumn,
   HandCoins,
   LayoutDashboard,
+  LogOut,
   Package,
   Printer,
   ReceiptText,
@@ -64,7 +65,7 @@ type NavItem = { tab: Tab; label: string; icon: LucideIcon; hint: string };
 
 /** Counter screens behind an Owner or Supervisor PIN (masterplan 9.4). Supervisors see
  * the same screens without owner-only pages and actions. */
-export function OwnerArea({ session, onBack }: { session: Session; onBack: () => void }) {
+export function OwnerArea({ session, onBack, onLock }: { session: Session; onBack: () => void; onLock: () => void }) {
   const [tab, setTab] = useState<Tab>("dashboard");
   // Setup is mostly used at installation: folded away until opened.
   const [setupOpen, setSetupOpen] = useState(false);
@@ -99,9 +100,14 @@ export function OwnerArea({ session, onBack }: { session: Session; onBack: () =>
   return (
     <main className="owner">
       <nav className="owner-nav">
-        <button className="btn btn-quiet owner-back" onClick={onBack}>
-          <ArrowLeft size={20} /> Orders
-        </button>
+        <div className="owner-top">
+          <button className="btn btn-quiet owner-back" onClick={onBack}>
+            <ArrowLeft size={20} /> Orders
+          </button>
+          <button className="btn btn-primary owner-lock" onClick={onLock}>
+            <LogOut size={20} /> LOCK
+          </button>
+        </div>
         {groups.map(([group, items]) => {
           const folds = group === "Setup";
           const open = !folds || setupOpen || items.some((i) => i.tab === tab);
