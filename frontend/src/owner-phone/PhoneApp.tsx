@@ -162,7 +162,7 @@ function TodayView() {
       <div className="ph-pad dash">
         <div className="kpis">
           <Kpi label="Sales" value={formatKsh(d.today.sales)} now={d.today.sales} then={d.last_week_so_far.sales} lastDay={lastDay} big />
-          <Kpi label="Bills" value={String(d.today.bills)} now={d.today.bills} then={d.last_week_so_far.bills} lastDay={lastDay} />
+          <Kpi label="Orders paid" value={String(d.today.bills)} now={d.today.bills} then={d.last_week_so_far.bills} lastDay={lastDay} />
           <Kpi label="Average bill" value={formatKsh(d.today.average_bill)} now={d.today.average_bill} then={d.last_week_so_far.average_bill} lastDay={lastDay} />
           {d.gross_profit && (
             <div className="kpi">

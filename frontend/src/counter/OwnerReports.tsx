@@ -97,7 +97,7 @@ export function ClosingTab() {
         <div className="alert-row">
           Not ready to close:
           {blockers.open_shifts.length > 0 && ` shifts still open (${blockers.open_shifts.join(", ")})`}
-          {blockers.open_bills.length > 0 && ` · ${blockers.open_bills.length} open bills (${blockers.open_bills.map((b) => b.place).join(", ")})`}
+          {blockers.open_bills.length > 0 && ` · ${blockers.open_bills.length} open orders (${blockers.open_bills.map((b) => b.place).join(", ")})`}
         </div>
       )}
       <p className="error-text">{error ?? ""}</p>

@@ -554,7 +554,8 @@ export function TablesEditor() {
     <>
       <div className="row" style={{ marginBottom: 12 }}>
         <p className="muted grow" style={{ margin: 0 }}>
-          Tables are grouped by section on the floor, and sales are reported by section. Hidden tables are kept for history.
+          Optional. Waiters can type any table number on an order, so you don't have to set up every table. Set up the ones you want on
+          the floor plan and in sales by section. Hidden tables are kept for history.
         </p>
         <button className="btn btn-primary" onClick={() => setEditing({ name: "", section: sections[0] ?? "Main" })}>
           <Plus size={20} /> New table
@@ -760,7 +761,7 @@ export function SettingsEditor() {
           <Field label="Tot size (ml)">
             <input className="text-input" inputMode="numeric" value={form.tot_size_ml ?? ""} onChange={(e) => set("tot_size_ml", Number(e.target.value.replace(/\D/g, "")) || null)} />
           </Field>
-          <Field label="Tabs and quick sales count in section">
+          <Field label="Orders without a set-up table count in section">
             <input className="text-input" value={form.tab_section} maxLength={30} onChange={(e) => set("tab_section", e.target.value)} />
           </Field>
         </div>

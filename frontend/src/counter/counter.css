@@ -474,7 +474,7 @@
 
 /* Owner area: sidebar navigation */
 .owner { display: grid; grid-template-columns: 264px 1fr; height: calc(100% - 60px); }
-.owner-nav { display: flex; flex-direction: column; gap: 18px; padding: 16px 12px; background: var(--surface); border-right: 1px solid var(--border); overflow: auto; }
+.owner-nav { display: flex; flex-direction: column; gap: 12px; padding: 14px 12px; background: var(--surface); border-right: 1px solid var(--border); overflow: auto; }
 .owner-back { justify-content: flex-start; }
 .owner-group { display: flex; flex-direction: column; gap: 4px; }
 .owner-group-name { padding: 0 12px 4px; font-size: 12px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
@@ -482,7 +482,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 52px;
+  min-height: 46px;
   padding: 0 14px;
   border: none;
   border-radius: 12px;
@@ -666,3 +666,7 @@ select.text-input { appearance: auto; }
 
 /* PRINT BILL: easy to find next to SEND and PAY. */
 .btn-bill { background: linear-gradient(180deg, #1d3f7a, var(--navy)); color: #fff; font-weight: 800; }
+
+.owner-fold { display: flex; align-items: center; justify-content: space-between; border: none; background: none; font-family: inherit; cursor: pointer; min-height: 32px; }
+.owner-fold svg { transition: transform 160ms var(--ease); transform: rotate(-90deg); }
+.owner-fold svg.open { transform: none; }

@@ -58,7 +58,7 @@ export function Dashboard({ onOpen }: { onOpen: (tab: "shifts" | "stock" | "bill
 
       <div className="kpis">
         <Kpi label="Sales" value={formatKsh(today.sales)} now={today.sales} then={before.sales} lastDay={lastDay} big />
-        <Kpi label="Bills" value={String(today.bills)} now={today.bills} then={before.bills} lastDay={lastDay} />
+        <Kpi label="Orders paid" value={String(today.bills)} now={today.bills} then={before.bills} lastDay={lastDay} />
         <Kpi label="Average bill" value={formatKsh(today.average_bill)} now={today.average_bill} then={before.average_bill} lastDay={lastDay} />
         {data.gross_profit ? (
           <div className="kpi">
@@ -108,7 +108,7 @@ export function Dashboard({ onOpen }: { onOpen: (tab: "shifts" | "stock" | "bill
           </div>
           <div className="now-grid">
             <div>
-              <span className="muted">Open bills</span>
+              <span className="muted">Open orders</span>
               <strong>{data.live.open_bills}</strong>
             </div>
             <div>
@@ -118,7 +118,7 @@ export function Dashboard({ onOpen }: { onOpen: (tab: "shifts" | "stock" | "bill
           </div>
           {data.live.oldest_open && (
             <p className={`now-oldest ${Date.now() - new Date(data.live.oldest_open).getTime() > 3 * 3600_000 ? "warn" : "muted"}`}>
-              <Clock3 size={16} /> Oldest open bill: {since(data.live.oldest_open)}
+              <Clock3 size={16} /> Oldest open order: {since(data.live.oldest_open)}
             </p>
           )}
           <h4 className="mini-title">On shift</h4>
@@ -273,12 +273,14 @@ export function Kpi({ label, value, now, then, lastDay, big }: { label: string; 
  * One axis, from the first busy hour to now (or the last sale). */
 export function HourChart({ data, compact }: { data: Data; compact?: boolean }) {
   const { today, last_week } = data.by_hour;
+  if (!today.some(Boolean) && !last_week.some(Boolean))
+    return <p className="chart-empty muted">No sales yet today. The bars appear as orders are paid.</p>;
   const busy = today.map((v, i) => (v || last_week[i] ? i : -1)).filter((i) => i >= 0);
   let first = Math.min(busy[0] ?? data.now_slot, data.now_slot);
   let last = Math.max(busy[busy.length - 1] ?? data.now_slot, data.now_slot);
   while (last - first < 7) first > 0 ? first-- : last++;
   const slots = Array.from({ length: last - first + 1 }, (_, i) => first + i);
-  const max = Math.max(1, ...slots.map((s) => Math.max(today[s], last_week[s])));
+  const max = Math.max(100, ...slots.map((s) => Math.max(today[s], last_week[s])));
   const nice = niceMax(max);
   const W = compact ? 360 : 640, H = compact ? 190 : 200, left = compact ? 40 : 52, bottom = 24, top = 8;
   const plotW = W - left - 8, plotH = H - bottom - top;

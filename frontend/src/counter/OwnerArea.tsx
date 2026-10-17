@@ -1,6 +1,7 @@
 import {
   Armchair,
   ArrowLeft,
+  ChevronDown,
   BookUser,
   CalendarCheck2,
   ChartColumn,
@@ -65,12 +66,14 @@ type NavItem = { tab: Tab; label: string; icon: LucideIcon; hint: string };
  * the same screens without owner-only pages and actions. */
 export function OwnerArea({ session, onBack }: { session: Session; onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("dashboard");
+  // Setup is mostly used at installation: folded away until opened.
+  const [setupOpen, setSetupOpen] = useState(false);
   const isOwner = session.permissions.view_financials === "allow";
   const groups: [string, NavItem[]][] = [
     ["Today", [
       { tab: "dashboard", label: "Dashboard", icon: LayoutDashboard, hint: "Today at a glance" },
       { tab: "shifts", label: "Shifts & hand-overs", icon: Users, hint: "Floats, cash-ups, shortages" },
-      { tab: "bills", label: "Today's bills", icon: ReceiptText, hint: "Receipts, cancellations" },
+      { tab: "bills", label: "Finished orders", icon: ReceiptText, hint: "Today's receipts and cancellations" },
       { tab: "cash", label: "Cash box", icon: Vault, hint: "Pay-outs and cash in the box" },
       { tab: "printers", label: "Printer log", icon: Printer, hint: "Every slip, ticket and receipt" },
     ]],
@@ -86,7 +89,7 @@ export function OwnerArea({ session, onBack }: { session: Session; onBack: () =>
         ]], ["Setup", [
           { tab: "menu", label: "Menu & prices", icon: UtensilsCrossed, hint: "Items, sizes, prices, pictures, combos" },
           { tab: "choices", label: "Choices & happy hour", icon: SlidersHorizontal, hint: "Mixers, sides, offers by time" },
-          { tab: "tables", label: "Tables & sections", icon: Armchair, hint: "Floor layout and sections" },
+          { tab: "tables", label: "Tables & sections", icon: Armchair, hint: "Optional: tables grouped for the floor plan and reports" },
           { tab: "staff", label: "Staff & PINs", icon: Users, hint: "Who can log in, and as what" },
           { tab: "settings", label: "Settings", icon: Settings2, hint: "Business day, M-Pesa, receipts, emails" },
         ]]] as [string, NavItem[]][])
@@ -97,19 +100,29 @@ export function OwnerArea({ session, onBack }: { session: Session; onBack: () =>
     <main className="owner">
       <nav className="owner-nav">
         <button className="btn btn-quiet owner-back" onClick={onBack}>
-          <ArrowLeft size={20} /> Tables
+          <ArrowLeft size={20} /> Orders
         </button>
-        {groups.map(([group, items]) => (
+        {groups.map(([group, items]) => {
+          const folds = group === "Setup";
+          const open = !folds || setupOpen || items.some((i) => i.tab === tab);
+          return (
           <div key={group} className="owner-group">
-            <span className="owner-group-name">{group}</span>
-            {items.map((item) => (
+            {folds ? (
+              <button className="owner-group-name owner-fold" onClick={() => setSetupOpen(!open)} aria-expanded={open}>
+                {group} <ChevronDown size={16} className={open ? "open" : ""} />
+              </button>
+            ) : (
+              <span className="owner-group-name">{group}</span>
+            )}
+            {open && items.map((item) => (
               <button key={item.tab} className={`owner-link ${tab === item.tab ? "on" : ""}`} onClick={() => setTab(item.tab)}>
                 <item.icon size={20} />
                 {item.label}
               </button>
             ))}
           </div>
-        ))}
+          );
+        })}
       </nav>
       <section className="owner-main">
         <header className="owner-title rise" key={tab}>
@@ -292,7 +305,7 @@ function ShiftsTab({ session }: { session: Session }) {
               ) : (
                 <>
                   <span>Expected so far {formatKsh(r.expected)}</span>
-                  <span className={r.open_bills ? "warn" : "muted"}>{r.open_bills} open bills</span>
+                  <span className={r.open_bills ? "warn" : "muted"}>{r.open_bills} open orders</span>
                   {isOwner && r.shift.staff.id !== session.staff.id && (
                     <button className="btn btn-red" onClick={() => setForcing(r)}>
                       Force-close
@@ -355,7 +368,7 @@ function ForceCloseDialog({ row, onDone, onClose }: { row: ShiftRow; onDone: () 
       <div className="row" style={{ alignItems: "flex-start", gap: 24 }}>
         <div className="choice-list grow">
           <p style={{ margin: 0, fontSize: 18 }}>
-            {row.open_bills} open bills will be marked <strong>unpaid – waiter responsible</strong>. Record the cash you actually
+            {row.open_bills} open orders will be marked <strong>unpaid – waiter responsible</strong>. Record the cash you actually
             have from {row.shift.staff.name} (it may be 0); the rest becomes their shortage. Sign-off: not present.
           </p>
           <div className="field-box active">
