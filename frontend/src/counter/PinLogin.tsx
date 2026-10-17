@@ -2,7 +2,7 @@ import { CheckCircle2, LockKeyhole, ShieldCheck, TriangleAlert } from "lucide-re
 import { useEffect, useState } from "react";
 import type { Notice } from "../App";
 import { ApiError, login, type Health, type Session } from "../services/api";
-import { FaidaMark, FaidaWordmark } from "../shared/Brand";
+import logo from "../shared/brand/faida-logo.png";
 import { Keypad } from "../shared/Keypad";
 import "./pin-login.css";
 
@@ -24,6 +24,17 @@ function useNow() {
     return () => clearInterval(id);
   }, []);
   return now;
+}
+
+/** A cube drawn in CSS 3D: six faces in the logo's colours (see pin-login.css). */
+function Cube({ className }: { className: string }) {
+  return (
+    <span className={className}>
+      {["front", "back", "right", "left", "top", "bottom"].map((f) => (
+        <span key={f} className={`face ${f}`} />
+      ))}
+    </span>
+  );
 }
 
 export function PinLogin({ health, notice, onLogin }: Props) {
@@ -49,17 +60,25 @@ export function PinLogin({ health, notice, onLogin }: Props) {
 
   return (
     <main className="pin-login">
-      <section className="pin-brand always-dark">
-        <div className="pin-business">
-          <FaidaMark size={68} className="pin-logo" />
-          <div>
-            <h1>{health?.business_name ?? "Faida POS"}</h1>
-            <span>Karibu · {greeting(now)}</span>
-          </div>
+      <div className="pin-scene" aria-hidden>
+        <span className="orb orb-orange" />
+        <span className="orb orb-blue" />
+        <span className="orb orb-navy" />
+        <span className="ring" />
+        <Cube className="cube cube-big" />
+        <Cube className="cube cube-small" />
+        <span className="glass-tile" />
+      </div>
+      <section className="pin-brand">
+        <div className="pin-logo-card">
+          <img src={logo} alt="Faida POS" draggable={false} />
         </div>
-        <div className="pin-clock">
-          <div className="pin-time">{now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</div>
-          <div className="pin-date">{now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</div>
+        <div className="pin-business">
+          <h1>{health?.business_name ?? "Faida POS"}</h1>
+          <span>
+            Karibu · {greeting(now)} · {now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })},{" "}
+            {now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+          </span>
         </div>
         {notice && (
           <div className={notice.warning ? "lock-message warning" : "lock-message"} key={notice.text}>
@@ -94,7 +113,6 @@ export function PinLogin({ health, notice, onLogin }: Props) {
             onEnter={submit}
             disabled={busy}
           />
-          <FaidaWordmark height={30} className="pin-maker" />
         </div>
       </section>
     </main>

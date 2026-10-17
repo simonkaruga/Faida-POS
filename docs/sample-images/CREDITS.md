@@ -26,6 +26,3 @@ CC BY and CC BY-SA licences require the credit below to stay with the pictures.
 | smokie.jpg | Smokie | JIP | CC BY-SA 4.0 | [File:Sausages for lunch at home.jpg](https://commons.wikimedia.org/wiki/File:Sausages_for_lunch_at_home.jpg) |
 | novida.jpg | Novida | Franklin Rainier | Public domain | [File:Vida Pineapple and Apple Soda.jpg](https://commons.wikimedia.org/wiki/File:Vida_Pineapple_and_Apple_Soda.jpg) |
 
-## Login screen background
-
-`frontend/src/shared/login-bar.jpg`: [Cocktail-Bar (Kleines Phi) in Hamburg](https://commons.wikimedia.org/wiki/File:Cocktail-Bar_(Kleines_Phi)_in_Hamburg.jpg) by Achim Schleuning, CC BY-SA 4.0 (resized and compressed).

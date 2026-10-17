@@ -1,5 +1,6 @@
-/* PIN screen: the bar behind frosted glass. The photo side is always dark (text on
-   it is white in both themes); the card follows the theme. */
+/* PIN screen: the big Faida logo on a tilted card, in a slow-moving 3D scene drawn in
+   CSS (spheres, a ring, cubes, glass) in the logo's navy, orange and blue. Nothing to
+   download; motion stops for people who ask for reduced motion. */
 .pin-login {
   position: relative;
   isolation: isolate;
@@ -7,138 +8,132 @@
   grid-template-columns: 1.15fr 1fr;
   height: calc(100% - 60px);
   overflow: hidden;
-}
-.pin-login::before {
-  content: "";
-  position: absolute;
-  inset: -20px;
-  z-index: -2;
-  background: url("../shared/login-bar.jpg") center / cover no-repeat;
-  filter: blur(3px) saturate(1.1);
-  transform: scale(1.04);
-  animation: pin-drift 40s ease-in-out infinite alternate;
-}
-.pin-login::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
   background:
-    linear-gradient(90deg, rgb(5 9 22 / 0.55) 0%, rgb(5 9 22 / 0.72) 45%, rgb(5 9 22 / 0.9) 100%),
-    radial-gradient(700px 500px at 10% 0%, rgb(59 130 246 / 0.25), transparent 65%);
+    radial-gradient(900px 600px at 15% 20%, rgb(31 107 255 / 0.14), transparent 60%),
+    radial-gradient(800px 600px at 90% 90%, rgb(252 110 17 / 0.14), transparent 60%),
+    linear-gradient(135deg, #eaf1ff, #ffffff 48%, #fff4ea);
 }
-:root[data-theme="light"] .pin-login::after {
+:root:not([data-theme="light"]) .pin-login {
   background:
-    linear-gradient(90deg, rgb(8 38 75 / 0.35) 0%, rgb(8 38 75 / 0.45) 50%, rgb(8 38 75 / 0.6) 100%),
-    radial-gradient(700px 500px at 10% 0%, rgb(252 110 17 / 0.25), transparent 65%);
+    radial-gradient(900px 600px at 15% 20%, rgb(31 107 255 / 0.28), transparent 60%),
+    radial-gradient(800px 600px at 90% 90%, rgb(252 110 17 / 0.18), transparent 60%),
+    linear-gradient(135deg, #0a1733, #070b16 60%, #120d1c);
 }
-:root[data-theme="light"] .pin-login::before { filter: blur(3px) saturate(1.25) brightness(1.2); }
-@keyframes pin-drift { to { transform: scale(1.1) translate(-12px, 8px); } }
-@media (prefers-reduced-motion: reduce) { .pin-login::before { animation: none; } }
 
-.pin-brand {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 28px;
-  padding: 48px 56px;
-  color: #fff;
+/* ---- the 3D scene ---- */
+.pin-scene { position: absolute; inset: 0; z-index: -1; perspective: 1100px; pointer-events: none; }
+.orb { position: absolute; border-radius: 50%; animation: float 9s ease-in-out infinite alternate; }
+.orb-orange {
+  width: 230px; height: 230px; left: 4%; top: 6%;
+  background: radial-gradient(circle at 32% 28%, #ffe0c2 0%, #ff8a3d 28%, #f26a0c 55%, #a8400a 100%);
+  box-shadow: 0 40px 80px rgb(242 106 12 / 0.35), inset -18px -24px 40px rgb(120 40 0 / 0.35);
 }
-.pin-business { display: flex; align-items: center; gap: 16px; animation: rise 420ms var(--ease) both; }
-.pin-logo { box-shadow: 0 10px 30px rgb(0 0 0 / 0.45); }
-.pin-brand h1 { margin: 0; font-size: 38px; letter-spacing: -0.02em; line-height: 1.1; text-shadow: 0 2px 12px rgb(0 0 0 / 0.5); }
-.pin-business span { color: rgb(255 255 255 / 0.75); font-size: 18px; font-weight: 600; }
-.pin-clock { animation: rise 420ms 80ms var(--ease) both; }
-.pin-time {
-  font-size: 112px;
-  font-weight: 800;
-  letter-spacing: -0.045em;
-  line-height: 0.95;
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 4px 30px rgb(0 0 0 / 0.55);
+.orb-blue {
+  width: 300px; height: 300px; right: 6%; bottom: -60px; animation-duration: 11s; animation-delay: -3s;
+  background: radial-gradient(circle at 30% 26%, #d6e6ff 0%, #5d9bff 26%, #1f6bff 55%, #0b3a9e 100%);
+  box-shadow: 0 50px 100px rgb(31 107 255 / 0.35), inset -24px -30px 50px rgb(5 25 80 / 0.4);
 }
-.pin-date { margin-top: 8px; font-size: 24px; color: rgb(255 255 255 / 0.8); font-weight: 500; }
+.orb-navy {
+  width: 120px; height: 120px; left: 46%; top: 70%; animation-duration: 7s; animation-delay: -2s;
+  background: radial-gradient(circle at 30% 28%, #8fa6cf 0%, #24427a 35%, #0a2a55 70%, #041530 100%);
+  box-shadow: 0 30px 60px rgb(10 42 85 / 0.35);
+}
+.ring {
+  position: absolute; width: 360px; height: 360px; left: 26%; top: -70px; border-radius: 50%;
+  background: conic-gradient(from 200deg, #f26a0c, #ffb27a, #1f6bff, #0a2a55, #f26a0c);
+  -webkit-mask: radial-gradient(circle, transparent 58%, #000 59%, #000 70%, transparent 71%);
+  mask: radial-gradient(circle, transparent 58%, #000 59%, #000 70%, transparent 71%);
+  transform: rotateX(64deg) rotateZ(0deg);
+  filter: drop-shadow(0 20px 30px rgb(10 42 85 / 0.25));
+  animation: spin-ring 26s linear infinite;
+  opacity: 0.9;
+}
+.cube { position: absolute; transform-style: preserve-3d; animation: tumble 22s linear infinite; }
+.cube .face {
+  position: absolute; inset: 0; border-radius: 14%;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  box-shadow: inset 0 0 30px rgb(255 255 255 / 0.15);
+}
+.cube-big { width: 96px; height: 96px; left: 7%; bottom: 5%; --h: 48px; }
+.cube-small { width: 64px; height: 64px; right: 30%; top: 12%; --h: 32px; animation-duration: 16s; animation-direction: reverse; }
+.cube .front { transform: translateZ(var(--h)); background: linear-gradient(135deg, #ff9a52, #f26a0c); }
+.cube .back { transform: rotateY(180deg) translateZ(var(--h)); background: linear-gradient(135deg, #2e5aa8, #0a2a55); }
+.cube .right { transform: rotateY(90deg) translateZ(var(--h)); background: linear-gradient(135deg, #5d9bff, #1f6bff); }
+.cube .left { transform: rotateY(-90deg) translateZ(var(--h)); background: linear-gradient(135deg, #e85f05, #b8480a); }
+.cube .top { transform: rotateX(90deg) translateZ(var(--h)); background: linear-gradient(135deg, #ffffff, #dbe6fb); }
+.cube .bottom { transform: rotateX(-90deg) translateZ(var(--h)); background: #0a2a55; }
+.glass-tile {
+  position: absolute; width: 180px; height: 180px; left: 34%; bottom: 8%; border-radius: 36px;
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.12));
+  border: 1px solid rgb(255 255 255 / 0.6);
+  backdrop-filter: blur(10px);
+  transform: rotate(-14deg);
+  box-shadow: 0 30px 60px rgb(10 42 85 / 0.15);
+  animation: float 10s ease-in-out infinite alternate-reverse;
+}
+:root:not([data-theme="light"]) .glass-tile { background: linear-gradient(135deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.03)); border-color: rgb(255 255 255 / 0.15); }
+@keyframes float { from { transform: translateY(-14px); } to { transform: translateY(16px); } }
+@keyframes spin-ring { to { transform: rotateX(64deg) rotateZ(360deg); } }
+@keyframes tumble {
+  from { transform: rotateX(-22deg) rotateY(0deg) rotateZ(8deg); }
+  to { transform: rotateX(-22deg) rotateY(360deg) rotateZ(8deg); }
+}
+@keyframes logo-sway {
+  from { transform: perspective(1000px) rotateY(-14deg) rotateX(6deg) translateY(-4px); }
+  to { transform: perspective(1000px) rotateY(-6deg) rotateX(2deg) translateY(6px); }
+}
+
+/* ---- left: the logo and the business ---- */
+.pin-brand { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 26px; padding: 40px 56px; color: var(--text); }
+.pin-logo-card {
+  padding: 30px 40px;
+  border-radius: 32px;
+  background: #fff;
+  box-shadow: 0 40px 80px rgb(10 42 85 / 0.22), 0 8px 20px rgb(10 42 85 / 0.10), inset 0 -6px 0 rgb(10 42 85 / 0.06);
+  transform-style: preserve-3d;
+  animation: logo-sway 6s ease-in-out infinite alternate, rise 500ms var(--ease) both;
+}
+.pin-logo-card img { display: block; width: min(560px, 36vw); height: auto; }
+.pin-business { animation: rise 420ms 80ms var(--ease) both; }
+.pin-business h1 { margin: 0; font-size: 40px; letter-spacing: -0.02em; line-height: 1.1; }
+.pin-business span { display: block; margin-top: 6px; color: var(--text-muted); font-size: 19px; font-weight: 600; }
 .pin-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  align-self: flex-start;
-  margin: 0;
-  padding: 10px 16px;
-  border-radius: 999px;
-  background: rgb(5 9 22 / 0.45);
-  border: 1px solid rgb(255 255 255 / 0.12);
-  backdrop-filter: blur(8px);
-  color: rgb(255 255 255 / 0.82);
-  font-size: 15px;
+  display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 10px 16px; border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent); border: 1px solid var(--border);
+  backdrop-filter: blur(8px); color: var(--text-muted); font-size: 15px;
 }
-.pin-hint svg { color: #4ade80; }
+.pin-hint svg { color: var(--green); }
 
+/* ---- right: the keypad on glass ---- */
 .pin-pad { display: flex; align-items: center; justify-content: center; padding: 24px; }
 .pin-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 30px 36px 18px;
-  border-radius: 30px;
-  background: rgb(14 21 42 / 0.66);
-  border: 1px solid rgb(255 255 255 / 0.12);
+  display: flex; flex-direction: column; align-items: center; padding: 30px 36px 26px; border-radius: 30px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border: 1px solid color-mix(in srgb, #fff 60%, var(--border));
   backdrop-filter: blur(22px) saturate(1.3);
-  box-shadow: 0 30px 80px rgb(0 0 0 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.08);
+  box-shadow: 0 30px 80px rgb(10 42 85 / 0.22), inset 0 1px 0 rgb(255 255 255 / 0.4);
   animation: rise 420ms 120ms var(--ease) both;
 }
-:root[data-theme="light"] .pin-card { background: rgb(255 255 255 / 0.82); border-color: rgb(255 255 255 / 0.6); }
-.pin-lock {
-  display: grid;
-  place-items: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 18px;
-  background: var(--blue-soft);
-  color: var(--blue);
-  margin-bottom: 10px;
-}
+:root:not([data-theme="light"]) .pin-card { border-color: rgb(255 255 255 / 0.12); box-shadow: 0 30px 80px rgb(0 0 0 / 0.5); }
+.pin-lock { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 18px; background: var(--blue-soft); color: var(--blue); margin-bottom: 10px; }
 .pin-prompt { margin: 0 0 18px; color: var(--text); font-size: 21px; font-weight: 700; }
 .pin-dots { display: flex; gap: 16px; margin-bottom: 4px; }
 .pin-dots[data-shake="true"] { animation: shake 420ms both; }
-.pin-dot {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--text-muted) 70%, transparent);
-  transition: background 120ms, border-color 120ms, transform 160ms var(--ease);
-}
-.pin-dot.filled {
-  background: linear-gradient(135deg, #6aa6ff, var(--blue));
-  border-color: transparent;
-  transform: scale(1.15);
-  box-shadow: 0 0 14px rgb(59 130 246 / 0.7);
-}
+.pin-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--text-muted) 70%, transparent); transition: background 120ms, border-color 120ms, transform 160ms var(--ease); }
+.pin-dot.filled { background: linear-gradient(135deg, #ff9a52, var(--orange)); border-color: transparent; transform: scale(1.15); box-shadow: 0 0 14px rgb(242 106 12 / 0.55); }
 .pin-error { min-height: 28px; margin: 6px 0 12px; color: var(--red); font-size: 18px; font-weight: 650; }
-.pin-card .key { background: color-mix(in srgb, var(--surface-raised) 70%, transparent); }
-.pin-card .key-quiet { background: color-mix(in srgb, var(--surface) 60%, transparent); }
+.pin-card .key { background: color-mix(in srgb, var(--surface-raised) 80%, transparent); }
+.pin-card .key-quiet { background: color-mix(in srgb, var(--surface) 70%, transparent); }
 .pin-card .key-enter { background: linear-gradient(180deg, #4b8ff8, var(--blue-strong)); }
-.pin-maker { margin-top: 16px; opacity: 0.9; }
-.pin-setup { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; color: #fff; }
+.pin-setup { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }
 
 .lock-message {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  align-self: flex-start;
-  padding: 14px 20px;
-  border-radius: 14px;
-  background: rgb(10 40 28 / 0.75);
-  border: 1px solid rgb(34 181 115 / 0.5);
-  backdrop-filter: blur(8px);
-  color: #4ade80;
-  font-size: 20px;
-  font-weight: 700;
-  animation: rise 300ms var(--ease) both;
+  display: inline-flex; align-items: center; gap: 12px; padding: 14px 20px; border-radius: 14px;
+  background: var(--green-soft); border: 1px solid color-mix(in srgb, var(--green) 45%, transparent);
+  color: var(--green); font-size: 20px; font-weight: 700; animation: rise 300ms var(--ease) both;
 }
-.lock-message.warning { background: rgb(50 28 6 / 0.78); border-color: rgb(240 138 36 / 0.55); color: #fbab5c; }
+.lock-message.warning { background: var(--orange-soft); border-color: color-mix(in srgb, var(--orange) 45%, transparent); color: var(--orange); }
 @media (max-width: 1100px) {
-  .pin-time { font-size: 80px; }
-  .pin-brand { padding: 32px; }
+  .pin-brand { padding: 28px; }
+  .pin-business h1 { font-size: 32px; }
 }
-.pin-setup .pin-prompt { color: rgb(255 255 255 / 0.8); }

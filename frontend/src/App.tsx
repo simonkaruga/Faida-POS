@@ -143,7 +143,7 @@ export function App() {
       <Toaster />
       {health && !health.set_up ? (
         <main className="pin-login">
-          <div className="pin-setup always-dark">
+          <div className="pin-setup">
             <FaidaLogo height={64} />
             <h1>This counter is not set up yet</h1>
             <p className="pin-prompt">Run the install steps in docs/install-checklist.md.</p>
