@@ -21,10 +21,10 @@ from app.printing.printers import PrinterError
 from app.settings.config import Config
 
 TEST_DB = os.environ.get(
-    "FAIDA_TEST_DATABASE_URL", "postgresql+psycopg://faida@localhost:5544/faida_test"
+    "FAIDA_TEST_DATABASE_URL", "postgresql+psycopg:///faida_test?host=/var/run/postgresql"
 )
 CLOUD_DB = os.environ.get(
-    "FAIDA_TEST_CLOUD_DATABASE_URL", "postgresql+psycopg://faida@localhost:5544/faida_cloud_test"
+    "FAIDA_TEST_CLOUD_DATABASE_URL", "postgresql+psycopg:///faida_cloud_test?host=/var/run/postgresql"
 )
 SECRET = "test-pin-secret"
 OWNER_PIN = "2580"

@@ -96,7 +96,7 @@ cd frontend && npm test && npm run typecheck
 
 The backend tests run against real PostgreSQL databases: `faida_test` (the counter),
 `faida_cloud_test` (the cloud) and `faida_restore_test` (backup restores), on
-`localhost:5544` by default (`FAIDA_TEST_DATABASE_URL`, `FAIDA_TEST_CLOUD_DATABASE_URL`,
+the local PostgreSQL (its socket, as your own user) by default (`FAIDA_TEST_DATABASE_URL`, `FAIDA_TEST_CLOUD_DATABASE_URL`,
 `FAIDA_TEST_RESTORE_DATABASE_URL`). **The tests wipe those databases**, so never point
 them at real data. Backup tests need `pg_dump` (`FAIDA_TEST_PG_BIN`).
 

@@ -20,7 +20,7 @@ class Config(BaseSettings):
 
     # local = the counter PC (prints, queues sync); cloud = the shared Faida server.
     mode: Literal["local", "cloud"] = "local"
-    database_url: str = "postgresql+psycopg://faida@localhost:5544/faida"
+    database_url: str = "postgresql+psycopg:///faida?host=/var/run/postgresql"
 
     # Secret key used to protect staff PINs. Never stored in the database, so a copied
     # database (e.g. a stolen backup drive) does not reveal anyone's PIN.

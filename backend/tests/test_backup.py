@@ -10,7 +10,7 @@ from app import backup
 
 PG_BIN = os.environ.get("FAIDA_TEST_PG_BIN", "/usr/lib/postgresql/16/bin")
 RESTORE_DB = os.environ.get("FAIDA_TEST_RESTORE_DATABASE_URL",
-                            "postgresql+psycopg://faida@localhost:5544/faida_restore_test")
+                            "postgresql+psycopg:///faida_restore_test?host=/var/run/postgresql")
 
 
 @pytest.fixture
