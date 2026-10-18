@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.floor.models import Bill, BillLine, BillStatus, Table
-from app.floor.service import amounts, place
+from app.floor.service import amounts, place, untouched
 from app.menu.models import MenuItem, SellOption
 from app.menu.router import image_url
 from app.payments.models import Payment
@@ -67,7 +67,8 @@ def dashboard(db: Session, bid: uuid.UUID, day: date, tz: ZoneInfo, at: datetime
     breakdown = reports.breakdown(db, bid, p, tz)
 
     # Right now: open bills, tables in use, who is on shift.
-    open_bills = list(db.scalars(select(Bill).where(Bill.business_id == bid, Bill.status == BillStatus.open)))
+    open_bills = [b for b in db.scalars(select(Bill).where(Bill.business_id == bid, Bill.status == BillStatus.open))
+                  if not untouched(db, b)]
     open_value = sum(amounts(db, b).balance for b in open_bills)
     tables = db.scalar(select(func.count(Table.id)).where(Table.business_id == bid, Table.active)) or 0
     on_shift = [

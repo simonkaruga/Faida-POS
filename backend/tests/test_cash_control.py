@@ -131,6 +131,19 @@ def test_open_bills_block_the_end_of_a_shift(client, owner, staff, items, tabs):
     assert close(client, jane, me["shift"]["id"], received=0).status_code == 409
 
 
+def test_an_untouched_new_order_never_blocks(client, owner, staff, items, tabs):
+    """The counter opens a new order at each login; one left with nothing on it isn't an order."""
+    jane = login(client, JANE)
+    pay(client, jane, tabs(jane, items, [100]), method="cash", amount=100)
+    waiting = client.post("/api/bills", json={}, headers=jane).json()
+    assert client.post("/api/bills", json={}, headers=jane).json()["id"] == waiting["id"]  # reused
+    assert waiting["id"] not in [b["id"] for b in client.get("/api/floor", headers=jane).json()["bills"]]
+    me = my_shift(client, jane)
+    assert me["open_bills"] == []
+    assert close(client, jane, me["shift"]["id"], received=100).status_code == 200
+    assert client.get(f"/api/bills/{waiting['id']}", headers=owner).json()["status"] == "cancelled"
+
+
 def test_unpaid_bill_stays_in_cash_due(client, owner, staff, items, tabs):
     jane = login(client, JANE)
     bill = tabs(jane, items, [1250])

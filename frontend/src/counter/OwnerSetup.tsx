@@ -768,9 +768,9 @@ export function SettingsEditor() {
         <div className="row" style={{ marginTop: 10 }}>
           <span className="muted">This screen opens on:</span>
           <div className="segmented">
-            {(["orders", "menu"] as const).map((v) => (
+            {(["menu", "orders"] as const).map((v) => (
               <button key={v} className={start === v ? "on" : ""} onClick={() => (setStartScreen(v), setStart(v), toast(v === "menu" ? "This screen now opens on the menu" : "This screen now opens on the orders"))}>
-                {v === "orders" ? "Orders (waiters)" : "Menu (bar counter)"}
+                {v === "menu" ? "Menu, new order (simplest)" : "List of open orders"}
               </button>
             ))}
           </div>

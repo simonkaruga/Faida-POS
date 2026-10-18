@@ -13,7 +13,7 @@ from app.auth.permissions import Action, Level, level
 from app.db import now
 from app.floor.models import BillStatus
 from app.floor.schemas import Person
-from app.floor.service import amounts, finish_bill, place
+from app.floor.service import amounts, cancel_untouched, finish_bill, place
 from app.printing import layouts
 from app.printing.models import PrinterName, Ticket, TicketKind
 from app.sequences import next_number
@@ -213,6 +213,7 @@ def close_shift(shift_id: uuid.UUID, body: CloseIn, actor: CurrentActor, request
     _check_actor(actor, shift)
     if open_bills_of(db, shift.business_id, shift.staff_id):
         raise HTTPException(status.HTTP_409_CONFLICT, "Finish every open bill first.")
+    cancel_untouched(db, shift.business_id, shift.staff_id)
     state = request.app.state
     receiver = auth.find_staff_by_pin(db, state.keypad, state.config.pin_secret, actor.business_id, body.receiver_pin)
     _check_receiver(receiver, shift)
@@ -243,6 +244,7 @@ def force_close(shift_id: uuid.UUID, body: ForceCloseIn, actor: OwnerOnly, reque
     shows as that waiter's shortage. Sign-off is recorded as "not present"."""
     shift = _get_shift(db, actor, shift_id)
     tz = request.app.state.tz
+    cancel_untouched(db, shift.business_id, shift.staff_id)
     left_open = open_bills_of(db, shift.business_id, shift.staff_id)
     for bill in left_open:
         if amounts(db, bill).balance > 0:

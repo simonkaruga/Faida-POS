@@ -18,7 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.floor.models import Bill, BillStatus
-from app.floor.service import amounts
+from app.floor.service import amounts, untouched
 from app.payments.models import Method, Payment
 from app.settings.service import today
 from app.shifts.models import Shift, ShiftStatus
@@ -133,7 +133,8 @@ def cash_up(db: Session, shift: Shift) -> CashUp:
 
 
 def open_bills_of(db: Session, business_id: uuid.UUID, staff_id: uuid.UUID) -> list[Bill]:
-    return list(db.scalars(
+    """The waiter's open bills, leaving out untouched ones (opened, nothing on them)."""
+    return [b for b in db.scalars(
         select(Bill).where(Bill.business_id == business_id, Bill.waiter_id == staff_id,
                            Bill.status == BillStatus.open).order_by(Bill.number)
-    ))
+    ) if not untouched(db, b)]

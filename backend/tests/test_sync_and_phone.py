@@ -13,6 +13,7 @@ from app.db import now
 from app.floor.models import Bill, BillLine
 from app.menu.importer import load_menu
 from app.payments.models import Payment
+from app.settings.config import VERSION
 from app.stock.models import RecipeLine
 from app.sync.models import Device, OwnerAccount, SyncQueueEntry
 from app.sync.push import SyncError
@@ -142,10 +143,12 @@ def test_old_counters_keep_syncing_but_too_old_ones_are_refused(linked, cloud, c
     upload = lambda version, at=None: cloud.post(  # noqa: E731
         "/api/sync/upload", headers={"Authorization": f"Bearer {token}"},
         json={"software_version": version, "counter_time": (at or now()).isoformat(), "entries": []})
-    assert upload("0.2.0").status_code == 200
-    assert upload("0.1.0").status_code == 200  # the previous minor version
-    assert upload("1.0.0").status_code == 426
-    r = upload("0.2.0", now() + timedelta(minutes=12))
+    major, minor = (int(x) for x in VERSION.split(".")[:2])
+    assert upload(VERSION).status_code == 200
+    assert upload(f"{major}.{minor - 1}.0").status_code == 200  # the previous minor version
+    assert upload(f"{major}.{minor - 2}.0").status_code == 426
+    assert upload(f"{major + 1}.0.0").status_code == 426
+    r = upload(VERSION, now() + timedelta(minutes=12))
     assert r.json()["clock_warning"] is True
     device = cloud_db.scalar(select(Device))
     cloud_db.refresh(device)

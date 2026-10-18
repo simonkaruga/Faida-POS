@@ -14,7 +14,7 @@ from app.db import now
 from app.floor.models import Bill, BillHandover, BillLine, BillStatus, CompReason, DiscountKind, Table, VoidReason
 from app.floor.schemas import BillOut, Person, bill_detail
 from app.floor.service import (
-    Printing, amounts, bill_lines, find_table, group_items, load_bill, place, table_has_open_bill, totals,
+    Printing, amounts, bill_lines, find_table, group_items, load_bill, place, table_has_open_bill, totals, untouched,
 )
 from app.menu import service as menu_service
 from app.menu.models import ComboComponent, ItemModifierGroup, MenuItem, ModifierGroup, ModifierOption, SellOption, Station
@@ -124,6 +124,8 @@ def floor(actor: CurrentActor, db: Db) -> FloorOut:
     for bill in db.scalars(
         select(Bill).where(Bill.business_id == bid, Bill.status == BillStatus.open).order_by(Bill.number)
     ):
+        if untouched(db, bill):
+            continue  # the counter's ready-and-waiting new order, not a real one yet
         mine = bill.waiter_id == actor.staff.id
         visible = mine or sees_all
         total, paid, _ = totals(db, bill) if visible else (None, None, None)
@@ -182,6 +184,7 @@ def open_bill(body: OpenBill, actor: Annotated[Actor, Depends(require(Action.ope
         for empty in db.scalars(select(Bill).where(
             Bill.business_id == actor.business_id, Bill.waiter_id == actor.staff.id, Bill.status == BillStatus.open,
             Bill.table_id.is_(None), Bill.table_label.is_(None), Bill.tab_name.is_(None),
+            Bill.business_day == today(db, actor.business_id, request.app.state.tz),
         ).order_by(Bill.number.desc())):
             if not bill_lines(db, empty) and not totals(db, empty)[1]:
                 return bill_detail(db, empty)

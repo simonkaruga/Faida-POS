@@ -681,3 +681,22 @@ select.text-input { appearance: auto; }
   background: linear-gradient(180deg, #2fca85, var(--green)); color: #fff;
 }
 .order-pay:active { filter: brightness(0.95); }
+
+/* Order screen, kept simple for waiters: my other orders one tap away, one big SEND & PRINT. */
+.my-orders { display: flex; gap: 8px; padding: 8px 12px; overflow-x: auto; border-bottom: 1px solid var(--border); scrollbar-width: none; }
+.my-orders-label { align-self: center; flex: none; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.my-order {
+  flex: none; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px;
+  min-height: 52px; min-width: 76px; padding: 4px 12px; border-radius: 12px; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--blue) 40%, var(--border)); background: var(--blue-soft); color: var(--text); font: inherit;
+}
+.my-order strong { font-size: 17px; line-height: 1.1; }
+.my-order span { font-size: 13px; color: var(--text-muted); font-weight: 650; }
+.my-order.attention { border-color: var(--orange); background: var(--orange-soft); }
+.my-order.new { flex-direction: row; align-items: center; gap: 4px; border-style: dashed; background: transparent; color: var(--blue); font-weight: 800; font-size: 16px; }
+.my-order:active { transform: scale(0.96); }
+.send-print { min-height: 80px; width: 100%; justify-content: center; gap: 14px; font-size: 24px; font-weight: 850; letter-spacing: 0.02em; }
+.send-print span { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+.send-print small { font-size: 14px; font-weight: 650; opacity: 0.85; letter-spacing: 0; }
+.bill-buttons:has(.more-btn) { grid-template-columns: 1fr 1fr auto; }
+.more-btn { width: 60px; height: auto; min-height: var(--tap-min); }

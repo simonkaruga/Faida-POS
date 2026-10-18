@@ -116,6 +116,27 @@ def finish_bill(db: Session, bill: Bill, status: BillStatus, tz: ZoneInfo) -> No
     bill.finished_shift_id = current_shift(db, bill.business_id, bill.waiter_id, tz).id
 
 
+def untouched(db: Session, bill: Bill) -> bool:
+    """Opened but nothing done yet: no items, no payment, no table or tab. The counter opens
+    a new order at each login, so these are left behind; they never block an end of shift
+    or the daily closing, and waiters don't see them as orders."""
+    if bill.table_id or bill.table_label or bill.tab_name:
+        return False
+    return (db.scalar(select(BillLine.id).where(BillLine.bill_id == bill.id).limit(1)) is None
+            and db.scalar(select(Payment.id).where(Payment.bill_id == bill.id).limit(1)) is None)
+
+
+def cancel_untouched(db: Session, business_id: uuid.UUID, staff_id: uuid.UUID | None = None) -> None:
+    """Cancel the untouched open bills of one waiter (or everyone's)."""
+    query = select(Bill).where(Bill.business_id == business_id, Bill.status == BillStatus.open)
+    if staff_id:
+        query = query.where(Bill.waiter_id == staff_id)
+    for bill in db.scalars(query).all():
+        if untouched(db, bill):
+            bill.status, bill.closed_at = BillStatus.cancelled, now()
+    db.flush()
+
+
 def table_has_open_bill(db: Session, business_id: uuid.UUID, table_id: uuid.UUID) -> Bill | None:
     return db.scalar(
         select(Bill).where(

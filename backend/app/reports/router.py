@@ -9,6 +9,7 @@ from app.audit import service as audit
 from app.auth.deps import Actor, Db, require
 from app.auth.permissions import Action, Level, level
 from app.db import now
+from app.floor.service import cancel_untouched
 from app.reports import export, mailer
 from app.reports.dashboard import dashboard
 from app.reports import service as reports
@@ -85,6 +86,7 @@ def close_day(body: CloseDayIn, actor: Closer, request: Request, db: Db) -> Clos
     if db.scalar(select(DailyClosing.id).where(DailyClosing.business_id == actor.business_id,
                                                DailyClosing.business_day == body.day)):
         raise HTTPException(status.HTTP_409_CONFLICT, "This day is already closed.")
+    cancel_untouched(db, actor.business_id)
     blocking = reports.blockers(db, actor.business_id, body.day)
     if blocking["open_shifts"] or blocking["open_bills"]:
         names = ", ".join(blocking["open_shifts"]) or "none"

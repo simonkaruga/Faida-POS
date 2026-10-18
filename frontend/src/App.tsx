@@ -26,8 +26,8 @@ type View =
 const COUNTING_IDLE_SECONDS = 300;
 
 function SignedIn({ session, onLock }: { session: Session; onLock: (notice?: Notice) => void }) {
-  // The owner lands on her own panel (dashboard); staff on their orders. A counter screen
-  // set to "menu" opens staff straight on a new order (an empty one is reused).
+  // The owner lands on her own panel (dashboard). Staff land straight on the menu with a
+  // new order ready (an empty one is reused), unless this screen is set to open on orders.
   const [view, setView] = useState<View>({
     screen: session.staff.role === "owner" ? "owner" : getStartScreen() === "menu" ? "starting" : "home",
   });

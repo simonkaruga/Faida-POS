@@ -10,7 +10,7 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 
 class Config(BaseSettings):

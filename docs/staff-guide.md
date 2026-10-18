@@ -4,18 +4,19 @@ How to use the till. Training takes 15–30 minutes. Go through each part on the
 
 ## Log in and lock
 
-- Type your **PIN** on the keypad. Your open orders come up (at the bar counter, the menu comes up ready for the next sale).
+- Type your **PIN** and press **OK**. The menu comes up with a new order ready. Just start tapping items.
 - Press **LOCK** whenever you walk away. The screen also locks by itself if nobody touches it.
 
 ## Take an order
 
-1. Tap **NEW ORDER**. The order gets its number automatically, e.g. **#0031**. Nothing to type.
+1. Log in: a new order is already open. It gets its number automatically, e.g. **#0031**. Nothing to type.
    - Customer seated? Tap **+ Table** and type the table number, e.g. 57, or S12 for a table brought from the stall. Standing customers don't need a table.
-   - Your open orders are on your home screen. Find one fast by typing its number or table in the search box.
-2. Tap a **category**, then an item. Some items ask a question first:
+   - Adding to an order you already have? Your other open orders are the small buttons under **MY ORDERS**, above the bill. Tap one to open it. **+ New** starts another order.
+   - The **←** arrow shows the full list of your orders, with a search box.
+2. Tap a **category**, then an item. Tap it again for two. Some items ask a question first:
    - **Size**, for example single or double tot.
    - **Choices**, for example the mixer, the side, or how the steak is cooked. A choice marked *required* must be picked. Some choices add to the price.
-3. Tap **SEND**. Food prints in the kitchen and drinks print at the bar. Nothing is made without a slip.
+3. Tap the big **SEND & PRINT** button. Food prints in the kitchen and drinks print at the bar. Nothing is made without a slip. The screen then locks for the next person.
 4. The same customers order the same again? Tap **Same again** on that round.
 
 Things to know:
@@ -34,7 +35,7 @@ Tap the item on the bill:
 
 ## Get paid
 
-1. Tap **BILL** to print the bill for the customer. Tap **PAY** when they are ready.
+1. Tap **BILL** to print the bill for the customer. Tap **PAY** when they are ready. Anything not sent yet is sent first, so you can tap items and go straight to **PAY**.
 2. Choose how they pay:
    - **Cash**: type what they gave you. The screen shows the **change**. Press **TAKE CASH** and the drawer opens.
    - **M-Pesa**: check the customer's message, type the **last 4 characters** of the code, and press **RECORD M-PESA**. If the screen says the code was already used, stop and call the supervisor.

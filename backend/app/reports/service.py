@@ -20,7 +20,7 @@ from app.credit.models import CreditCollection, CreditCustomer
 from app.credit.service import oldest_unpaid, owed
 from app.expenses.models import Expense
 from app.floor.models import Bill, BillLine, BillStatus
-from app.floor.service import amounts, display_name, place
+from app.floor.service import amounts, display_name, place, untouched
 from app.menu.models import Category, MenuItem, SellOption
 from app.payments.models import Payment
 from app.settings.service import get_settings
@@ -319,7 +319,8 @@ def blockers(db: Session, bid: uuid.UUID, day: date) -> dict:
     """What stops the day being closed: shifts not handed over, bills still open."""
     shifts = db.scalars(select(Shift).where(Shift.business_id == bid, Shift.status == ShiftStatus.open,
                                             Shift.business_day <= day))
-    bills = db.scalars(select(Bill).where(Bill.business_id == bid, Bill.status == BillStatus.open, Bill.business_day <= day))
+    bills = [b for b in db.scalars(select(Bill).where(Bill.business_id == bid, Bill.status == BillStatus.open,
+                                                      Bill.business_day <= day)) if not untouched(db, b)]
     return dict(open_shifts=[_name(db, s.staff_id) for s in shifts],
                 open_bills=[dict(bill=b.number, place=place(db, b), waiter=_name(db, b.waiter_id)) for b in bills])
 

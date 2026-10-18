@@ -25,11 +25,14 @@ import {
   ApiError,
   closeEmpty,
   getBill,
+  getFloor,
+  openBill,
   printBill,
   reprint,
   sendRound,
   setAvailability,
   type Bill,
+  type FloorBill,
   type Menu,
   type MenuItem,
   type Session,
@@ -76,10 +79,12 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
   const [soldOutMode, setSoldOutMode] = useState(false);
   const [pickingTable, setPickingTable] = useState(false);
   const [showBill, setShowBill] = useState<string | null>(null);
+  const [others, setOthers] = useState<FloorBill[]>([]);
   const canMarkSoldOut = session.permissions.mark_sold_out === "allow";
 
   useEffect(() => {
     getBill(billId).then(setBill, (e) => setMessage({ text: e.message, tone: "error" }));
+    getFloor().then((f) => setOthers(f.bills.filter((b) => b.mine && b.id !== billId).sort((a, b) => b.number - a.number)), () => {});
   }, [billId]);
 
   const setDraft = (lines: DraftLine[]) => {
@@ -207,6 +212,21 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
       await closeEmpty(billId).catch(() => {});
     }
     onBack();
+  };
+
+  /** Switch to another of my open orders (or a new one) without going back to the list.
+   * Unsent items stay with the order they were added to, so they can't be forgotten. */
+  const switchTo = async (id: string | null) => {
+    if (busy) return;
+    if (draft.length) return setMessage({ text: "Send the new items first, or remove them.", tone: "error" });
+    if (id) return onOpen(id);
+    setBusy(true);
+    try {
+      onOpen((await openBill()).id);
+    } catch (e) {
+      fail(e);
+      setBusy(false);
+    }
   };
 
   /** PAY: anything not yet sent goes to the bar and kitchen first (their slips print),
@@ -371,6 +391,23 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
           </div>
         </header>
 
+        {(others.length > 0 || bill.lines.length > 0) && (
+          <nav className="my-orders" aria-label="My other orders">
+            <span className="my-orders-label">My orders</span>
+            {bill.lines.length > 0 && (
+              <button className="my-order new" onClick={() => switchTo(null)} disabled={busy}>
+                <Plus size={18} /> New
+              </button>
+            )}
+            {others.map((o) => (
+              <button key={o.id} className={`my-order ${o.not_printed ? "attention" : ""}`} onClick={() => switchTo(o.id)}>
+                <strong>{o.table_id || o.table_label ? o.place.replace(/^Table /, "T") : `#${o.number}`}</strong>
+                <span>{formatKsh(o.balance ?? 0)}</span>
+              </button>
+            ))}
+          </nav>
+        )}
+
         {unprinted.map((t) => (
           <div key={t.id} className="not-printed">
             <TriangleAlert size={20} />
@@ -480,20 +517,22 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
               {message.text}
             </p>
           )}
+          <button className="btn btn-primary send-print" onClick={send} disabled={!draft.length || busy}>
+            <Send size={26} />
+            <span>
+              SEND &amp; PRINT
+              <small>{draft.length ? `${draft.reduce((s, l) => s + l.quantity, 0)} item(s) to the bar / kitchen` : "Tap items to add them"}</small>
+            </span>
+          </button>
           <div className="bill-buttons">
-            <button className="btn btn-quiet" onClick={() => setMore(true)}>
-              <Ellipsis size={20} /> More
-            </button>
             <button className="btn btn-bill" onClick={doPrintBill} disabled={busy}>
-              <Printer size={20} /> PRINT BILL
-            </button>
-          </div>
-          <div className="bill-buttons">
-            <button className="btn btn-primary send" onClick={send} disabled={!draft.length || busy}>
-              <Send size={22} /> SEND
+              <Printer size={20} /> BILL
             </button>
             <button className="btn btn-primary pay-btn" onClick={pay} disabled={busy}>
               <Wallet size={22} /> PAY
+            </button>
+            <button className="icon-btn more-btn" onClick={() => setMore(true)} aria-label="More: move, split, hand over, reprint">
+              <Ellipsis size={22} />
             </button>
           </div>
         </footer>

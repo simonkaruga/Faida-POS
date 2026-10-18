@@ -4,7 +4,7 @@ call these, so the logic lives in one place and is tested).
     python -m app.ops busy              exit 1 if shifts or bills are still open
     python -m app.ops revision          print the database's migration revision
     python -m app.ops set-up            print the business ID; exit 1 if not set up yet
-    python -m app.ops wait-healthy --version 0.2.0 [--url ...] [--seconds 90]
+    python -m app.ops wait-healthy --version 0.3.0 [--url ...] [--seconds 90]
 """
 
 import argparse
