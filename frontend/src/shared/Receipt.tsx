@@ -12,6 +12,7 @@ export type DocRow = {
   size?: number;
   bold?: boolean;
   align?: "left" | "center" | "right";
+  small?: boolean; // the printer's small font: 64 characters a line
 };
 
 export type Printout = {
@@ -66,7 +67,7 @@ export function Paper({ rows, copy }: { rows: DocRow[]; copy?: string | null }) 
       {copy && <div className="paper-row center bold">*** {copy} ***</div>}
       {rows.map((row, i) =>
         rowLines(row).map((line, j) => (
-          <div key={`${i}-${j}`} className={`paper-row ${row.align ?? "left"} ${row.bold ? "bold" : ""} ${row.size === 2 ? "big" : ""} ${row.rule ? "rule" : ""}`}>
+          <div key={`${i}-${j}`} className={`paper-row ${row.align ?? "left"} ${row.bold ? "bold" : ""} ${row.size === 2 ? "big" : ""} ${row.rule ? "rule" : ""} ${row.small ? "small" : ""}`}>
             {line}
           </div>
         )),
@@ -84,7 +85,7 @@ export function printHere(doc: PrintoutDoc) {
     .map((copy) => {
       const rows = (copy ? [{ text: `*** ${copy} ***`, align: "center", bold: true } as DocRow] : []).concat(doc.content);
       const html = rows
-        .flatMap((row) => rowLines(row).map((line) => `<div class="${row.align ?? "left"} ${row.bold ? "b" : ""} ${row.size === 2 ? "big" : ""}">${escape(line) || "&nbsp;"}</div>`))
+        .flatMap((row) => rowLines(row).map((line) => `<div class="${row.align ?? "left"} ${row.bold ? "b" : ""} ${row.size === 2 ? "big" : ""} ${row.small ? "small" : ""}">${escape(line) || "&nbsp;"}</div>`))
         .join("");
       return `<section>${html}</section>`;
     })
@@ -99,6 +100,7 @@ export function printHere(doc: PrintoutDoc) {
     section { white-space: pre; page-break-after: always; }
     .center { text-align: center; } .right { text-align: right; } .b { font-weight: 700; }
     .big { font-size: 22px; font-weight: 700; letter-spacing: 1px; }
+    .small { font-size: 9px; }
   </style></head><body>${body}</body></html>`);
   w.document.close();
   w.focus();

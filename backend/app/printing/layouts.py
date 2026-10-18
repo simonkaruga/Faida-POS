@@ -32,6 +32,14 @@ class PaymentRow:
     tip: int = 0
 
 
+# Small print at the foot of every bill and receipt: who made the till.
+VENDOR_LINE = "Powered by Faida POS · Avinaya Solutions Ltd · +254 797 033 513"
+
+
+def _vendor() -> list[Row]:
+    return [text(VENDOR_LINE, align="center", small=True)]
+
+
 def ksh(amount: int) -> str:
     return f"{amount:,}"
 
@@ -107,7 +115,7 @@ def bill(h: Header, items: list[ItemRow], gross: int, discount: int, paid: int, 
         doc += [rule(), text("Pay by M-Pesa", bold=True, align="center"),
                 text(f"Buy Goods Till No. {till}", size=2, bold=True, align="center")]
     doc.append(text("Not a KRA tax invoice", align="center"))
-    return doc
+    return doc + _vendor()
 
 
 def receipt(
@@ -121,7 +129,7 @@ def receipt(
         if p.tip:
             doc.append(cols("   Tip (M-Pesa)", ksh(p.tip)))
     doc += [rule(), text("Not a KRA tax invoice", bold=True, align="center"), text(footer, align="center")]
-    return doc
+    return doc + _vendor()
 
 
 def handover_slip(

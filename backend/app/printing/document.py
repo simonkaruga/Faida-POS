@@ -5,6 +5,7 @@ A document is a list of rows, stored with the ticket so reprints match the origi
     {"text": "TABLE 2", "size": 2, "bold": True, "align": "center"}
     {"cols": ["2x Tusker", "600"]}      left and right aligned on one line
     {"rule": True}                       a dashed line
+    {"text": "...", "small": True}       the printer's small font (font B), for fine print
 """
 
 from typing import Any
@@ -12,6 +13,7 @@ from typing import Any
 Row = dict[str, Any]
 
 WIDTH = 48  # characters per line on an 80 mm printer (font A)
+SMALL_WIDTH = 64  # with the small font (font B)
 
 ESC, GS = b"\x1b", b"\x1d"
 INIT = ESC + b"@"
@@ -20,8 +22,11 @@ OPEN_DRAWER = ESC + b"p\x00\x19\xfa"
 ALIGN = {"left": 0, "center": 1, "right": 2}
 
 
-def text(value: str, *, size: int = 1, bold: bool = False, align: str = "left") -> Row:
-    return {"text": value, "size": size, "bold": bold, "align": align}
+def text(value: str, *, size: int = 1, bold: bool = False, align: str = "left", small: bool = False) -> Row:
+    row = {"text": value, "size": size, "bold": bold, "align": align}
+    if small:
+        row["small"] = True
+    return row
 
 
 def cols(left: str, right: str, *, size: int = 1, bold: bool = False) -> Row:
@@ -56,7 +61,7 @@ def _wrap(value: str, width: int) -> list[str]:
 
 
 def _lines(row: Row) -> list[str]:
-    width = WIDTH // row.get("size", 1)
+    width = SMALL_WIDTH if row.get("small") else WIDTH // row.get("size", 1)
     if row.get("rule"):
         return ["-" * WIDTH]
     if "cols" in row:
@@ -84,6 +89,7 @@ def to_escpos(doc: list[Row]) -> bytes:
         out += ESC + b"a" + bytes([ALIGN[row.get("align", "left")]])
         out += ESC + b"E" + bytes([1 if row.get("bold") else 0])
         out += GS + b"!" + bytes([0x11 if size == 2 else 0x00])
+        out += ESC + b"M" + bytes([1 if row.get("small") else 0])
         for line in _lines(row):
             out += line.encode("cp437", errors="replace") + b"\n"
     out += CUT

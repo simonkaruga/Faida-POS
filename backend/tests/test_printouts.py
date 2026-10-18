@@ -17,6 +17,9 @@ def test_receipt_on_screen_matches_the_printout(client, owner, menu, add_staff):
     assert doc["copies"] == [None, "COUNTER COPY"] and doc["title"].startswith("Tab - Kamau")
     texts = [row.get("text") or " ".join(row.get("cols", [])) for row in doc["content"]]
     assert any("2 x Coke" in t for t in texts) and any("Not a KRA tax invoice" in t for t in texts)
+    vendor = doc["content"][-1]
+    assert vendor["small"] and vendor["text"] == "Powered by Faida POS · Avinaya Solutions Ltd · +254 797 033 513"
+    assert "Avinaya" not in " ".join(row.get("text", "") for row in doc["content"] if not row.get("small"))
     assert client.get(f"/api/tickets/{receipt['id']}", headers=login(client, "4826")).status_code == 403
 
     log = client.get("/api/printouts", headers=owner).json()
@@ -40,3 +43,12 @@ def test_handover_slip_on_screen_and_reprint(client, owner, add_staff, printers)
     r = client.post(f"/api/handover-slips/{slip['id']}/reprint", headers=owner)
     assert r.status_code == 200 and r.json()["reprints"] == 1
     assert "*** REPRINT ***" in printers["counter"].printed[-1]
+
+
+def test_small_print_fits_the_line_and_uses_the_small_font():
+    from app.printing.document import SMALL_WIDTH, to_escpos, to_text
+    from app.printing.layouts import VENDOR_LINE, _vendor
+
+    assert len(VENDOR_LINE) <= SMALL_WIDTH
+    assert to_text(_vendor()).strip() == VENDOR_LINE
+    assert b"\x1bM\x01" in to_escpos(_vendor())  # font B on the printer
