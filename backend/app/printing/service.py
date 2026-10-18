@@ -32,6 +32,23 @@ class PrintService:
         futures = [self._submit(t, reprint) for t in tickets]
         wait(futures, timeout=self._wait)
 
+    def print_document(self, doc: list[Row], printer: PrinterName = PrinterName.counter) -> str:
+        """Print a report straight away, without a ticket. Returns "printed", "not_printed",
+        or "pending" if the printer hasn't answered yet."""
+        future = self._workers[printer].submit(self._print_now, printer, doc)
+        done, _ = wait([future], timeout=self._wait)
+        return future.result() if done else "pending"
+
+    def _print_now(self, printer: PrinterName, doc: list[Row]) -> str:
+        try:
+            self._printers[printer].print(doc)
+            result = "ok"
+        except Exception:
+            result = "offline"
+        with self._lock:
+            self.last_result[printer] = result
+        return "printed" if result == "ok" else "not_printed"
+
     def open_drawer(self) -> None:
         printer = self._printers[PrinterName.counter]
         self._workers[PrinterName.counter].submit(self._safe, printer.open_drawer)

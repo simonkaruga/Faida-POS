@@ -174,3 +174,38 @@ def test_dashboard_compares_with_the_same_time_last_week(client, owner, opts, pe
     sam = login(client, SAM)
     assert client.get("/api/dashboard", headers=sam).json()["gross_profit"] is None  # supervisors: no profit
     assert client.get("/api/dashboard", headers=login(client, JANE)).status_code == 403
+
+
+def test_owner_slips_print_on_the_receipt_printer(client, owner, people, opts, printers):
+    """Day so far, stock count sheet and debtors on the 80 mm printer; not for waiters."""
+    from app.printing.models import PrinterName
+
+    counter = printers[PrinterName.counter]
+    sell_and_pay(client, owner, [(opts["Coke"], 2)])
+    otieno = client.post("/api/credit/customers", headers=owner, json={"name": "Otieno", "phone": "0712", "credit_limit": 5000}).json()
+    bill = client.post("/api/bills", json={"tab_name": "Otieno"}, headers=owner).json()
+    client.post(f"/api/bills/{bill['id']}/send", headers=owner, json={"items": [{"sell_option_id": opts["Tusker"]}]})
+    r = client.post(f"/api/bills/{bill['id']}/credit", headers=owner, json={"customer_id": otieno["id"]})
+    assert r.status_code == 200, r.text
+
+    def slip(kind, headers=owner):
+        return client.post("/api/reports/slip", json={"kind": kind}, headers=headers)
+
+    assert slip("closing").json() == {"status": "printed"}
+    day = counter.printed[-1]
+    assert "TODAY SO FAR (NOT CLOSED)" in day and "Total sales (2 bills)" in day and "REAL PROFIT" in day
+
+    sam = login(client, SAM)
+    assert slip("closing", sam).status_code == 200
+    assert "REAL PROFIT" not in counter.printed[-1]  # supervisors don't see profit
+
+    assert slip("stock_sheet", sam).json() == {"status": "printed"}
+    sheet = counter.printed[-1]
+    assert "STOCK COUNT SHEET" in sheet and "Tusker 500ml" in sheet and "________" in sheet
+
+    assert slip("debtors").json() == {"status": "printed"}
+    assert "Otieno" in counter.printed[-1] and "TOTAL OWED (1)" in counter.printed[-1]
+
+    assert slip("debtors", login(client, JANE)).status_code == 403
+    counter.fail = True
+    assert slip("debtors").json() == {"status": "not_printed"}

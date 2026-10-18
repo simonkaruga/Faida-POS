@@ -460,6 +460,10 @@ export type Report = {
 export type Expense = { id: string; category: string; amount: number; note: string | null; business_day: string; from_cash_box: boolean; reversed: boolean; is_reversal: boolean; by: string };
 
 export const getClosing = (day?: string) => api<Closing>(`/closing${day ? `?day=${day}` : ""}`);
+/** Owner printouts on the counter's receipt printer (80 mm). */
+export type SlipKind = "closing" | "stock_sheet" | "debtors";
+export const printSlip = (kind: SlipKind, day?: string) =>
+  api<{ status: "printed" | "not_printed" | "pending" }>("/reports/slip", { body: { kind, day } });
 export const closeDay = (day: string, cashBoxCounted?: number, note?: string) =>
   api<Closing>("/closing", { body: { day, cash_box_counted: cashBoxCounted, note } });
 export type DashSummary = { sales: number; bills: number; average_bill: number };

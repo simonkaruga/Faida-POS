@@ -1,4 +1,4 @@
-import { FileSpreadsheet, Printer } from "lucide-react";
+import { FileSpreadsheet } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   addExpense,
@@ -19,6 +19,7 @@ import { Modal } from "../shared/Modal";
 import { formatKsh } from "../shared/money";
 import { COMP_LABEL } from "./billLines";
 import { BarList, ClosingView, ProfitBlock, Row, SalesBlock, Section } from "../shared/ReportParts";
+import { PrintPageButton, SlipButton } from "../shared/PrintButtons";
 
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong.");
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -35,9 +36,7 @@ function ExportButtons({ onExcel }: { onExcel: () => Promise<unknown> }) {
       <button className="btn btn-quiet no-print" onClick={() => onExcel().catch((e) => toast(errorText(e), "error"))}>
         <FileSpreadsheet size={18} /> Excel
       </button>
-      <button className="btn btn-quiet no-print" onClick={() => window.print()}>
-        <Printer size={18} /> Print / PDF
-      </button>
+      <PrintPageButton />
     </>
   );
 }
@@ -82,6 +81,7 @@ export function ClosingTab() {
         </button>
         <span className="grow" />
         <ExportButtons onExcel={() => download(`/closing/export?day=${closing.day}`, `closing-${closing.day}.xlsx`)} />
+        <SlipButton kind="closing" day={closing.day} label="Receipt printer" />
         {closing.closed ? (
           <span className="status-tag paid">
             Closed by {closing.closed_by} at {new Date(closing.closed_at!).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}

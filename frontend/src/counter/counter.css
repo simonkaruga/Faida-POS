@@ -600,17 +600,29 @@ select.text-input { appearance: auto; }
 .toggle.on .toggle-knob::after { transform: translateX(18px); }
 .settings { display: flex; flex-direction: column; gap: 14px; max-width: 980px; }
 
-/* Print / Save as PDF from the owner area: only the page content, on white paper. */
+/* Print / Save as PDF from the owner area: only the page content, on white paper, with a
+ * header (business, page, when, who). Action buttons go; rows that are buttons stay. */
+.print-only { display: none; }
 @media print {
+  @page { margin: 12mm; }
   html, body, #root { background: #fff !important; color: #000 !important; height: auto !important; overflow: visible !important; }
-  .owner-nav, .no-print, .screen-actions, .topbar, .toast-stack, .alert-row, button, input[type="date"] { display: none !important; }
-  .rp-big { background: #fff !important; border: 1px solid #bbb; }
+  * { box-shadow: none !important; animation: none !important; transition: none !important; }
+  .owner { zoom: 1 !important; }
+  .owner-nav, .no-print, .screen-actions, .topbar, .toasts, .alert-row, .owner-title-icon,
+  .btn, .icon-btn, .link-btn, .choice, .chip, .segmented, .toggle, .search-box, input, select { display: none !important; }
+  .print-only { display: block !important; margin: 0; font-size: 13px; }
+  .print-business { font-size: 20px !important; font-weight: 800; }
   .owner, .owner-main, .owner-body { display: block !important; height: auto !important; overflow: visible !important; padding: 0 !important; }
-  .rp-section { break-inside: avoid; border: 1px solid #bbb !important; background: #fff !important; color: #000 !important; box-shadow: none !important; }
-  .rp-section *, .owner-title * { color: #000 !important; }
+  .owner-title { padding: 0 0 10px !important; margin-bottom: 10px; border-bottom: 2px solid #000; }
+  .owner-body *, .owner-title * { color: #000 !important; }
+  .owner-body button { background: #fff !important; border: 1px solid #bbb !important; }
+  .list-row, .order-card, .stat, .rp-big { background: #fff !important; border: 1px solid #bbb !important; break-inside: avoid; }
+  .list-row { min-height: 0 !important; padding: 6px 12px !important; margin-bottom: 4px !important; }
+  .rp-section { break-inside: avoid; border: 1px solid #bbb !important; background: #fff !important; }
   .rp-bar { background: #555 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .report-grid { display: block !important; }
-  .report-grid > * { margin-bottom: 10px; }
+  .pill { border: 1px solid #000 !important; background: #fff !important; }
+  .report-grid, .dash-row { display: block !important; }
+  .report-grid > *, .dash-row > * { margin-bottom: 10px; }
 }
 
 /* Choosing an item: its picture across the top of the pop-up. */
@@ -674,6 +686,9 @@ select.text-input { appearance: auto; }
 .owner-top { display: flex; gap: 8px; }
 .owner-top .btn { flex: 1; padding: 0 10px; min-height: 52px; font-size: 17px; }
 .owner-lock { box-shadow: none; }
+.owner-text-size { display: flex; flex-direction: column; gap: 6px; margin-top: auto; padding-top: 8px; }
+.owner-text-size .segmented button { min-width: 0; flex: 1; padding: 0 8px; font-weight: 800; }
+.owner-text-size .segmented { display: flex; }
 .order-card.payable { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none; }
 .order-pay {
   display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px;

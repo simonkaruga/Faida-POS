@@ -30,6 +30,7 @@ import {
   getAlerts,
   getCashBox,
   getCustomers,
+  getHealth,
   getShifts,
   getSettings,
   giveFloat,
@@ -41,7 +42,9 @@ import {
   type CreditCustomer,
   type Session,
   type ShiftRow,
+  type SlipKind,
 } from "../services/api";
+import { PrintPageButton, SlipButton } from "../shared/PrintButtons";
 import { CodeKeypad } from "../shared/CodeKeypad";
 import { Keypad } from "../shared/Keypad";
 import { Modal } from "../shared/Modal";
@@ -61,7 +64,22 @@ const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Somethin
 const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "");
 const KIND = { handover: "Hand-over", float: "Float", payout: "Pay-out", credit_collected: "Credit paid", owner: "Owner" } as const;
 
-type NavItem = { tab: Tab; label: string; icon: LucideIcon; hint: string };
+/** `print`: the page can be printed on A4 or saved as a PDF from its title bar.
+ * `slip`: a short version prints on the receipt printer. */
+type NavItem = { tab: Tab; label: string; icon: LucideIcon; hint: string; print?: true; slip?: { kind: SlipKind; label: string } };
+
+/** Owner-panel text size, kept on this screen only. Large by default: it's read standing
+ * at the counter. */
+const TEXT_SIZES = [["normal", "A", 1], ["large", "A", 1.15], ["xl", "A", 1.3]] as const;
+type TextSize = (typeof TEXT_SIZES)[number][0];
+function savedTextSize(): TextSize {
+  try {
+    const v = localStorage.getItem("faida-owner-text");
+    return v === "normal" || v === "xl" ? v : "large";
+  } catch {
+    return "large";
+  }
+}
 
 /** Counter screens behind an Owner or Supervisor PIN (masterplan 9.4). Supervisors see
  * the same screens without owner-only pages and actions. */
@@ -69,24 +87,37 @@ export function OwnerArea({ session, onBack, onLock }: { session: Session; onBac
   const [tab, setTab] = useState<Tab>("dashboard");
   // Setup is mostly used at installation: folded away until opened.
   const [setupOpen, setSetupOpen] = useState(false);
+  const [textSize, setTextSize] = useState<TextSize>(savedTextSize);
+  const [business, setBusiness] = useState("");
+  useEffect(() => {
+    getHealth().then((h) => setBusiness(h.business_name ?? ""), () => {});
+  }, []);
+  const chooseSize = (size: TextSize) => {
+    setTextSize(size);
+    try {
+      localStorage.setItem("faida-owner-text", size);
+    } catch {
+      // only for this visit
+    }
+  };
   const isOwner = session.permissions.view_financials === "allow";
   const groups: [string, NavItem[]][] = [
     ["Today", [
-      { tab: "dashboard", label: "Dashboard", icon: LayoutDashboard, hint: "Today at a glance" },
-      { tab: "shifts", label: "Shifts & hand-overs", icon: Users, hint: "Floats, cash-ups, shortages" },
-      { tab: "bills", label: "Finished orders", icon: ReceiptText, hint: "Today's receipts and cancellations" },
-      { tab: "cash", label: "Cash box", icon: Vault, hint: "Pay-outs and cash in the box" },
+      { tab: "dashboard", label: "Dashboard", icon: LayoutDashboard, hint: "Today at a glance", print: true, slip: { kind: "closing", label: "Today's slip" } },
+      { tab: "shifts", label: "Shifts & hand-overs", icon: Users, hint: "Floats, cash-ups, shortages", print: true },
+      { tab: "bills", label: "Finished orders", icon: ReceiptText, hint: "Today's receipts and cancellations", print: true },
+      { tab: "cash", label: "Cash box", icon: Vault, hint: "Pay-outs and cash in the box", print: true },
       { tab: "printers", label: "Printer log", icon: Printer, hint: "Every slip, ticket and receipt" },
     ]],
     ["Business", [
-      { tab: "credit", label: "Credit", icon: BookUser, hint: "Debtors and payments" },
-      { tab: "stock", label: "Stock", icon: Package, hint: "Deliveries, counts, waste" },
+      { tab: "credit", label: "Credit", icon: BookUser, hint: "Debtors and payments", print: true, slip: { kind: "debtors", label: "Debtors slip" } },
+      { tab: "stock", label: "Stock", icon: Package, hint: "Deliveries, counts, waste", print: true, slip: { kind: "stock_sheet", label: "Count sheet" } },
       { tab: "closing", label: "Daily closing", icon: CalendarCheck2, hint: "End the business day" },
     ]],
     ...(isOwner
       ? ([["Owner", [
           { tab: "reports", label: "Reports", icon: ChartColumn, hint: "Sales, profit, sellers" },
-          { tab: "expenses", label: "Expenses", icon: HandCoins, hint: "Rent, power, salaries" },
+          { tab: "expenses", label: "Expenses", icon: HandCoins, hint: "Rent, power, salaries", print: true },
         ]], ["Setup", [
           { tab: "menu", label: "Menu & prices", icon: UtensilsCrossed, hint: "Items, sizes, prices, pictures, combos" },
           { tab: "choices", label: "Choices & happy hour", icon: SlidersHorizontal, hint: "Mixers, sides, offers by time" },
@@ -98,7 +129,7 @@ export function OwnerArea({ session, onBack, onLock }: { session: Session; onBac
   ];
   const current = groups.flatMap(([, items]) => items).find((i) => i.tab === tab)!;
   return (
-    <main className="owner">
+    <main className="owner" style={{ zoom: TEXT_SIZES.find(([k]) => k === textSize)![2] }}>
       <nav className="owner-nav">
         <div className="owner-top">
           <button className="btn btn-quiet owner-back" onClick={onBack}>
@@ -129,16 +160,32 @@ export function OwnerArea({ session, onBack, onLock }: { session: Session; onBac
           </div>
           );
         })}
+        <div className="owner-text-size no-print" role="group" aria-label="Text size">
+          <span className="owner-group-name">Text size</span>
+          <div className="segmented">
+            {TEXT_SIZES.map(([key, letter], i) => (
+              <button key={key} className={textSize === key ? "on" : ""} onClick={() => chooseSize(key)} aria-label={key === "xl" ? "Extra large" : key[0].toUpperCase() + key.slice(1)}>
+                <span style={{ fontSize: 14 + i * 5 }}>{letter}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </nav>
       <section className="owner-main">
         <header className="owner-title rise" key={tab}>
           <span className="owner-title-icon">
             <current.icon size={24} />
           </span>
-          <div>
+          <div className="grow">
+            <p className="print-only print-business">{business}</p>
             <h1>{current.label}</h1>
-            <p className="muted">{current.hint}</p>
+            <p className="muted no-print">{current.hint}</p>
+            <p className="print-only">
+              Printed {new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} by {session.staff.name}
+            </p>
           </div>
+          {current.slip && <SlipButton kind={current.slip.kind} label={current.slip.label} />}
+          {current.print && <PrintPageButton />}
         </header>
         <div className="owner-body">
           {tab === "dashboard" && <Dashboard onOpen={setTab} />}

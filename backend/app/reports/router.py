@@ -1,19 +1,22 @@
 from datetime import date, datetime, timedelta
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.audit import service as audit
-from app.auth.deps import Actor, Db, require
+from app.auth.deps import Actor, CurrentActor, Db, require
 from app.auth.permissions import Action, Level, level
 from app.db import now
 from app.floor.service import cancel_untouched
-from app.reports import export, mailer
+from app.reports import export, mailer, slips
 from app.reports.dashboard import dashboard
 from app.reports import service as reports
 from app.reports.models import DailyClosing
+from app.credit.router import debtors
+from app.stock.models import StockItem
+from app.stock.router import counting_unit
 from app.settings.models import Business
 from app.settings.service import get_settings, today
 from app.staff.models import Staff
@@ -168,3 +171,36 @@ def export_report(
     r = report(actor, request, db, start, end)
     business = db.get(Business, actor.business_id).name
     return _download(export.report_workbook(business, r.model_dump(mode="json")), f"report-{start}-to-{end}.xlsx")
+
+
+class SlipIn(BaseModel):
+    kind: Literal["closing", "stock_sheet", "debtors"]
+    day: date | None = None  # closing only; default today
+
+
+SLIP_ACTION = {"closing": Action.run_daily_closing, "stock_sheet": Action.receive_stock,
+               "debtors": Action.collect_credit_payment}
+
+
+@router.post("/reports/slip")
+def print_slip(body: SlipIn, actor: CurrentActor, request: Request, db: Db) -> dict[str, str]:
+    """An owner printout on the counter's receipt printer: the day's closing (or the day
+    so far), a blank stock count sheet, or the debtors list."""
+    if level(actor.staff.role, SLIP_ACTION[body.kind]) is Level.deny:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You don't have permission to do this.")
+    tz = request.app.state.tz
+    business = db.get(Business, actor.business_id).name
+    when = now().astimezone(tz)
+    if body.kind == "closing":
+        c = get_closing(actor, request, db, body.day)
+        doc = slips.closing_slip(business, c.report, c.closed_by, actor.staff.name, when)
+    elif body.kind == "stock_sheet":
+        items = db.scalars(select(StockItem).where(StockItem.business_id == actor.business_id, StockItem.active)
+                           .order_by(StockItem.station, StockItem.name))
+        doc = slips.stock_sheet(business, [(i.station.value.title(), i.name, counting_unit(i)) for i in items],
+                                actor.staff.name, when)
+    else:
+        rows = [dict(name=d.name, phone=d.phone, owed=d.owed, since=d.oldest_unpaid and d.oldest_unpaid.astimezone(tz))
+                for d in debtors(actor, db)]
+        doc = slips.debtors_slip(business, rows, actor.staff.name, when)
+    return {"status": request.app.state.printing.print_document(doc)}
