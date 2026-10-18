@@ -1,4 +1,4 @@
-import { ArrowLeft, Banknote, BookUser, CheckCircle2, CreditCard, ReceiptText, Smartphone, TriangleAlert, UserX } from "lucide-react";
+import { ArrowLeft, Banknote, BookUser, CreditCard, LogOut, ReceiptText, Smartphone, TriangleAlert, UserX } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   ApiError,
@@ -121,7 +121,6 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
   };
 
   if (done) {
-    const warn = done.method === "unpaid" || !done.receiptPrinted;
     const finish = () =>
       onDone(`${done.place}: ${done.method === "credit" ? "on credit" : done.method === "unpaid" ? "marked unpaid" : "paid"} ✓`, !done.receiptPrinted);
     return (
@@ -150,9 +149,8 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
             </p>
           )}
           <button className="btn btn-primary" style={{ minWidth: 280 }} onClick={finish}>
-            <CheckCircle2 size={22} /> DONE
+            <LogOut size={22} /> DONE · LOG OUT
           </button>
-          {warn && <span className="muted">The screen locks when you're done.</span>}
         </section>
         <section className="paid-right">
           {done.receiptId ? (

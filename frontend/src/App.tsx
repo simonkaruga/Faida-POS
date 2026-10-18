@@ -63,6 +63,7 @@ function SignedIn({ session, onLock }: { session: Session; onLock: (notice?: Not
           onOpen={(billId) => setView({ screen: "order", billId })}
           onSent={lockWith}
           onMenuChanged={reloadMenu}
+          onLock={() => onLock()}
         />
       );
     case "pay":

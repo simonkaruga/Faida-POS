@@ -5,7 +5,7 @@ How to use the till. Training takes 15–30 minutes. Go through each part on the
 ## Log in and lock
 
 - Type your **PIN** and press **OK**. The menu comes up with a new order ready. Just start tapping items.
-- Press **LOCK** whenever you walk away. The screen also locks by itself if nobody touches it.
+- Finished? Press **LOG OUT** (top right of the bill), or **DONE · LOG OUT** after a payment. Always log out when you walk away. The screen also locks by itself if nobody touches it.
 
 ## Take an order
 

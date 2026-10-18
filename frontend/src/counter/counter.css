@@ -700,3 +700,8 @@ select.text-input { appearance: auto; }
 .send-print small { font-size: 14px; font-weight: 650; opacity: 0.85; letter-spacing: 0; }
 .bill-buttons:has(.more-btn) { grid-template-columns: 1fr 1fr auto; }
 .more-btn { width: 60px; height: auto; min-height: var(--tap-min); }
+.btn.logout-btn {
+  flex: none; min-height: 52px; padding: 0 14px; gap: 6px; font-size: 15px; font-weight: 800; white-space: nowrap;
+  background: var(--surface); color: var(--red); border: 1.5px solid color-mix(in srgb, var(--red) 45%, var(--border)); box-shadow: none;
+}
+.btn.logout-btn:active { background: color-mix(in srgb, var(--red) 10%, var(--surface)); }

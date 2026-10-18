@@ -6,6 +6,7 @@ import {
   Clock3,
   Ellipsis,
   GlassWater,
+  LogOut,
   Minus,
   PartyPopper,
   Plus,
@@ -57,12 +58,13 @@ type Props = {
   onOpen: (billId: string) => void;
   onSent: (message: string, warning?: boolean) => void;
   onMenuChanged: () => void;
+  onLock: () => void;
 };
 
 const FAVOURITES = "fav";
 const STATION_TICKET = { bar_slip: "Bar slip", kitchen_ticket: "Kitchen ticket", bill: "Bill", receipt: "Receipt" } as const;
 
-export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSent, onMenuChanged }: Props) {
+export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSent, onMenuChanged, onLock }: Props) {
   const staffId = session.staff.id;
   const [bill, setBill] = useState<Bill | null>(null);
   const [draft, setDraftState] = useState<DraftLine[]>(() => getDraft(staffId, billId));
@@ -229,6 +231,12 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
     }
   };
 
+  /** LOG OUT when finished. Not with items still unsent: nothing is made without a slip. */
+  const logOut = () => {
+    if (draft.length) return setMessage({ text: "Send the new items first, or remove them, then log out.", tone: "error" });
+    onLock();
+  };
+
   /** PAY: anything not yet sent goes to the bar and kitchen first (their slips print),
    * then straight to payment, with no lock in between. For "two Tuskers, pay now". */
   const pay = async () => {
@@ -386,9 +394,17 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
               )}
             </strong>
             <span>
-              <span className="avatar sm">{initials(bill.waiter.name)}</span> {bill.waiter.name} · <Clock3 size={14} /> {since(bill.opened_at)}
+              {bill.waiter.id !== staffId && (
+                <>
+                  <span className="avatar sm">{initials(bill.waiter.name)}</span> {bill.waiter.name} ·{" "}
+                </>
+              )}
+              <Clock3 size={14} /> {since(bill.opened_at)}
             </span>
           </div>
+          <button className="btn logout-btn" onClick={logOut}>
+            <LogOut size={20} /> LOG OUT
+          </button>
         </header>
 
         {(others.length > 0 || bill.lines.length > 0) && (

@@ -81,6 +81,7 @@ const renderOrder = (props: Partial<Parameters<typeof OrderScreen>[0]> = {}) =>
       onOpen={vi.fn()}
       onSent={vi.fn()}
       onMenuChanged={vi.fn()}
+      onLock={vi.fn()}
       {...props}
     />,
   );
@@ -118,5 +119,19 @@ describe("order screen: get in, tap items, SEND & PRINT", () => {
     renderOrder({ onOpen, billId: "b40" }); // unsent items are kept per order, in memory
     fireEvent.click(await screen.findByRole("button", { name: /T5/ }));
     expect(onOpen).toHaveBeenCalledWith("b31");
+  });
+
+  it("logs out when finished, but not with items still unsent", async () => {
+    mockApi();
+    const onLock = vi.fn();
+    renderOrder({ onLock, billId: "b41" });
+    const logOut = await screen.findByRole("button", { name: /LOG OUT/ });
+    fireEvent.click(screen.getByRole("button", { name: /Tusker/ }));
+    fireEvent.click(logOut);
+    expect(onLock).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toMatch(/then log out/);
+    fireEvent.click(screen.getByRole("button", { name: "One less Tusker" }));
+    fireEvent.click(logOut);
+    expect(onLock).toHaveBeenCalled();
   });
 });
