@@ -108,6 +108,7 @@ function SignedIn({ session, onLock }: { session: Session; onLock: (notice?: Not
         <HomeScreen
           session={session}
           onOpen={(billId) => setView({ screen: "order", billId })}
+          onPay={(billId) => setView({ screen: "pay", billId })}
           onNavigate={(screen) => setView({ screen })}
           onLock={() => onLock()}
         />

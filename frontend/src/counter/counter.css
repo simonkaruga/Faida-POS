@@ -640,11 +640,12 @@ select.text-input { appearance: auto; }
 .home-search { max-width: none; flex: 1; min-width: 280px; align-self: center; }
 .home-search input { min-height: 64px; font-size: 19px; }
 .order-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 12px; }
+.order-cell { display: flex; flex-direction: column; animation: rise 260ms var(--ease) both; }
 .order-card {
   display: flex; flex-direction: column; gap: 6px; min-height: 150px; padding: 14px 16px;
   border-radius: 18px; border: 1px solid var(--border); background: var(--surface); color: var(--text);
   font: inherit; text-align: left; cursor: pointer; box-shadow: var(--shadow-sm);
-  animation: rise 260ms var(--ease) both; transition: transform 120ms var(--ease), border-color 160ms;
+  transition: transform 120ms var(--ease), border-color 160ms;
 }
 .order-card:active:not(:disabled) { transform: scale(0.97); }
 .order-card.mine { border-color: color-mix(in srgb, var(--blue) 45%, var(--border)); border-top: 5px solid var(--blue); }
@@ -673,3 +674,10 @@ select.text-input { appearance: auto; }
 .owner-top { display: flex; gap: 8px; }
 .owner-top .btn { flex: 1; padding: 0 10px; min-height: 52px; font-size: 17px; }
 .owner-lock { box-shadow: none; }
+.order-card.payable { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none; }
+.order-pay {
+  display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px;
+  border: none; border-radius: 0 0 18px 18px; cursor: pointer; font: inherit; font-size: 17px; font-weight: 800;
+  background: linear-gradient(180deg, #2fca85, var(--green)); color: #fff;
+}
+.order-pay:active { filter: brightness(0.95); }

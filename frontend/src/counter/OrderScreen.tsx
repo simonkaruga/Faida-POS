@@ -209,10 +209,24 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
     onBack();
   };
 
-  const pay = () => {
-    if (draft.length) return setMessage({ text: "Send the new round first.", tone: "error" });
-    if (!bill?.total) return setMessage({ text: "Nothing to pay yet.", tone: "error" });
-    onPay(billId);
+  /** PAY: anything not yet sent goes to the bar and kitchen first (their slips print),
+   * then straight to payment, with no lock in between. For "two Tuskers, pay now". */
+  const pay = async () => {
+    if (busy) return;
+    if (!draft.length && !bill?.total) return setMessage({ text: "Nothing to pay yet.", tone: "error" });
+    if (!draft.length) return onPay(billId);
+    setBusy(true);
+    try {
+      await sendRound(
+        billId,
+        draft.map((l) => ({ sell_option_id: l.optionId, quantity: l.quantity, note: l.note, modifier_option_ids: l.modifiers.map((m) => m.id) })),
+      );
+      setDraft([]);
+      onPay(billId);
+    } catch (e) {
+      fail(e);
+      setBusy(false);
+    }
   };
 
   const reprintTicket = async (ticketId: string) => {
@@ -478,7 +492,7 @@ export function OrderScreen({ session, menu, billId, onBack, onPay, onOpen, onSe
             <button className="btn btn-primary send" onClick={send} disabled={!draft.length || busy}>
               <Send size={22} /> SEND
             </button>
-            <button className="btn btn-primary pay-btn" onClick={pay}>
+            <button className="btn btn-primary pay-btn" onClick={pay} disabled={busy}>
               <Wallet size={22} /> PAY
             </button>
           </div>

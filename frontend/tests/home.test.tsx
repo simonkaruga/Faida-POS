@@ -20,10 +20,15 @@ describe("home: my open orders", () => {
       return Response.json({ id: "new", number: 34 }, { status: 201 });
     });
     const onOpen = vi.fn();
-    render(<HomeScreen session={session} onOpen={onOpen} onNavigate={vi.fn()} onLock={vi.fn()} />);
+    const onPay = vi.fn();
+    render(<HomeScreen session={session} onOpen={onOpen} onPay={onPay} onNavigate={vi.fn()} onLock={vi.fn()} />);
     expect(await screen.findByText("#0031")).toBeTruthy();
     expect(screen.getByText("No table")).toBeTruthy();
     expect(screen.queryByText("#0033")).toBeNull(); // Ali's order isn't on Jane's screen
+
+    // A table that's leaving: straight to payment from the card.
+    fireEvent.click(screen.getAllByRole("button", { name: /PAY 600/ })[0]);
+    expect(onPay).toHaveBeenCalledWith("b32"); // newest first
 
     fireEvent.change(screen.getByPlaceholderText(/Find an order/), { target: { value: "57" } });
     expect(screen.queryByText("#0031")).toBeNull();

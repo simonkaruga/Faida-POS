@@ -7,6 +7,7 @@ import { formatKsh } from "../shared/money";
 type Props = {
   session: Session;
   onOpen: (billId: string) => void;
+  onPay: (billId: string) => void;
   onNavigate: (screen: "endShift" | "myBills" | "owner" | "floor") => void;
   onLock: () => void;
 };
@@ -23,7 +24,7 @@ const hasTable = (b: FloorBill) => Boolean(b.table_id || b.table_label);
  * big cards, and NEW ORDER. An order is known by its number; a table is optional and can
  * be any number, so it works with 10 tables, 1000, or customers standing at the bar.
  * Supervisors and the owner can also see everyone's orders. */
-export function HomeScreen({ session, onOpen, onNavigate, onLock }: Props) {
+export function HomeScreen({ session, onOpen, onPay, onNavigate, onLock }: Props) {
   const [floor, setFloor] = useState<Floor | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -130,13 +131,14 @@ export function HomeScreen({ session, onOpen, onNavigate, onLock }: Props) {
         <div className="order-grid">
           {shown.map((b, i) => {
             const old = (now - new Date(b.opened_at).getTime()) / 60000;
+            const payable = b.mine && (b.balance ?? 0) > 0;
             return (
+              <div key={b.id} className="order-cell" style={{ animationDelay: `${Math.min(i, 12) * 20}ms` }}>
               <button
-                key={b.id}
-                className={`order-card ${b.mine ? "mine" : "others"} ${b.not_printed ? "attention" : ""}`}
+                className={`order-card ${b.mine ? "mine" : "others"} ${b.not_printed ? "attention" : ""} ${payable ? "payable" : ""}`}
                 onClick={() => onOpen(b.id)}
                 disabled={b.total === null}
-                style={{ animationDelay: `${Math.min(i, 12) * 20}ms` }}
+                aria-label={`Order ${no(b.number)}, ${b.place}`}
               >
                 <span className="order-top">
                   <span className="order-no">{no(b.number)}</span>
@@ -162,6 +164,12 @@ export function HomeScreen({ session, onOpen, onNavigate, onLock }: Props) {
                   </span>
                 </span>
               </button>
+              {payable && (
+                <button className="order-pay" onClick={() => onPay(b.id)}>
+                  <Wallet size={18} /> PAY {formatKsh(b.balance ?? 0)}
+                </button>
+              )}
+              </div>
             );
           })}
         </div>
