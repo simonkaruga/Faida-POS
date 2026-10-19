@@ -14,6 +14,13 @@ Row = dict[str, Any]
 
 WIDTH = 48  # characters per line on an 80 mm printer (font A)
 SMALL_WIDTH = 64  # with the small font (font B)
+# Characters per line (normal font) by paper width. 58 mm thermal printers are common too.
+COLUMNS = {80: 48, 58: 32}
+
+
+def small_width(width: int) -> int:
+    """The small font fits a third more: 64 on 80 mm paper, 42 on 58 mm."""
+    return width * 4 // 3
 
 ESC, GS = b"\x1b", b"\x1d"
 INIT = ESC + b"@"
@@ -60,10 +67,15 @@ def _wrap(value: str, width: int) -> list[str]:
     return lines
 
 
-def _lines(row: Row) -> list[str]:
-    width = SMALL_WIDTH if row.get("small") else WIDTH // row.get("size", 1)
+def _row_width(row: Row, width: int) -> int:
+    return small_width(width) if row.get("small") else width // row.get("size", 1)
+
+
+def _lines(row: Row, width: int = WIDTH) -> list[str]:
+    paper = width
+    width = _row_width(row, paper)
     if row.get("rule"):
-        return ["-" * WIDTH]
+        return ["-" * paper]
     if "cols" in row:
         left, right = row["cols"]
         wrapped = _wrap(left, width - len(right) - 1)
@@ -72,17 +84,17 @@ def _lines(row: Row) -> list[str]:
     return _wrap(row["text"], width)
 
 
-def to_text(doc: list[Row]) -> str:
+def to_text(doc: list[Row], width: int = WIDTH) -> str:
     out = []
     for row in doc:
-        width = WIDTH // row.get("size", 1)
-        for line in _lines(row):
+        room = _row_width(row, width)
+        for line in _lines(row, width):
             align = row.get("align", "left")
-            out.append(line.center(width) if align == "center" else line.rjust(width) if align == "right" else line)
+            out.append(line.center(room) if align == "center" else line.rjust(room) if align == "right" else line)
     return "\n".join(out)
 
 
-def to_escpos(doc: list[Row]) -> bytes:
+def to_escpos(doc: list[Row], width: int = WIDTH) -> bytes:
     out = bytearray(INIT)
     for row in doc:
         size = row.get("size", 1)
@@ -90,7 +102,7 @@ def to_escpos(doc: list[Row]) -> bytes:
         out += ESC + b"E" + bytes([1 if row.get("bold") else 0])
         out += GS + b"!" + bytes([0x11 if size == 2 else 0x00])
         out += ESC + b"M" + bytes([1 if row.get("small") else 0])
-        for line in _lines(row):
+        for line in _lines(row, width):
             out += line.encode("cp437", errors="replace") + b"\n"
     out += CUT
     return bytes(out)

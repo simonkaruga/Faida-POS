@@ -72,6 +72,8 @@ if (-not (Test-Path $EnvFile)) {
   if (-not $CounterPrinter) { $CounterPrinter = "device:\\localhost\POS80" }
   $KitchenPrinter = Read-Host "Kitchen printer, e.g. network:192.168.1.50 [same as counter]"
   if (-not $KitchenPrinter) { $KitchenPrinter = $CounterPrinter }
+  $PaperMm = Read-Host "Receipt paper width in mm, 80 or 58 [80]"
+  if (-not $PaperMm) { $PaperMm = "80" }
   do {
     $p1 = Read-Host "Backup passphrase (write it down and keep it AWAY from the counter)" -AsSecureString
     $p2 = Read-Host "Type it again" -AsSecureString
@@ -93,6 +95,9 @@ FAIDA_STATIC_DIR=$Base\current\frontend\dist
 FAIDA_PG_BIN=$PgBin
 FAIDA_COUNTER_PRINTER=$CounterPrinter
 FAIDA_KITCHEN_PRINTER=$KitchenPrinter
+# Thermal paper width in mm: 80 or 58. Change one if the printers differ.
+FAIDA_COUNTER_PAPER_MM=$PaperMm
+FAIDA_KITCHEN_PAPER_MM=$PaperMm
 FAIDA_BACKUP_PASSPHRASE=$a
 FAIDA_CLOUD_URL=$CloudUrl
 FAIDA_CLOUD_TOKEN=$CloudToken

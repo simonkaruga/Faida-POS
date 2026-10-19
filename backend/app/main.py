@@ -84,8 +84,8 @@ def create_app(
     app.state.keypad = KeypadGuard(config.pin_max_attempts, config.pin_lockout_seconds)
     app.state.owner_logins = LoginGuard()
     app.state.printing = PrintService(app.state.sessionmaker, printers or {
-        PrinterName.counter: make_printer(config.counter_printer if local else "none", "counter"),
-        PrinterName.kitchen: make_printer(config.kitchen_printer if local else "none", "kitchen"),
+        PrinterName.counter: make_printer(config.counter_printer if local else "none", "counter", config.counter_paper_mm),
+        PrinterName.kitchen: make_printer(config.kitchen_printer if local else "none", "kitchen", config.kitchen_paper_mm),
     })
     app.state.mail = MailWorker(app.state.sessionmaker, config)
     app.state.sync = (

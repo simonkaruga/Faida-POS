@@ -84,7 +84,8 @@ written as text files to `backend/prints/`.
 Email of the daily closing needs `FAIDA_SMTP_HOST` (and user, password, from) in the
 settings; the owner chooses who receives it in Owner area > Settings. Without SMTP the
 emails wait in the outbox and are sent once it is set. Set `FAIDA_COUNTER_PRINTER` and
-`FAIDA_KITCHEN_PRINTER` to use real printers (formats in
+`FAIDA_KITCHEN_PRINTER` to use real thermal (ESC/POS) printers, and
+`FAIDA_COUNTER_PAPER_MM` / `FAIDA_KITCHEN_PAPER_MM` to `58` for 58 mm paper (formats in
 [printers.py](backend/app/printing/printers.py)).
 
 ## Tests

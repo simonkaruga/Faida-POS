@@ -5,6 +5,8 @@
     device:\\\\localhost\\POS80   shared printer on Windows (raw)
     network:192.168.1.50     network printer, port 9100 unless given (host:port)
     none                     no printer here: everything shows as "Not printed"
+
+The paper width (80 or 58 mm) sets how many characters fit on a line.
 """
 
 import socket
@@ -12,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
-from app.printing.document import OPEN_DRAWER, Row, text, to_escpos, to_text
+from app.printing.document import COLUMNS, OPEN_DRAWER, WIDTH, Row, text, to_escpos, to_text
 
 
 class PrinterError(Exception):
@@ -25,8 +27,10 @@ class Printer(Protocol):
 
 
 class EscposPrinter:
+    width = WIDTH
+
     def print(self, doc: list[Row]) -> None:
-        self._send(to_escpos(doc))
+        self._send(to_escpos(doc, self.width))
 
     def open_drawer(self) -> None:
         self._send(OPEN_DRAWER)
@@ -60,11 +64,13 @@ class NetworkPrinter(EscposPrinter):
 
 
 class FilePrinter:
+    width = WIDTH
+
     def __init__(self, folder: str, name: str):
         self.folder, self.name = Path(folder), name
 
     def print(self, doc: list[Row]) -> None:
-        self._write(to_text(doc))
+        self._write(to_text(doc, self.width))
 
     def open_drawer(self) -> None:
         self._write(to_text([text("[ cash drawer opened ]")]))
@@ -83,15 +89,20 @@ class NoPrinter:
         pass
 
 
-def make_printer(spec: str, name: str) -> Printer:
+def make_printer(spec: str, name: str, paper_mm: int = 80) -> Printer:
+    if paper_mm not in COLUMNS:
+        raise ValueError(f"Paper width must be 80 or 58 mm, not {paper_mm}")
     kind, _, target = spec.partition(":")
     if kind == "file":
-        return FilePrinter(target or "prints", name)
-    if kind == "device" and target:
-        return DevicePrinter(target)
-    if kind == "network" and target:
+        printer = FilePrinter(target or "prints", name)
+    elif kind == "device" and target:
+        printer = DevicePrinter(target)
+    elif kind == "network" and target:
         host, _, port = target.partition(":")
-        return NetworkPrinter(host, int(port or 9100))
-    if kind == "none":
+        printer = NetworkPrinter(host, int(port or 9100))
+    elif kind == "none":
         return NoPrinter()
-    raise ValueError(f"Unknown printer setting {spec!r}")
+    else:
+        raise ValueError(f"Unknown printer setting {spec!r}")
+    printer.width = COLUMNS[paper_mm]
+    return printer

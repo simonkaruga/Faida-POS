@@ -52,3 +52,28 @@ def test_small_print_fits_the_line_and_uses_the_small_font():
     assert len(VENDOR_LINE) <= SMALL_WIDTH
     assert to_text(_vendor()).strip() == VENDOR_LINE
     assert b"\x1bM\x01" in to_escpos(_vendor())  # font B on the printer
+
+
+def test_58mm_paper_keeps_every_line_on_the_paper(tmp_path):
+    from datetime import datetime
+
+    from app.printing import layouts as L
+    from app.printing.document import small_width, to_text
+    from app.printing.printers import make_printer
+
+    h = L.Header(business="Demo Bar & Restaurant", place="Table 12", waiter="Jane Wanjiru",
+                 when=datetime(2026, 10, 19, 21, 5), bill_number=31)
+    items = [L.ItemRow(2, "Tusker", None, 600), L.ItemRow(1, "Johnnie Walker Red - Double tot", "no ice", 500, ["+ Coke"])]
+    doc = L.receipt(h, 142, items, 1100, 0, [L.PaymentRow("M-Pesa P2QM", 1100)], "Thank you, karibu tena!")
+    for row in doc:
+        room = small_width(32) if row.get("small") else 32 // row.get("size", 1)
+        assert all(len(line) <= room for line in to_text([row], 32).split("\n")), row
+
+    printer = make_printer(f"file:{tmp_path}", "counter", 58)
+    printer.print(doc)
+    assert "Powered by Faida POS" in next(tmp_path.iterdir()).read_text()
+    try:
+        make_printer("file:x", "counter", 76)
+        raise AssertionError("76 mm accepted")
+    except ValueError:
+        pass

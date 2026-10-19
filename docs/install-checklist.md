@@ -16,6 +16,7 @@ Client: ____________________  Date: ____________  Technician: __________________
 - [ ] The counter PC runs **Windows 10/11** or **Ubuntu 22.04/24.04**. If the client's machine is Android, set up a mini PC as the counter, and use `--lan` / `-Lan` at step 2.
 - [ ] Touch screen is 1366×768 or larger, landscape.
 - [ ] Counter printer is on USB with the cash drawer cable plugged into the printer. Kitchen printer is on the network with a fixed IP: ______________
+- [ ] Printers are **thermal, ESC/POS** (Epson, Xprinter, Rongta and most others). Paper width: **80 mm** / **58 mm** (measure the roll). Bluetooth-only printers are not supported; use USB or network.
 - [ ] The PC and the router are on the **UPS**.
 - [ ] Disk encryption is on: **BitLocker** (Windows) or LUKS (Linux). Write the recovery key into the client file, not on the PC.
 
@@ -41,6 +42,7 @@ The installer asks for:
 | PostgreSQL password (Windows) | The password you chose when PostgreSQL was installed |
 | Counter printer | Windows: share the USB printer as `POS80`, then `device:\\localhost\POS80`. Linux: `device:/dev/usb/lp0` |
 | Kitchen printer | `network:<its IP>`, for example `network:192.168.1.50` |
+| Receipt paper width | `80` or `58`, the width of the paper roll in mm. If the two printers differ, fix one later in the settings file (`FAIDA_COUNTER_PAPER_MM`, `FAIDA_KITCHEN_PAPER_MM`) |
 | Backup passphrase | A long phrase. **Write it on the client's sealed card and in Avinaya's password manager.** Without it no backup can ever be opened |
 | Cloud URL and token | Leave empty for now; this is done at step 7 |
 | Business name, owner's name, owner PIN | As on receipts. The owner types her own PIN |
@@ -56,6 +58,7 @@ The installer asks for:
 - [ ] Order a **food** item and SEND. It prints in the **kitchen**.
 - [ ] Order a **drink** and SEND. It prints at the **bar/counter**.
 - [ ] Take a **cash** payment. The **drawer opens** and the receipt prints.
+- [ ] On the receipt, no line runs off the paper, and the small "Powered by Faida POS" line at the bottom is readable. If lines wrap badly, the paper width setting is wrong.
 - [ ] Unplug the kitchen printer and send a food item. The table shows the orange printer sign. Plug the printer back in and press Print again in Owner area > Printers.
 
 ## 4. Backups

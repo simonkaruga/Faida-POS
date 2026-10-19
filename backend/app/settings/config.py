@@ -37,6 +37,9 @@ class Config(BaseSettings):
     # the cash drawer and prints bar slips, bills and receipts.
     counter_printer: str = "file:prints"
     kitchen_printer: str = "file:prints"
+    # Paper width of each printer in mm: 80 (48 characters a line) or 58 (32).
+    counter_paper_mm: int = 80
+    kitchen_paper_mm: int = 80
 
     # Wrong PINs in a row before the keypad pauses, and for how long.
     pin_max_attempts: int = 5

@@ -64,6 +64,8 @@ say "5/8 Settings ($ENV_FILE)"
 if [ ! -f "$ENV_FILE" ]; then
   read -rp "Counter printer [device:/dev/usb/lp0]: " COUNTER_PRINTER
   read -rp "Kitchen printer, e.g. network:192.168.1.50 [same as counter]: " KITCHEN_PRINTER
+  read -rp "Receipt paper width in mm, 80 or 58 [80]: " PAPER_MM
+  PAPER_MM=${PAPER_MM:-80}
   while true; do
     read -rsp "Backup passphrase (write it down and keep it AWAY from the counter): " PASS; echo
     read -rsp "Type it again: " PASS2; echo
@@ -84,6 +86,9 @@ FAIDA_STATE_DIR=$STATE
 FAIDA_STATIC_DIR=$BASE/current/frontend/dist
 FAIDA_COUNTER_PRINTER=${COUNTER_PRINTER:-device:/dev/usb/lp0}
 FAIDA_KITCHEN_PRINTER=${KITCHEN_PRINTER:-${COUNTER_PRINTER:-device:/dev/usb/lp0}}
+# Thermal paper width in mm: 80 or 58. Change one if the printers differ.
+FAIDA_COUNTER_PAPER_MM=$PAPER_MM
+FAIDA_KITCHEN_PAPER_MM=$PAPER_MM
 FAIDA_BACKUP_PASSPHRASE=$PASS
 FAIDA_CLOUD_URL=$CLOUD_URL
 FAIDA_CLOUD_TOKEN=$CLOUD_TOKEN
