@@ -11,10 +11,12 @@ Install Faida on a Windows 10/11 counter PC. From an unpacked release, in PowerS
 -Offline    counter only: the client keeps everything at the bar. No cloud link,
             no owner phone view; nothing is queued or sent.
 
-Needs PostgreSQL 16 and Python 3.12; it installs them with winget if missing.
+Needs PostgreSQL 16 and Python 3.12. If missing, it installs them from -Bundle (the
+folder FaidaSetup.exe unpacks, with their installers) or else with winget (internet).
+Python packages come from backend\wheels when the release has them (no internet).
 Safe to run again: existing settings, database and pictures are kept.
 #>
-param([string]$KioskUser = $env:USERNAME, [switch]$Lan, [switch]$Offline)
+param([string]$KioskUser = $env:USERNAME, [switch]$Lan, [switch]$Offline, [string]$Bundle = "")
 $ErrorActionPreference = "Stop"
 
 $Release = (Resolve-Path "$PSScriptRoot\..\..\..").Path
@@ -29,18 +31,46 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
   throw "Run PowerShell as administrator."
 }
 
+function Plain($Secure) { [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($Secure)) }
+function Bundled($Pattern) { if ($Bundle) { Get-ChildItem (Join-Path $Bundle $Pattern) -ErrorAction SilentlyContinue | Select-Object -First 1 } }
+$HasWinget = [bool](Get-Command winget -ErrorAction SilentlyContinue)
+function Find-Psql { Get-ChildItem "C:\Program Files\PostgreSQL\*\bin\psql.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1 }
+function Has-Python312 { try { & py -3.12 --version *> $null; return $LASTEXITCODE -eq 0 } catch { return $false } }
+
 Say "1/8 PostgreSQL and Python"
-$PgBin = Get-ChildItem "C:\Program Files\PostgreSQL\*\bin\psql.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1
+$PgSuperPass = $null  # set here when this installer installs PostgreSQL itself
+$PgBin = Find-Psql
 if (-not $PgBin) {
-  Write-Host "Installing PostgreSQL 16 (choose a superuser password and write it down)..."
-  winget install -e --id PostgreSQL.PostgreSQL.16 --accept-package-agreements --accept-source-agreements
-  $PgBin = Get-ChildItem "C:\Program Files\PostgreSQL\*\bin\psql.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+  if ($PgSetup = Bundled "postgresql-*.exe") {
+    do {
+      $p1 = Plain (Read-Host "Choose a password for PostgreSQL (the database). Write it in the client file" -AsSecureString)
+      $p2 = Plain (Read-Host "Type it again" -AsSecureString)
+    } while (-not $p1 -or $p1 -ne $p2)
+    $PgSuperPass = $p1
+    Write-Host "Installing PostgreSQL 16 (a few minutes)..."
+    Start-Process -Wait $PgSetup.FullName -ArgumentList "--mode", "unattended", "--unattendedmodeui", "minimal",
+      "--superpassword", "`"$PgSuperPass`"", "--serverport", "5432", "--disable-components", "pgAdmin,stackbuilder"
+  } elseif ($HasWinget) {
+    Write-Host "Installing PostgreSQL 16 (choose a superuser password and write it down)..."
+    winget install -e --id PostgreSQL.PostgreSQL.16 --accept-package-agreements --accept-source-agreements
+  } else {
+    throw "PostgreSQL 16 is not installed, and this PC has no winget to fetch it. Run FaidaSetup.exe (it carries PostgreSQL), or install PostgreSQL 16 by hand and run this again."
+  }
+  $PgBin = Find-Psql
+  if (-not $PgBin) { throw "PostgreSQL did not install. Check C:\Program Files\PostgreSQL, then run this again." }
 }
 $PgBin = Split-Path $PgBin.FullName
-$Python = (Get-Command py -ErrorAction SilentlyContinue)
-if (-not $Python) {
-  winget install -e --id Python.Python.3.12 --scope machine --accept-package-agreements --accept-source-agreements
-  $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine")
+if (-not (Has-Python312)) {
+  if ($PySetup = Bundled "python-3.12*.exe") {
+    Write-Host "Installing Python 3.12..."
+    Start-Process -Wait $PySetup.FullName -ArgumentList "/quiet", "InstallAllUsers=1", "PrependPath=1", "Include_launcher=1", "Include_test=0"
+  } elseif ($HasWinget) {
+    winget install -e --id Python.Python.3.12 --scope machine --accept-package-agreements --accept-source-agreements
+  } else {
+    throw "Python 3.12 is not installed, and this PC has no winget to fetch it. Run FaidaSetup.exe (it carries Python), or install Python 3.12 by hand and run this again."
+  }
+  $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
+  if (-not (Has-Python312)) { throw "Python 3.12 did not install. Run this again, or install it by hand." }
 }
 
 Say "2/8 Folders"
@@ -53,15 +83,16 @@ if ($Release -ne $Target) {
   Copy-Item -Recurse $Release $Target
 }
 & py -3.12 -m venv "$Target\backend\.venv"
-& "$Target\backend\.venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check -r "$Target\backend\requirements.txt"
-if ($LASTEXITCODE) { throw "Installing the Python packages failed (is the internet on?)." }
+# Packages from the release's wheels folder (FaidaSetup.exe has one), else from the internet.
+$PipFrom = if (Test-Path "$Target\backend\wheels") { @("--no-index", "--find-links", "$Target\backend\wheels") } else { @() }
+& "$Target\backend\.venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check @PipFrom -r "$Target\backend\requirements.txt"
+if ($LASTEXITCODE) { throw "Installing the Python packages failed$(if (-not $PipFrom) { ' (is the internet on?)' })." }
 if (Test-Path "$Base\current") { cmd /c rmdir "$Base\current" }
 New-Item -ItemType Junction -Path "$Base\current" -Target $Target | Out-Null
 
 Say "4/8 Database and settings ($EnvFile)"
 if (-not (Test-Path $EnvFile)) {
-  $Super = Read-Host "PostgreSQL superuser (postgres) password" -AsSecureString
-  $env:PGPASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($Super))
+  $env:PGPASSWORD = if ($PgSuperPass) { $PgSuperPass } else { Plain (Read-Host "PostgreSQL superuser (postgres) password" -AsSecureString) }
   $DbPass = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 32 | ForEach-Object { [char]$_ })
   $exists = & "$PgBin\psql.exe" -U postgres -h localhost -tAc "SELECT 1 FROM pg_roles WHERE rolname='faida'"
   if ($exists -ne "1") { & "$PgBin\psql.exe" -U postgres -h localhost -qc "CREATE ROLE faida LOGIN PASSWORD '$DbPass'" }

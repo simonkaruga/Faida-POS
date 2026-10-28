@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Faida POS installation guide</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm; }
+  :root { --navy: #0f2a4a; --blue: #1d6fe0; --orange: #f07a1a; --muted: #5b6676; --line: #d8dee8; --soft: #f3f6fb; --warn: #fff4e8; --ok: #eaf7ef; }
+  * { box-sizing: border-box; }
+  body { font-family: "Inter", "Segoe UI", Roboto, Arial, sans-serif; color: #17202c; font-size: 10.5pt; line-height: 1.45; margin: 0; }
+  h1 { color: var(--navy); font-size: 26pt; margin: 0 0 4pt; letter-spacing: -0.02em; }
+  h2 { color: var(--navy); font-size: 15pt; margin: 20pt 0 6pt; padding-bottom: 4pt; border-bottom: 2px solid var(--orange); break-after: avoid; }
+  h3 { color: var(--navy); font-size: 11.5pt; margin: 12pt 0 4pt; break-after: avoid; }
+  p { margin: 4pt 0; }
+  .lead { font-size: 12pt; color: var(--muted); margin-bottom: 14pt; }
+  .cover { border-left: 6px solid var(--orange); padding: 6pt 0 6pt 14pt; margin-bottom: 14pt; }
+  .cover .client { font-size: 16pt; color: var(--blue); font-weight: 700; margin-top: 6pt; }
+  table { width: 100%; border-collapse: collapse; margin: 6pt 0 8pt; break-inside: auto; }
+  tr { break-inside: avoid; }
+  th, td { border: 1px solid var(--line); padding: 4.5pt 6pt; text-align: left; vertical-align: top; }
+  th { background: var(--soft); color: var(--navy); font-weight: 700; }
+  td.k { width: 34%; font-weight: 600; background: #fafbfd; }
+  ol, ul { margin: 4pt 0 6pt; padding-left: 18pt; }
+  li { margin: 2.5pt 0; }
+  ol.steps > li { margin: 4pt 0; }
+  .box { border-radius: 6px; padding: 7pt 10pt; margin: 8pt 0; break-inside: avoid; }
+  .note { background: var(--soft); border-left: 4px solid var(--blue); }
+  .warn { background: var(--warn); border-left: 4px solid var(--orange); }
+  .ok { background: var(--ok); border-left: 4px solid #2fa86a; }
+  .box b:first-child { color: var(--navy); }
+  code, kbd { font-family: "Consolas", "DejaVu Sans Mono", monospace; font-size: 9.5pt; }
+  code { background: #eef2f8; padding: 0.5pt 3pt; border-radius: 3px; }
+  kbd { border: 1px solid #b9c3d3; border-bottom-width: 2px; border-radius: 3px; padding: 0 3pt; background: #fff; }
+  pre { background: #0f2a4a; color: #e8eef7; padding: 7pt 10pt; border-radius: 6px; font-size: 9pt; white-space: pre-wrap; break-inside: avoid; margin: 6pt 0; }
+  .tick td:last-child, .tick th:last-child { width: 9%; text-align: center; }
+  .page-break { break-before: page; }
+  .small { font-size: 9pt; color: var(--muted); }
+  .toc { columns: 2; column-gap: 18pt; padding-left: 16pt; }
+  .toc li { break-inside: avoid; }
+  .sign { margin-top: 18pt; display: grid; grid-template-columns: 1fr 1fr; gap: 24pt; }
+  .sign div { border-top: 1px solid #333; padding-top: 3pt; font-size: 9pt; color: var(--muted); }
+  .time { float: right; font-size: 9pt; color: var(--muted); font-weight: 400; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>Faida POS installation guide</h1>
+  <p class="lead">Windows counter, version 0.3.1 · step by step, from an empty PC to the owner's signature</p>
+  <div class="client">Chewaz Bar and Restaurant</div>
+  <p class="small">Prepared by Avinaya Solutions Ltd · 28 October 2026 · Support (call or WhatsApp): <b>+254 797 033 513</b></p>
+</div>
+
+<h3>This client at a glance</h3>
+<table>
+  <tr><td class="k">Business name (on bills and receipts)</td><td>Chewaz Bar and Restaurant</td></tr>
+  <tr><td class="k">Counter PC</td><td>Lenovo, Windows 10, 4 GB RAM · <b>no touch screen</b>: staff use the mouse and keyboard</td></tr>
+  <tr><td class="k">Printer</td><td><b>One</b> Xprinter XP-Q851L thermal printer, USB, <b>80 mm</b> paper. Bar slips, kitchen tickets, bills and receipts all print here</td></tr>
+  <tr><td class="k">M-Pesa till</td><td><b>3706694</b> (printed on every bill)</td></tr>
+  <tr><td class="k">Internet</td><td>The owner asked for the system <b>offline</b>: install as <b>counter only</b> (nothing leaves the bar, no phone view). Confirm with her once more before step 4</td></tr>
+  <tr><td class="k">Installer</td><td><code>FaidaSetup-0.3.1.exe</code>: one file, no internet needed on site</td></tr>
+  <tr><td class="k">Support</td><td>+254 797 033 513 (call or WhatsApp). Also shown on the PIN screen and in the Owner area</td></tr>
+</table>
+
+<h3>Contents</h3>
+<ol class="toc">
+  <li>Before you go</li>
+  <li>Check and prepare the PC</li>
+  <li>Set up the printer in Windows</li>
+  <li>Run FaidaSetup.exe</li>
+  <li>Sign-in, restart and full screen</li>
+  <li>Settings in Faida</li>
+  <li>Test the printer and the drawer</li>
+  <li>Backups to the USB drive</li>
+  <li>Opening stock</li>
+  <li>Train the staff</li>
+  <li>Soft launch and handover</li>
+  <li>Troubleshooting</li>
+  <li>Updating later</li>
+  <li>Client record sheet</li>
+</ol>
+
+<div class="box note"><b>How long?</b> About 3–4 hours on site: 1 hour for the PC, printer and Faida, 1 hour for settings and tests, the rest for stock and training. Plan it on a quiet morning, never during opening hours.</div>
+
+<h2>1. Before you go <span class="time">at the office</span></h2>
+<h3>Put on a USB stick</h3>
+<table class="tick">
+  <tr><th>Item</th><th>✓</th></tr>
+  <tr><td><code>FaidaSetup-0.3.1.exe</code> and <code>FaidaSetup-0.3.1.exe.sha256</code> (from <code>releases/</code>, built with <code>deploy/make-windows-setup.sh</code>)</td><td></td></tr>
+  <tr><td>The menu file, <code>chewaz-menu.json</code>: categories, items, sizes, prices, tables, choices (mixers, sides). Use <code>docs/sample-menu.json</code> as the pattern. If the owner wants stock from day one, add the stock items and recipes to the same file</td><td></td></tr>
+  <tr><td>The <b>Xprinter Windows driver</b> (from the CD in the printer box, or downloaded from Xprinter's website beforehand). There is no internet on site</td><td></td></tr>
+  <tr><td>The <b>Google Chrome offline installer</b> (<code>ChromeStandaloneSetup64.exe</code>), in case the PC's Microsoft Edge is old or missing</td><td></td></tr>
+</table>
+<h3>Bring</h3>
+<ul>
+  <li>A second USB drive, 16 GB or more, that <b>stays at the bar</b> for the nightly backups.</li>
+  <li>A spare roll of 80 mm thermal paper, and a USB cable for the printer.</li>
+  <li>Printed: the staff guide, the house rules (one per staff member to sign), the handover checklist, and this guide.</li>
+  <li>An envelope to seal the backup passphrase and (if used) the disk recovery key in, for the owner.</li>
+</ul>
+<h3>Ask the owner to have ready</h3>
+<ul>
+  <li>Every staff member's name and role (owner, supervisor, waiter). Each person types their own PIN, so they need to be there.</li>
+  <li>Tables and their names (optional: Faida also works with order numbers only), tot size in ml, the time the business day ends (normally 06:00).</li>
+  <li>Credit customers with their phone numbers and credit limits.</li>
+  <li>An hour of her time for the opening stock count, and to sign at the end.</li>
+</ul>
+<div class="box warn"><b>Decide the backup passphrase before you go.</b> It is a long phrase (e.g. four unrelated words). Without it no backup can ever be opened. Keep it in Avinaya's password manager, and seal a copy for the owner. Never leave it on the PC.</div>
+
+<h2>2. Check and prepare the PC <span class="time">≈ 20 min</span></h2>
+<ol class="steps">
+  <li><b>Windows version.</b> Press <kbd>Win</kbd>+<kbd>Pause</kbd> (or Settings &gt; System &gt; About). It must say <b>64-bit operating system</b>. Note the edition (Home or Pro) on the record sheet.</li>
+  <li><b>Disk space.</b> At least <b>10 GB free</b> on C: (File Explorer &gt; This PC).</li>
+  <li><b>Date, time and time zone.</b> Settings &gt; Time &amp; Language: time zone <b>(UTC+03:00) Nairobi</b>, and the clock correct to the minute. Faida uses this clock for every sale and the business day.</li>
+  <li><b>The counter account.</b> Decide which Windows account the counter runs in (e.g. <code>counter</code>). <b>Sign in to that account</b> and make sure it is an <b>administrator</b> while you install (Settings &gt; Accounts &gt; Family &amp; other users). The installer sets up the full-screen counter for the account that runs it.</li>
+  <li><b>Never sleep.</b> Settings &gt; System &gt; Power &amp; sleep: Screen and Sleep both <b>Never</b> (on mains power).</li>
+  <li><b>Windows Update.</b> Settings &gt; Update &amp; Security &gt; Change active hours: cover the bar's opening hours (e.g. 10:00 to 04:00 as far as Windows allows) so it never restarts during service.</li>
+  <li><b>Remove clutter.</b> With 4 GB of memory, the PC should run nothing else: uninstall trial software and games, and turn off apps that start with Windows (Task Manager &gt; Start-up).</li>
+  <li><b>Disk encryption.</b> Windows 10 <b>Pro</b>: turn on BitLocker (Control Panel &gt; BitLocker Drive Encryption) and put the recovery key in the sealed envelope, not on the PC. Windows 10 <b>Home</b> has no BitLocker: check Settings &gt; Update &amp; Security &gt; <i>Device encryption</i>; if it isn't there either, write "no disk encryption" on the record sheet and tell the owner.</li>
+  <li><b>Browser.</b> Open Microsoft Edge. If it is the new Edge (blue-green wave icon) it is fine. If Edge is missing or very old, install Chrome from the offline installer you brought. Faida uses Chrome if it is installed, otherwise Edge.</li>
+  <li><b>UPS.</b> The PC (and the router, if any) on the UPS.</li>
+</ol>
+<div class="box warn"><b>Windows 10 no longer receives security updates</b> (support ended October 2025). Tell the owner; if the Lenovo can take Windows 11, that upgrade is worth doing later. Until then, this PC is for Faida only: no web browsing, no email, no USB sticks from customers.</div>
+
+<h2>3. Set up the printer in Windows <span class="time">≈ 20 min</span></h2>
+<p>Faida prints by sending the printer's own language (ESC/POS) to a Windows printer <b>shared as <code>POS80</code></b>.</p>
+<ol class="steps">
+  <li>Load the 80 mm paper, plug the Xprinter into the mains and into a USB port <b>on the PC itself</b> (not a hub), and switch it on.</li>
+  <li><b>If a cash drawer is used</b>, plug its cable (RJ11, like a phone plug) into the <b>DK / Cash drawer</b> port on the back of the printer.</li>
+  <li>Install the <b>Xprinter driver</b> from your USB stick and choose the XP-Q851L / 80 mm model when asked. <span class="small">If no driver will install: Control Panel &gt; Devices and Printers &gt; Add a printer &gt; "The printer that I want isn't listed" &gt; Add a local printer &gt; port <b>USB001</b> &gt; manufacturer <b>Generic</b>, printer <b>Generic / Text Only</b>. Faida sends its own formatting, so this works too.</span></li>
+  <li>Control Panel &gt; Devices and Printers: right-click the printer &gt; <b>Printer properties</b> &gt; <b>Print Test Page</b>. A page must come out.</li>
+  <li>In the same window, tab <b>Sharing</b>: tick <b>Share this printer</b> and set the <b>Share name</b> to exactly <code>POS80</code>. Click OK.</li>
+  <li>Control Panel &gt; Network and Sharing Center &gt; Change advanced sharing settings &gt; <b>Private</b>: <b>Turn on file and printer sharing</b>. Save.</li>
+  <li>Check the share: press <kbd>Win</kbd>+<kbd>R</kbd>, type <code>\\localhost</code>, Enter. A window must show <b>POS80</b>.</li>
+</ol>
+
+<h2>4. Run FaidaSetup.exe <span class="time">≈ 20 min</span></h2>
+<ol class="steps">
+  <li>Copy <code>FaidaSetup-0.3.1.exe</code> to the Desktop.</li>
+  <li><i>Optional, recommended:</i> check the file arrived whole. In PowerShell: <code>certutil -hashfile $HOME\Desktop\FaidaSetup-0.3.1.exe SHA256</code>. The long number must match the one in the <code>.sha256</code> file.</li>
+  <li>Right-click the file &gt; <b>Run as administrator</b> &gt; Yes.</li>
+  <li>If a blue window says <b>"Windows protected your PC"</b>: click <b>More info</b> &gt; <b>Run anyway</b>. (The installer is not signed with a paid certificate; this is expected.)</li>
+  <li>Read the welcome page and click <b>Install</b>. It unpacks for about a minute.</li>
+  <li>It asks: <b>"Will the owner use the phone view through the Faida cloud?"</b> For Chewaz, answer <b>No</b> (counter only), unless the owner has changed her mind today.</li>
+  <li>A <b>console window</b> (dark, with text) opens and asks the questions below. Type the answer and press <kbd>Enter</kbd>. Passwords and PINs don't show while you type; that is normal.</li>
+</ol>
+<table>
+  <tr><th style="width:38%">The console asks</th><th>Answer for Chewaz</th></tr>
+  <tr><td>Choose a password for PostgreSQL (the database) · Type it again</td><td>A new strong password. Write it on the record sheet (section 14) and in Avinaya's password manager. <span class="small">Then PostgreSQL and Python install by themselves: about 5 minutes with little on screen. Wait.</span></td></tr>
+  <tr><td>Counter printer [device:\\localhost\POS80 …]</td><td>Press <kbd>Enter</kbd> (the printer shared as POS80 in step 3)</td></tr>
+  <tr><td>Kitchen printer [same as counter]</td><td>Press <kbd>Enter</kbd>. With one printer, kitchen tickets print at the counter and a waiter carries them to the kitchen</td></tr>
+  <tr><td>Receipt paper width in mm, 80 or 58 [80]</td><td>Press <kbd>Enter</kbd> (80 mm)</td></tr>
+  <tr><td>Backup passphrase · Type it again</td><td>The passphrase decided at the office</td></tr>
+  <tr><td>Business name (as on receipts)</td><td><code>Chewaz Bar and Restaurant</code></td></tr>
+  <tr><td>Owner's name</td><td>The owner's first name, as staff call her</td></tr>
+  <tr><td>Owner PIN (4-6 digits) · Type it again</td><td><b>The owner types it herself.</b> Not 1111 or 1234-style runs; Faida refuses those</td></tr>
+  <tr><td>Menu file to load</td><td>The path to the menu file, e.g. <code>E:\chewaz-menu.json</code> (E: being your USB stick). Or press <kbd>Enter</kbd> to type the menu in Faida later</td></tr>
+</table>
+<ol class="steps" start="8">
+  <li>Wait for <b>"Faida 0.3.1 is installed and running"</b>, then <b>"Done."</b> in green. Press <kbd>Enter</kbd> to close the console, then <b>Finish</b>.</li>
+</ol>
+<div class="box note"><b>If it stops with red text:</b> read the message; it says what is wrong (e.g. the passphrases didn't match). Fix it and run <code>FaidaSetup-0.3.1.exe</code> again: answers already saved are kept and it carries on. The full log is in <code>C:\Faida\setup-logs</code>. Stuck? Call support: +254 797 033 513.</div>
+
+<h2>5. Sign-in, restart and full screen <span class="time">≈ 10 min</span></h2>
+<ol class="steps">
+  <li><b>Automatic sign-in</b> for the counter account: press <kbd>Win</kbd>+<kbd>R</kbd>, type <code>netplwiz</code>, Enter. Select the counter account, untick <b>"Users must enter a user name and password"</b>, OK, and type its password twice. <span class="small">If the tick box is missing: Settings &gt; Accounts &gt; Sign-in options, turn off "Require Windows Hello sign-in", then try again.</span></li>
+  <li><b>Restart</b> the PC. It must come back <b>straight into the Faida PIN screen, full-screen</b>, with no desktop showing. Give it up to two minutes after Windows starts.</li>
+  <li>Type the owner's PIN with the keyboard and press <kbd>Enter</kbd>. The owner lands on her <b>Dashboard</b>. The top bar must show <b>Counter only</b> and <b>Printers OK</b>.</li>
+</ol>
+<div class="box note"><b>Getting to the desktop (technician only).</b> The counter re-opens by itself if it is closed. To work in Windows: press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Esc</kbd> for Task Manager &gt; File &gt; Run new task &gt; <code>taskschd.msc</code> &gt; OK. In <i>Task Scheduler Library</i>, right-click <b>Faida kiosk</b> &gt; <b>End</b>, then close the browser with <kbd>Alt</kbd>+<kbd>F4</kbd>. Never end <b>Faida counter</b>: that is Faida itself. A restart brings everything back.</div>
+
+<h2>6. Settings in Faida <span class="time">≈ 30 min</span></h2>
+<p>Logged in as the owner: <b>Owner area</b> (left menu) &gt; <b>Setup</b> (click to open it).</p>
+<h3>Settings</h3>
+<table>
+  <tr><td class="k">M-Pesa till number (printed on bills)</td><td><b>3706694</b></td></tr>
+  <tr><td class="k">Business day ends at</td><td>06:00, unless the owner says otherwise. A sale at 01:30 counts for the day before</td></tr>
+  <tr><td class="k">Tot size (ml)</td><td>As the owner pours (usually 25 or 30)</td></tr>
+  <tr><td class="k">Screen locks after</td><td>30 seconds (leave as is)</td></tr>
+  <tr><td class="k">M-Pesa code entry</td><td><b>Last 4 characters</b> (agreed default)</td></tr>
+  <tr><td class="k">Receipt thank-you line</td><td>The owner's choice, e.g. "Thank you, karibu tena!"</td></tr>
+  <tr><td class="k">Closing-report emails</td><td>Leave empty: counter only has no internet</td></tr>
+</table>
+<h3>Then, with the owner</h3>
+<ol class="steps">
+  <li><b>Menu &amp; prices:</b> go through every item, size and price with her. Add pictures for the favourites if she wants (photos of her own drinks and plates).</li>
+  <li><b>Choices &amp; happy hour:</b> mixers, sides and "how cooked" on the right items; happy hour times and days, if any.</li>
+  <li><b>Tables &amp; sections:</b> names matching the floor (e.g. Inside, Outside, VIP). Optional.</li>
+  <li><b>Staff &amp; PINs:</b> add each person with their role. <b>Each person types their own PIN</b>, away from the others. Supervisors as <i>supervisor</i>.</li>
+  <li><b>Credit</b> (Owner area &gt; Business &gt; Credit): add the credit customers with their limits. A limit can be changed later with <b>Change</b>.</li>
+</ol>
+
+<h2>7. Test the printer and the drawer <span class="time">≈ 15 min</span></h2>
+<table class="tick">
+  <tr><th>Test</th><th>✓</th></tr>
+  <tr><td>Log in as a waiter, order a <b>drink</b>, press <b>SEND &amp; PRINT</b>. A bar slip prints</td><td></td></tr>
+  <tr><td>Order a <b>food</b> item and send. A kitchen ticket prints (at the counter, with one printer)</td><td></td></tr>
+  <tr><td>Print the <b>bill</b>. It shows <b>Chewaz Bar and Restaurant</b> at the top and <b>till 3706694</b></td><td></td></tr>
+  <tr><td>Take a <b>cash</b> payment. Two receipts print: the customer copy and the <b>COUNTER COPY</b>. Each says "Not a KRA tax invoice". The drawer stays shut: waiters keep their cash until hand-over</td><td></td></tr>
+  <tr><td>Take an <b>M-Pesa</b> payment, typing the last 4 characters <b>on the keyboard</b>, then <kbd>Enter</kbd>. Then try the same 4 characters on another bill: Faida warns and asks for a supervisor's PIN</td><td></td></tr>
+  <tr><td>Owner area &gt; Shifts &amp; hand-overs: give a waiter a <b>float</b>. The <b>drawer opens</b> (if a drawer is connected)</td><td></td></tr>
+  <tr><td>No line on any slip runs off the paper; the small "Powered by Faida POS" line at the bottom is readable</td><td></td></tr>
+  <tr><td>Switch the printer <b>off</b> and send an item. The order shows the orange <b>Not printed</b> sign. Switch it on and print it again from Owner area &gt; <b>Printer log</b></td><td></td></tr>
+</table>
+<p class="small">Afterwards, cancel or finish the test bills, and end the test shift, so the real first day starts clean. Everything you did stays in the Audit log; that is by design.</p>
+
+<h2>8. Backups to the USB drive <span class="time">≈ 10 min</span></h2>
+<ol class="steps">
+  <li>Plug the backup USB drive (16 GB+) into the PC. In File Explorer, right-click it &gt; <b>Rename</b> &gt; <code>FAIDABACKUP</code> (exactly this name).</li>
+  <li>Make one backup now. Open PowerShell <b>as administrator</b> and type: <code>Start-ScheduledTask "Faida backup"</code></li>
+  <li>After a minute, the drive has a folder <code>faida</code> with a file <code>faida-local-….fbk</code>.</li>
+  <li>In Faida, the owner's <b>Dashboard</b> &gt; <i>Needs a look</i> must <b>not</b> show a red backup line. (Before the first backup it says "No backup has been made yet".)</li>
+  <li>The drive <b>stays plugged in</b>. Faida backs up every night at 04:30, or when the PC next starts if it was off. It keeps the 14 newest backups.</li>
+  <li>Seal the passphrase in the envelope and give it to the owner.</li>
+</ol>
+<div class="box warn"><b>Counter only means the red line is the only warning.</b> Show the owner: if the Dashboard ever says a backup failed or none was made, check the USB drive is plugged in, or call support. Advise her to take a copy of the drive's <code>faida</code> folder home once a week, so a theft or fire at the bar can't take everything.</div>
+
+<h2>9. Opening stock <span class="time">≈ 1 hour</span></h2>
+<ol class="steps">
+  <li>Owner area &gt; <b>Stock</b>: check every stock item has the right unit (bottles, or ml for spirits sold by the tot), buying price and reorder level. Set up recipes for dishes if the owner wants kitchen stock.</li>
+  <li>Print a blank <b>Count sheet</b> (button at the top of the Stock page).</li>
+  <li>Count with the owner: sealed bottles, and the open bottle in tenths. Enter it in <b>Stock take</b>.</li>
+  <li>Tell her the first week is calibration: small differences are normal while everyone learns.</li>
+</ol>
+
+<h2>10. Train the staff <span class="time">15–30 min each</span></h2>
+<h3>Waiters</h3>
+<ul>
+  <li>Log in: type the PIN on the keyboard and press <kbd>Enter</kbd> (or click the keys). Never share the PIN.</li>
+  <li>Click items, then the big <b>SEND &amp; PRINT</b>. Nothing is poured or cooked without a slip.</li>
+  <li><b>PAY</b>: cash (type what the customer gave; the change shows big), or M-Pesa (type the last 4 characters from the customer's message, <kbd>Enter</kbd>).</li>
+  <li>Kitchen tickets print at the counter: take them to the kitchen straight away.</li>
+  <li><b>LOG OUT</b> when walking away. The screen also locks by itself.</li>
+  <li><b>End my shift</b>: count the cash with the owner or supervisor, agree with the PIN; two slips print.</li>
+</ul>
+<h3>Supervisor and owner</h3>
+<ul>
+  <li>Approvals: type your own PIN on the waiter's screen for removals, discounts and free items.</li>
+  <li>Owner area: receiving cash at hand-over, floats, pay-outs, credit, stock, <b>Daily closing</b> (CLOSE DAY after the last shift), reports, Excel export, Print / PDF, and the <b>Audit log</b> (who did what).</li>
+  <li>The support number is at the bottom of the Owner area menu and on the PIN screen.</li>
+</ul>
+<p>Give each person the printed staff guide, and have each sign the <b>house rules</b>.</p>
+
+<h2>11. Soft launch and handover</h2>
+<ol class="steps">
+  <li><b>Soft launch: 2–3 days</b> using Faida alongside the bar's current method. Compare the totals each night.</li>
+  <li>Visit or call at the end of each day: check the backup line on the Dashboard, the printer log, and any questions.</li>
+  <li>When the owner is happy, go through <code>docs/handover-checklist.md</code> with her. Items 14 and 15 have a <i>counter only</i> version. When every line works, she signs, and the second payment is due.</li>
+  <li>Save the support number <b>+254 797 033 513</b> on her phone. The 3-month support period starts on that date.</li>
+</ol>
+
+<h2>12. Troubleshooting</h2>
+<table>
+  <tr><th style="width:34%">What you see</th><th>What to do</th></tr>
+  <tr><td>"Windows protected your PC" when starting the setup</td><td>More info &gt; Run anyway (section 4)</td></tr>
+  <tr><td>Setup stops with red text</td><td>Read the message, fix it, run the setup again (it keeps what was saved). Log: <code>C:\Faida\setup-logs</code></td></tr>
+  <tr><td>After a restart the desktop shows instead of Faida</td><td>Automatic sign-in is off (section 5), or the counter is still starting: wait 2 minutes. Check Task Scheduler has <b>Faida counter</b> and <b>Faida kiosk</b></td></tr>
+  <tr><td>Top bar: "Counter not responding"</td><td>Restart the PC. If it stays, send the file <code>C:\Faida\data\logs\counter.log</code> to support</td></tr>
+  <tr><td>Orange <b>Not printed</b>, or "Printer offline"</td><td>Paper, power, USB cable; the printer still shared as <code>POS80</code> (section 3); the "Print Spooler" service running. Then print again from Owner area &gt; Printer log</td></tr>
+  <tr><td>Lines on slips wrap oddly or run off the paper</td><td>The paper width setting is wrong: in <code>C:\Faida\counter.env</code> set <code>FAIDA_COUNTER_PAPER_MM=80</code> and <code>FAIDA_KITCHEN_PAPER_MM=80</code>, then restart the PC</td></tr>
+  <tr><td>Red backup line on the Dashboard</td><td>USB drive plugged in and named <code>FAIDABACKUP</code>? Run <code>Start-ScheduledTask "Faida backup"</code> and check again</td></tr>
+  <tr><td>A waiter forgot their PIN</td><td>Owner area &gt; Setup &gt; Staff &amp; PINs &gt; reset; the waiter types a new one</td></tr>
+  <tr><td>The owner forgot her PIN</td><td>Call support. Don't reinstall</td></tr>
+  <tr><td>"Too many wrong PINs. Try again in … seconds."</td><td>Too many wrong PINs in a row. Wait, then type carefully</td></tr>
+  <tr><td>The PC is slow</td><td>Close anything else running; check nothing else starts with Windows (section 2.7)</td></tr>
+</table>
+
+<h2>13. Updating later</h2>
+<ul>
+  <li>Avinaya brings a new <code>FaidaSetup-&lt;version&gt;.exe</code> on a USB stick. No internet is needed.</li>
+  <li>Run it <b>after closing</b>, with every shift ended and every bill paid; it refuses otherwise.</li>
+  <li>It takes a backup first, installs the new version beside the old one, and checks it. If anything fails it <b>goes back to the old version by itself</b>; nothing is lost.</li>
+  <li>Settings, the database, pictures and backups are never touched by an update.</li>
+</ul>
+
+<h2 class="page-break">14. Client record sheet</h2>
+<p class="small">Fill in on site. Keep the signed copy in the client file at the office, <b>not</b> at the bar. Passwords go in Avinaya's password manager and the owner's sealed envelope, not on this sheet.</p>
+<table>
+  <tr><td class="k">Client</td><td>Chewaz Bar and Restaurant</td></tr>
+  <tr><td class="k">Install date</td><td></td></tr>
+  <tr><td class="k">Technician</td><td></td></tr>
+  <tr><td class="k">Faida version</td><td>0.3.1 · counter only ☐ · linked to cloud ☐</td></tr>
+  <tr><td class="k">PC</td><td>Lenovo · Windows 10 Home ☐ Pro ☐ · 64-bit ☐ · serial no.: </td></tr>
+  <tr><td class="k">Windows counter account</td><td></td></tr>
+  <tr><td class="k">Disk encryption</td><td>BitLocker ☐ · Device encryption ☐ · none ☐ · recovery key in envelope ☐</td></tr>
+  <tr><td class="k">Printer</td><td>Xprinter XP-Q851L · USB · 80 mm · shared as POS80 ☐ · cash drawer connected ☐</td></tr>
+  <tr><td class="k">M-Pesa till</td><td>3706694</td></tr>
+  <tr><td class="k">PostgreSQL password</td><td>saved in password manager ☐</td></tr>
+  <tr><td class="k">Backup passphrase</td><td>saved in password manager ☐ · sealed envelope given to owner ☐</td></tr>
+  <tr><td class="k">Backup USB drive</td><td>named FAIDABACKUP ☐ · first backup made ☐</td></tr>
+  <tr><td class="k">Staff trained / house rules signed</td><td></td></tr>
+  <tr><td class="k">Soft launch dates</td><td></td></tr>
+  <tr><td class="k">Handover checklist signed</td><td>Date: </td></tr>
+  <tr><td class="k">Support number saved on owner's phone</td><td>+254 797 033 513 ☐</td></tr>
+  <tr><td class="k">Notes</td><td style="height:60pt"></td></tr>
+</table>
+<div class="sign">
+  <div>Technician (Avinaya Solutions Ltd) · signature and date</div>
+  <div>Owner, Chewaz Bar and Restaurant · signature and date</div>
+</div>
+
+</body>
+</html>

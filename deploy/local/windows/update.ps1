@@ -1,15 +1,18 @@
 <#
 Update a Windows counter, after closing hours only (masterplan 7.1). As administrator:
 
-    powershell -ExecutionPolicy Bypass -File C:\Faida\current\deploy\local\windows\update.ps1 -Archive faida-0.3.0.zip [-Force]
+    powershell -ExecutionPolicy Bypass -File C:\Faida\current\deploy\local\windows\update.ps1 -Archive faida-0.3.1.zip [-Force]
+
+or with -Release <folder> for an unpacked release (FaidaSetup.exe does this).
 
 backup -> install the new version beside the old -> migrate -> health check.
 If anything fails it rolls back by itself: the migrations are undone (or, failing that,
 the backup taken a minute earlier is restored) and the old version is started again.
 -Force updates even with shifts or bills still open.
 #>
-param([Parameter(Mandatory = $true)][string]$Archive, [switch]$Force)
+param([string]$Archive, [string]$Release, [switch]$Force)
 $ErrorActionPreference = "Stop"
+if (-not $Archive -and -not $Release) { throw "Give -Archive faida-<version>.zip or -Release <folder>." }
 $Base = "C:\Faida"
 $env:FAIDA_ENV_FILE = "$Base\counter.env"
 $Old = (Get-Item "$Base\current").Target | Select-Object -First 1
@@ -46,17 +49,22 @@ try {
   if (-not $Force) { Py $Old -m app.ops busy }
 
   Say "Unpacking"
-  $Work = Join-Path $env:TEMP "faida-update-$(Get-Random)"
-  Expand-Archive -Path $Archive -DestinationPath $Work
-  $Src = (Get-ChildItem $Work -Directory | Select-Object -First 1).FullName
+  if ($Release) {
+    $Src = (Resolve-Path $Release).Path
+  } else {
+    $Work = Join-Path $env:TEMP "faida-update-$(Get-Random)"
+    Expand-Archive -Path $Archive -DestinationPath $Work
+    $Src = (Get-ChildItem $Work -Directory | Select-Object -First 1).FullName
+  }
   $NewVersion = (Get-Content "$Src\VERSION").Trim()
   $New = "$Base\releases\$NewVersion"
   if ($New -eq $Old) { throw "Version $NewVersion is already running." }
   if (Test-Path $New) { Remove-Item -Recurse -Force $New }
-  Move-Item $Src $New
+  if ($Release) { Copy-Item -Recurse $Src $New } else { Move-Item $Src $New }
   & py -3.12 -m venv "$New\backend\.venv"
-  & "$New\backend\.venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check -r "$New\backend\requirements.txt"
-  if ($LASTEXITCODE) { throw "Installing the Python packages failed (is the internet on?). Nothing was changed." }
+  $PipFrom = if (Test-Path "$New\backend\wheels") { @("--no-index", "--find-links", "$New\backend\wheels") } else { @() }
+  & "$New\backend\.venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check @PipFrom -r "$New\backend\requirements.txt"
+  if ($LASTEXITCODE) { throw "Installing the Python packages failed$(if (-not $PipFrom) { ' (is the internet on?)' }). Nothing was changed." }
 
   Say "Backup before updating"
   $out = Py $Old -m app.backup create --to "$Base\update-backups" --keep 5 2>&1 | Out-String

@@ -22,6 +22,7 @@ The settings, the database and the pictures are never inside a release folder. A
 3. Run the update:
    - Linux: `sudo /opt/faida/current/deploy/local/linux/update.sh faida-<version>.tar.gz`
    - Windows: `powershell -ExecutionPolicy Bypass -File C:\Faida\current\deploy\local\windows\update.ps1 -Archive faida-<version>.zip`
+     or simply run the new `FaidaSetup-<version>.exe` as administrator: it finds the installed version and updates it (no internet needed).
 
 The update refuses to start while shifts or bills are open. Use `--force` / `-Force` only when you are sure nobody is selling. It then:
 

@@ -6,7 +6,7 @@ Client: ____________________  Date: ____________  Technician: __________________
 
 ## Before you go
 
-- [ ] Release built on the office machine: `deploy/make-release.sh`. Copy `releases/faida-<version>.zip` (Windows) or `.tar.gz` (Linux) to a USB stick.
+- [ ] Release built on the office machine. Windows: `deploy/make-windows-setup.sh`, then copy `releases/FaidaSetup-<version>.exe` (no internet needed on site; step by step in `docs/windows-install-guide.html`). Linux: `deploy/make-release.sh`, then copy `releases/faida-<version>.tar.gz`.
 - [ ] Menu typed up as a JSON file, using `docs/sample-menu.json` as the pattern. It holds categories, items, sizes and prices, tables and sections, choices (mixers, sides), combos and happy hour. Recipes and stock items go in a second file if the owner wants stock from day one.
 - [ ] Ask whether the client wants the **owner's phone view** (needs the Faida cloud and internet) or **counter only** (nothing leaves the bar). For counter only, add `--offline` / `-Offline` at step 2 and skip step 7.
 - [ ] On the cloud, the client's **business ID** isn't known yet. You will register the counter at step 7.
@@ -23,7 +23,7 @@ Client: ____________________  Date: ____________  Technician: __________________
 
 ## 2. Install Faida
 
-Windows: unzip the release, open PowerShell **as administrator** in that folder, then run:
+Windows: right-click `FaidaSetup-<version>.exe` > **Run as administrator** (if Windows says it protected the PC: More info > Run anyway). It asks "phone view or counter only?", then the questions below in a console window. Without the .exe: unzip the release, open PowerShell **as administrator** in that folder, then run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File deploy\local\windows\install.ps1 -KioskUser counter

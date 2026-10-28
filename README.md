@@ -11,7 +11,12 @@ Offline-first point of sale for a bar and restaurant. What it does and why is in
 ## Installing for a client
 
 1. Build a release: `deploy/make-release.sh` → `releases/faida-<version>.zip` / `.tar.gz`.
-2. Counter: follow [docs/install-checklist.md](docs/install-checklist.md). Layout, updates and restoring a backup are in [deploy/local/README.md](deploy/local/README.md).
+   For a Windows counter, `deploy/make-windows-setup.sh` builds `releases/FaidaSetup-<version>.exe`:
+   one file that installs (or updates) with no internet on site, carrying PostgreSQL 16,
+   Python 3.12 and the Windows Python packages at the tested versions.
+2. Counter: follow [docs/install-checklist.md](docs/install-checklist.md), or for Windows the
+   step-by-step [docs/windows-install-guide.html](docs/windows-install-guide.html) (print it to PDF).
+   Layout, updates and restoring a backup are in [deploy/local/README.md](deploy/local/README.md).
 3. Cloud (once, shared by all clients): [deploy/cloud/README.md](deploy/cloud/README.md).
 
 ## Development
