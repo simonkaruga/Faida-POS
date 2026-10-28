@@ -497,13 +497,20 @@ function NewItemDialog({ onDone, onClose }: { onDone: () => void; onClose: () =>
   useEffect(() => {
     getManageMenu().then((m) => setCategories(m.categories.filter((c) => c.active)), () => {});
   }, []);
-  const set = (k: keyof typeof form, v: string) => setForm({ ...form, [k]: v });
   const counting = form.unit === "ml" ? (form.bottle_size ? "bottle" : "litre") : form.unit === "g" ? "kg" : form.unit;
   const spirit = form.unit === "ml" && !!form.bottle_size;
-  const tot = spirit && form.tot_price;
+  const sold = !!form.price || (spirit && !!form.tot_price);
+  const set = (k: keyof typeof form, v: string) => {
+    const next = { ...form, [k]: v };
+    setForm(next);
+    // A first selling price: guess the menu category (beers, spirits), the owner can change it.
+    if (!category && (k === "price" || k === "tot_price") && v) {
+      const guess = next.unit === "ml" && next.bottle_size ? /spirit/i : next.unit === "bottle" && next.station === "bar" ? /beer/i : null;
+      setCategory(categories.find((c) => guess?.test(c.name))?.id ?? null);
+    }
+  };
   const save = () => {
-    if (category && !form.price && !tot) return setError("Type the selling price, or choose Not sold.");
-    if (!category && (form.price || tot)) return setError("Choose the menu category it sells under.");
+    if (sold && !category) return setError("Choose the menu category it sells under.");
     return createStockItem({
       name: form.name.trim(),
       station: form.station,
@@ -513,15 +520,26 @@ function NewItemDialog({ onDone, onClose }: { onDone: () => void; onClose: () =>
       pack_size: form.pack_size ? num(form.pack_size) : null,
       buying_price: form.buying_price || null,
       reorder_level: form.reorder_level || 0,
-      sell: category ? { category_id: category, price: form.price ? num(form.price) : null, tot_price: tot ? num(form.tot_price) : null } : null,
+      sell: sold && category ? { category_id: category, price: form.price ? num(form.price) : null, tot_price: spirit && form.tot_price ? num(form.tot_price) : null } : null,
     }).then(onDone, (e) => setError(errorText(e)));
   };
-  const text = (k: keyof typeof form, placeholder: string, mode: "text" | "decimal" = "text") => (
-    <input className="text-input" placeholder={placeholder} inputMode={mode} value={form[k]} onChange={(e) => set(k, e.target.value)} />
+  const field = (k: keyof typeof form, label: string, placeholder: string, mode: "text" | "decimal" | "numeric" = "text") => (
+    <label className="form-field grow" style={{ minWidth: 0, flexBasis: 0 }}>
+      <span>{label}</span>
+      <input
+        className="text-input"
+        style={{ width: "100%", minWidth: 0 }}
+        placeholder={placeholder}
+        inputMode={mode}
+        value={form[k]}
+        onChange={(e) => set(k, mode === "numeric" ? e.target.value.replace(/\D/g, "") : e.target.value)}
+      />
+    </label>
   );
   return (
     <Modal title="New stock item" onClose={onClose} wide>
-      {text("name", "Name, e.g. Captain Morgan 250ml")}
+      {field("name", "Name", "e.g. Tusker 500ml")}
+      <h3 className="form-title">Kept at</h3>
       <div className="row">
         {(["bar", "kitchen"] as const).map((s) => (
           <button key={s} className={`btn grow ${form.station === s ? "btn-primary" : "btn-quiet"}`} onClick={() => set("station", s)}>
@@ -529,6 +547,7 @@ function NewItemDialog({ onDone, onClose }: { onDone: () => void; onClose: () =>
           </button>
         ))}
       </div>
+      <h3 className="form-title">Counted in</h3>
       <div className="row">
         {(["bottle", "ml", "g", "piece"] as const).map((u) => (
           <button key={u} className={`btn grow ${form.unit === u ? "btn-primary" : "btn-quiet"}`} onClick={() => set("unit", u)}>
@@ -536,32 +555,33 @@ function NewItemDialog({ onDone, onClose }: { onDone: () => void; onClose: () =>
           </button>
         ))}
       </div>
-      {form.unit === "ml" && text("bottle_size", "Bottle size in ml, e.g. 750 (spirits)", "decimal")}
-      <div className="row">
-        {text("pack_name", "Pack name, e.g. crate")}
-        {text("pack_size", `${plural(counting)} per pack`, "decimal")}
+      {form.unit === "ml" && field("bottle_size", "Bottle size in ml (spirits; empty for oil)", "e.g. 750", "numeric")}
+      <h3 className="form-title">Prices (KSh)</h3>
+      <div className="row" style={{ alignItems: "flex-end" }}>
+        {field("buying_price", `Buying price per ${counting}`, "what you pay", "decimal")}
+        {field("price", `Selling price per ${counting}`, "empty: not sold", "numeric")}
+        {spirit && field("tot_price", "Selling price per tot", "empty: not by the tot", "numeric")}
       </div>
-      <div className="row">
-        {text("buying_price", `Buying price per ${counting}`, "decimal")}
-        {text("reorder_level", `Reorder at (${plural(counting)})`, "decimal")}
-      </div>
-      <h3 className="form-title">Sell it on the menu</h3>
-      <div className="row" style={{ flexWrap: "wrap" }}>
-        <button className={`btn ${category === null ? "btn-primary" : "btn-quiet"}`} onClick={() => setCategory(null)}>
-          Not sold (ingredient)
-        </button>
-        {categories.map((c) => (
-          <button key={c.id} className={`btn ${category === c.id ? "btn-primary" : "btn-quiet"}`} onClick={() => setCategory(c.id)}>
-            {c.name}
-          </button>
-        ))}
-      </div>
-      {category && (
-        <div className="row">
-          {text("price", `Selling price per ${counting} (KSh)`, "decimal")}
-          {spirit && text("tot_price", "Selling price per tot (KSh)", "decimal")}
-        </div>
+      {sold ? (
+        <>
+          <h3 className="form-title">Menu category it sells under</h3>
+          <div className="row" style={{ flexWrap: "wrap" }}>
+            {categories.map((c) => (
+              <button key={c.id} className={`btn ${category === c.id ? "btn-primary" : "btn-quiet"}`} onClick={() => setCategory(c.id)}>
+                {c.name}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="muted">No selling price: it is kept in stock but not on the menu (an ingredient, like oil).</p>
       )}
+      <h3 className="form-title">Optional</h3>
+      <div className="row" style={{ alignItems: "flex-end" }}>
+        {field("pack_name", "Pack it comes in", "e.g. crate")}
+        {field("pack_size", `${plural(counting).replace(/^./, (c) => c.toUpperCase())} per pack`, "e.g. 25", "decimal")}
+        {field("reorder_level", `Warn when below (${plural(counting)})`, "e.g. 24", "decimal")}
+      </div>
       <p className="error-text">{error ?? ""}</p>
       <div className="row row-end">
         <button className="btn btn-primary" disabled={!form.name.trim()} onClick={save}>
