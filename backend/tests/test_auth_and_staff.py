@@ -136,10 +136,15 @@ def test_settings(client, owner, waiter):
 def test_init_business_command(monkeypatch, capsys, config, client):
     import app.cli as cli
 
-    pins = iter(["2580", "2580"])
+    # A refused PIN, then a mismatch, then a good PIN typed twice: it keeps asking.
+    pins = iter(["1234", "2580", "2589", "2580", "2580"])
     monkeypatch.setattr(cli, "get_config", lambda: config)
     monkeypatch.setattr(cli.getpass, "getpass", lambda prompt="": next(pins))
     cli.main(["init-business", "--name", "Mama Njeri's", "--owner", "Njeri"])
-    assert "Set up Mama Njeri's" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "Nothing shows while you type" in err
+    assert "can't be a run of digits like 1234. Try again." in err
+    assert "didn't match. Try again." in err
+    assert "Set up Mama Njeri's" in err
     assert client.get("/api/health").json()["business_name"] == "Mama Njeri's"
     login(client, "2580")

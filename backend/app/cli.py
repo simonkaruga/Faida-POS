@@ -155,9 +155,18 @@ def main(argv: list[str] | None = None) -> None:
             counts = (load_menu if args.command == "load-menu" else load_stock)(db, business_id, data)
         print("Loaded " + ", ".join(f"{n} {k.replace('_', ' ')}" for k, n in counts.items()) + ".", file=sys.stderr)
         return
-    pin = getpass.getpass("Owner PIN (4-6 digits): ")
-    if getpass.getpass("Type it again: ") != pin:
-        raise SystemExit("The PINs don't match.")
+    print("The owner types her PIN: 4-6 digits, not one digit repeated (1111) or a run (1234).\n"
+          "Nothing shows while you type: type it and press Enter.", file=sys.stderr)
+    while True:
+        pin = getpass.getpass("Owner PIN: ")
+        try:
+            check_new_pin(pin)
+        except WeakPin as e:
+            print(f"  {e} Try again.", file=sys.stderr)
+            continue
+        if getpass.getpass("Type it again: ") == pin:
+            break
+        print("  The two PINs didn't match. Try again.", file=sys.stderr)
     try:
         with Session(create_engine(config.database_url), expire_on_commit=False) as db:
             business = init_business(db, config.pin_secret, args.name, args.owner, pin)

@@ -177,6 +177,7 @@ try {
     $Name = Read-Host "Business name (as on receipts)"
     $Owner = Read-Host "Owner's name"
     & $Py -m app.cli init-business --name $Name --owner $Owner
+    if ($LASTEXITCODE) { throw "Setting up the business failed (see the message above). Run the setup again." }
     $Menu = Read-Host "Menu file to load (JSON, empty to enter it on the counter later)"
     if ($Menu) { & $Py -m app.cli load-menu (Resolve-Path $Menu).Path }
   } else { Write-Host "Business already set up." }
