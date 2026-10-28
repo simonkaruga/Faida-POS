@@ -87,7 +87,9 @@ try {
 }
 
 if ($ok) {
-  Start-ScheduledTask -TaskName "Faida kiosk" -ErrorAction SilentlyContinue  # the counter screen again
+  # The counter screen again (switched back on if it was disabled to stop the 0.3.1 loop).
+  Enable-ScheduledTask -TaskName "Faida kiosk" -ErrorAction SilentlyContinue | Out-Null
+  Start-ScheduledTask -TaskName "Faida kiosk" -ErrorAction SilentlyContinue
   Write-Host "`nDone." -ForegroundColor Green
 } else {
   Write-Host "`nSetup did not finish. Fix the problem above and run FaidaSetup.exe again; settings already saved are kept." -ForegroundColor Red
