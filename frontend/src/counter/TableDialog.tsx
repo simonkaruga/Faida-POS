@@ -20,7 +20,7 @@ export function TableDialog({ bill, onDone, onClose }: { bill: Bill; onDone: (bi
       <p className="muted" style={{ margin: 0 }}>
         Type the table number, e.g. 57, or S12 for a table brought from the stall. Standing customers don't need one.
       </p>
-      <CodeKeypad value={value} length={5} onChange={(v) => (setValue(v), setError(null))} />
+      <CodeKeypad value={value} length={5} onChange={(v) => (setValue(v), setError(null))} onEnter={() => !busy && save()} />
       <p className="error-text" role="alert">
         {error ?? ""}
       </p>

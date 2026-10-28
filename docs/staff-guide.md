@@ -59,3 +59,11 @@ Tap the item on the bill:
 - **Daily closing**: after the last shift ends, go to Owner area > Daily closing and press **CLOSE DAY**. The report is kept, sent to the owner's phone if the counter is linked to the cloud, and emailed if emails are set. The **Excel** button saves it for the accountant, and **Print / PDF** prints it or saves it as a PDF.
 - **Printing**: most owner pages have **Print / PDF** at the top right, for A4 paper or a PDF file. Some also print a short version on the receipt printer: **Today's slip** (Dashboard: sales so far, waiters, cash box, low stock), **Count sheet** (Stock: a blank sheet to count on, then type the numbers into Stock take), and **Debtors slip** (Credit). Daily closing has a **Receipt printer** button for the day shown.
 - **Text size**: at the bottom of the owner menu, choose **A A A** for normal, large or extra-large writing. Each screen remembers its choice.
+
+## No touch screen?
+
+Everything works with the mouse: click where the guide says tap. The keyboard is quicker for typing: your PIN, amounts and the M-Pesa code can all be typed, and **Enter** confirms.
+
+## Help
+
+Faida support, call or WhatsApp: **+254 797 033 513**. The number is also on the PIN screen and in the Owner area.

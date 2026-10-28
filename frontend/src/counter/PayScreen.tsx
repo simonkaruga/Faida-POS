@@ -291,14 +291,14 @@ export function PayScreen({ session, billId, onBack, onDone }: Props) {
             <p className="muted" style={{ margin: "0 0 8px", fontSize: 18 }}>
               Charge {formatKsh(due)} on the card machine, then enter the last 4 characters of the slip's reference
             </p>
-            <CodeKeypad value={cardRef} length={4} onChange={setCardRef} />
+            <CodeKeypad value={cardRef} length={4} onChange={setCardRef} onEnter={() => submit()} />
           </div>
         ) : field === "code" ? (
           <div className="pay-code">
             <p className="muted" style={{ margin: "0 0 8px", fontSize: 18 }}>
               {codeLength === 4 ? "Last 4 characters" : "Full code"} from the customer's M-Pesa message
             </p>
-            <CodeKeypad value={code} length={codeLength} onChange={(v) => (setCode(v), setDuplicate(null))} />
+            <CodeKeypad value={code} length={codeLength} onChange={(v) => (setCode(v), setDuplicate(null))} onEnter={() => submit()} />
           </div>
         ) : (
           <div className="pay-numbers">

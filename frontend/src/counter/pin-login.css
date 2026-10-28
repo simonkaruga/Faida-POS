@@ -137,3 +137,4 @@
   .pin-brand { padding: 28px; }
   .pin-business h1 { font-size: 32px; }
 }
+.pin-support svg { color: var(--blue); }

@@ -691,6 +691,9 @@ select.text-input { appearance: auto; }
 .owner-text-size { display: flex; flex-direction: column; gap: 6px; margin-top: auto; padding-top: 8px; }
 .owner-text-size .segmented button { min-width: 0; flex: 1; padding: 0 8px; font-weight: 800; }
 .owner-text-size .segmented { display: flex; }
+.owner-support { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; margin: 12px 0 0; padding: 10px 12px; border-radius: var(--radius); background: var(--surface-raised); color: var(--text-muted); font-size: 14px; }
+.owner-support svg { grid-row: span 3; color: var(--blue); margin-top: 2px; }
+.owner-support strong { color: var(--text); font-size: 16px; font-variant-numeric: tabular-nums; }
 .order-card.payable { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none; }
 .order-pay {
   display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px;

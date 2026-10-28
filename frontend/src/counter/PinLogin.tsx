@@ -1,7 +1,8 @@
-import { CheckCircle2, LockKeyhole, ShieldCheck, TriangleAlert } from "lucide-react";
+import { CheckCircle2, LockKeyhole, Phone, ShieldCheck, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Notice } from "../App";
 import { ApiError, login, type Health, type Session } from "../services/api";
+import { SUPPORT_PHONE } from "../shared/Brand";
 import logo from "../shared/brand/faida-logo.png";
 import { Keypad } from "../shared/Keypad";
 import "./pin-login.css";
@@ -88,6 +89,9 @@ export function PinLogin({ health, notice, onLogin }: Props) {
         )}
         <p className="pin-hint">
           <ShieldCheck size={18} /> Every action is recorded under your PIN. Never share it.
+        </p>
+        <p className="pin-hint pin-support">
+          <Phone size={18} /> Faida support (call or WhatsApp): {SUPPORT_PHONE}
         </p>
       </section>
       <section className="pin-pad">

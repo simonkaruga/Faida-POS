@@ -15,7 +15,7 @@ Client: ____________________  Date: ____________  Technician: __________________
 ## 1. Hardware (masterplan 5.3)
 
 - [ ] The counter PC runs **Windows 10/11** or **Ubuntu 22.04/24.04**. If the client's machine is Android, set up a mini PC as the counter, and use `--lan` / `-Lan` at step 2.
-- [ ] Touch screen is 1366×768 or larger, landscape.
+- [ ] Screen is 1366×768 or larger, landscape. Touch is best; with a mouse and keyboard, show the staff that PINs, amounts and M-Pesa codes can be typed, with Enter to confirm.
 - [ ] Counter printer is on USB with the cash drawer cable plugged into the printer. Kitchen printer is on the network with a fixed IP: ______________
 - [ ] Printers are **thermal, ESC/POS** (Epson, Xprinter, Rongta and most others). Paper width: **80 mm** / **58 mm** (measure the roll). Bluetooth-only printers are not supported; use USB or network.
 - [ ] The PC and the router are on the **UPS**.
@@ -44,7 +44,7 @@ The installer asks for:
 |---|---|
 | PostgreSQL password (Windows) | The password you chose when PostgreSQL was installed |
 | Counter printer | Windows: share the USB printer as `POS80`, then `device:\\localhost\POS80`. Linux: `device:/dev/usb/lp0` |
-| Kitchen printer | `network:<its IP>`, for example `network:192.168.1.50` |
+| Kitchen printer | `network:<its IP>`, for example `network:192.168.1.50`. Only one printer: press Enter (same as counter); kitchen tickets then print at the counter |
 | Receipt paper width | `80` or `58`, the width of the paper roll in mm. If the two printers differ, fix one later in the settings file (`FAIDA_COUNTER_PAPER_MM`, `FAIDA_KITCHEN_PAPER_MM`) |
 | Backup passphrase | A long phrase. **Write it on the client's sealed card and in Avinaya's password manager.** Without it no backup can ever be opened |
 | Cloud URL and token | Leave empty for now; this is done at step 7. Not asked with `--offline` |

@@ -25,7 +25,7 @@ Client: ____________________  Version: ________  Date: ____________
 | 17 | Backup file on the USB drive from last night; the owner knows the red dashboard line means "check the backup drive" | |
 | 18 | Backup passphrase and disk recovery key handed over in a sealed envelope | |
 | 19 | Staff trained and house rules signed | |
-| 20 | Support contact (WhatsApp) saved on the owner's phone: ______________ | |
+| 20 | Support contact (call or WhatsApp) saved on the owner's phone: **+254 797 033 513** | |
 
 **Support period:** 3 months from the date below. Updates are done after closing hours only. Each update takes a backup first, and goes back to the old version by itself if a check fails.
 

@@ -3,6 +3,10 @@ import mark from "./brand/faida-mark.png";
 import wordmark from "./brand/faida-wordmark.png";
 import wordmarkDark from "./brand/faida-wordmark-dark.png";
 
+/** Avinaya's support line, the same for every Faida client. Shown as text, not a link:
+ * a link would take the full-screen counter away from Faida. */
+export const SUPPORT_PHONE = "+254 797 033 513";
+
 /** The Faida mark on its white tile (the receipt inside it is white paper, so the tile
  * keeps it readable on dark screens). */
 export function FaidaMark({ size = 34, className = "" }: { size?: number; className?: string }) {

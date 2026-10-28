@@ -355,7 +355,7 @@ faida/
 - **One shared cloud for all Faida clients.** Every record is separated by business ID, and each owner can only ever see her own business.
 - **Contents:** backend in cloud mode, PostgreSQL, the owner phone view, and daily encrypted backups.
 - **Health monitor:** Avinaya is alerted if a counter hasn't synced for **24 hours**, or if a backup fails.
-- **Domain:** a Faida domain (e.g. a .co.ke) for the phone view, plus a support WhatsApp number.
+- **Domain:** a Faida domain (e.g. a .co.ke) for the phone view, plus the support number for calls and WhatsApp: +254 797 033 513 (shown on the PIN screen and in the Owner area).
 
 **Cost reality**
 - A small server plus backups costs roughly **USD 8–15 a month**, about **KSh 12,000–23,000 a year**.

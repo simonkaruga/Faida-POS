@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LogOut,
   Package,
+  Phone,
   Pencil,
   Printer,
   ReceiptText,
@@ -47,6 +48,7 @@ import {
   type ShiftRow,
   type SlipKind,
 } from "../services/api";
+import { SUPPORT_PHONE } from "../shared/Brand";
 import { PrintPageButton, SlipButton } from "../shared/PrintButtons";
 import { CodeKeypad } from "../shared/CodeKeypad";
 import { Keypad } from "../shared/Keypad";
@@ -175,6 +177,11 @@ export function OwnerArea({ session, onBack, onLock }: { session: Session; onBac
             ))}
           </div>
         </div>
+        <p className="owner-support no-print">
+          <Phone size={16} /> Faida support
+          <strong>{SUPPORT_PHONE}</strong>
+          <span>call or WhatsApp</span>
+        </p>
       </nav>
       <section className="owner-main">
         <header className="owner-title rise" key={tab}>
@@ -526,7 +533,7 @@ function CollectDialog({ customer, onDone, onClose }: { customer: CreditCustomer
           M-PESA
         </button>
       </div>
-      {method === "mpesa" && codeLength > 0 && <CodeKeypad value={code} length={codeLength} onChange={setCode} />}
+      {method === "mpesa" && codeLength > 0 && <CodeKeypad value={code} length={codeLength} onChange={setCode} keyboard={false} />}
     </AmountDialog>
   );
 }
