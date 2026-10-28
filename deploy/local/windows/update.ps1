@@ -79,7 +79,8 @@ try {
   if ($LASTEXITCODE) { throw "Installing the Python packages failed$(if (-not $PipFrom) { ' (is the internet on?)' }). Nothing was changed." }
 
   Say "Backup before updating"
-  $null = Py $Old -m app.backup create --to "$Base\update-backups" --keep 5
+  # With the new release's code: 0.3.1's backup looked for "pg_dump", not pg_dump.exe.
+  $null = Py $New -m app.backup create --to "$Base\update-backups" --keep 5
   $Backup = ([regex]::Match($script:PySaid, "Backup written: (.+)")).Groups[1].Value.Trim()
   if (-not $Backup) { throw "The backup failed; nothing was changed. $($script:PySaid)" }
   $OldRevision = (Py $Old -m app.ops revision).Trim()
@@ -102,7 +103,7 @@ try {
   try { $null = Py $New -m alembic downgrade $OldRevision }
   catch {
     Write-Host "Undoing the migrations failed; restoring the backup taken before the update."
-    $null = Py $Old -m app.backup restore --file $Backup
+    $null = Py $New -m app.backup restore --file $Backup
   }
   Set-Current $Old
   Start-Counter
