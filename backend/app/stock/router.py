@@ -11,7 +11,7 @@ from app.audit import service as audit
 from app.auth import service as auth
 from app.auth.deps import Actor, CurrentActor, Db, require
 from app.auth.permissions import Action, Level, level
-from app.menu.models import MenuItem, SellOption, Station
+from app.menu.models import Category, MenuItem, SellOption, Station
 from app.settings.service import get_settings, today
 from app.staff.models import Staff
 from app.stock import service as stock
@@ -26,6 +26,7 @@ router = APIRouter(tags=["stock"])
 Owner = Annotated[Actor, Depends(require(Action.manage_business))]
 Stockist = Annotated[Actor, Depends(require(Action.receive_stock))]
 Qty = Annotated[Decimal, Field(ge=0, le=10_000_000, max_digits=14, decimal_places=3)]
+Price = Annotated[int, Field(ge=0, le=1_000_000)]  # whole shillings, as on the menu
 
 PURCHASE_UNIT = {StockUnit.ml: "litre", StockUnit.g: "kg", StockUnit.bottle: "bottle", StockUnit.piece: "piece"}
 
@@ -48,6 +49,13 @@ def _item(db: Db, actor: Actor, item_id: uuid.UUID) -> StockItem:
 # Stock items
 
 
+class SellingOut(BaseModel):
+    """A menu option that takes this item from stock, and what it sells for."""
+    option_id: uuid.UUID
+    name: str  # the menu item, with the option's label: "Jameson · Single tot"
+    price: int
+
+
 class ItemOut(BaseModel):
     id: uuid.UUID
     name: str
@@ -63,18 +71,35 @@ class ItemOut(BaseModel):
     low: bool
     check: bool  # below zero: the system is wrong somewhere; count it
     active: bool
+    selling: list[SellingOut] = []
     # Owner only:
     buying_price: Decimal | None  # per counting unit
     value: int | None
 
 
-def _out(actor: Actor, item: StockItem, qty: Decimal, tot_size: int | None) -> ItemOut:
+def _selling(db: Db, business_id: uuid.UUID, stock_item_id: uuid.UUID | None = None) -> dict[uuid.UUID, list[SellingOut]]:
+    """Selling prices by stock item: the active menu options whose recipe uses it."""
+    q = (select(RecipeLine.stock_item_id, SellOption, MenuItem.name)
+         .join(SellOption, SellOption.id == RecipeLine.sell_option_id)
+         .join(MenuItem, MenuItem.id == SellOption.menu_item_id)
+         .where(RecipeLine.business_id == business_id, SellOption.active, MenuItem.active)
+         .order_by(MenuItem.name, SellOption.sort_order))
+    if stock_item_id:
+        q = q.where(RecipeLine.stock_item_id == stock_item_id)
+    out: dict[uuid.UUID, list[SellingOut]] = {}
+    for sid, option, name in db.execute(q):
+        out.setdefault(sid, []).append(SellingOut(option_id=option.id, price=option.price,
+                                                  name=f"{name} · {option.label}" if option.label else name))
+    return out
+
+
+def _out(actor: Actor, item: StockItem, qty: Decimal, tot_size: int | None, selling: list[SellingOut] = ()) -> ItemOut:
     money = sees_money(actor)
     return ItemOut(
         id=item.id, name=item.name, station=item.station, unit=item.unit, counting_unit=counting_unit(item),
         bottle_size=item.bottle_size, pack_name=item.pack_name, pack_size=item.pack_size, level=qty,
         level_text=stock.describe(item, qty, tot_size), reorder_level=item.reorder_level,
-        low=item.reorder_level > 0 and qty <= item.reorder_level, check=qty < 0, active=item.active,
+        low=item.reorder_level > 0 and qty <= item.reorder_level, check=qty < 0, active=item.active, selling=list(selling),
         buying_price=(item.unit_cost * factor(item)).quantize(Decimal("0.01")) if money else None,
         value=stock.value(max(qty, Decimal(0)), item.unit_cost) if money else None,
     )
@@ -86,7 +111,22 @@ def list_stock(actor: Stockist, db: Db) -> list[ItemOut]:
     tot = get_settings(db, actor.business_id).tot_size_ml
     items = db.scalars(select(StockItem).where(StockItem.business_id == actor.business_id)
                        .order_by(StockItem.station, StockItem.name))
-    return [_out(actor, i, lv.get(i.id, Decimal(0)), tot) for i in items]
+    selling = _selling(db, actor.business_id)
+    return [_out(actor, i, lv.get(i.id, Decimal(0)), tot, selling.get(i.id, [])) for i in items]
+
+
+class SellIn(BaseModel):
+    """Put a new stock item on the menu: a menu item of the same name whose sales take it
+    from stock. Price per counting unit (a bottle, a piece, a kg), and per tot for a spirit."""
+    category_id: uuid.UUID
+    price: Price | None = None
+    tot_price: Price | None = None
+
+    @model_validator(mode="after")
+    def priced(self):
+        if self.price is None and self.tot_price is None:
+            raise ValueError("Give a selling price.")
+        return self
 
 
 class ItemIn(BaseModel):
@@ -98,11 +138,14 @@ class ItemIn(BaseModel):
     pack_size: Annotated[int, Field(ge=1, le=1000)] | None = None
     buying_price: Qty | None = None  # per counting unit
     reorder_level: Qty = Decimal(0)  # in counting units
+    sell: SellIn | None = None  # also put it on the menu
 
     @model_validator(mode="after")
     def bottle(self):
         if self.bottle_size and self.unit is not StockUnit.ml:
             raise ValueError("Only items kept in ml have a bottle size.")
+        if self.sell and self.sell.tot_price is not None and not self.bottle_size:
+            raise ValueError("Only a spirit (ml, with a bottle size) sells by the tot.")
         return self
 
 
@@ -117,8 +160,15 @@ class ItemPatch(BaseModel):
 
 @router.post("/stock/items", status_code=status.HTTP_201_CREATED)
 def create_item(body: ItemIn, actor: Owner, db: Db) -> ItemOut:
+    tot = get_settings(db, actor.business_id).tot_size_ml
+    if body.sell:
+        category = db.get(Category, body.sell.category_id)
+        if category is None or category.business_id != actor.business_id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Menu category not found.")
+        if body.sell.tot_price is not None and not tot:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Set the tot size in settings before selling by the tot.")
     item = StockItem(business_id=actor.business_id, created_by=actor.staff.id,
-                     **body.model_dump(exclude={"buying_price", "reorder_level"}))
+                     **body.model_dump(exclude={"buying_price", "reorder_level", "sell"}))
     f = factor(item)
     item.unit_cost = (body.buying_price or Decimal(0)) / f
     item.reorder_level = body.reorder_level * f
@@ -126,8 +176,27 @@ def create_item(body: ItemIn, actor: Owner, db: Db) -> ItemOut:
     db.flush()
     audit.record(db, business_id=actor.business_id, actor_id=actor.staff.id, action="stock.item_created",
                  entity_type="stock_item", entity_id=item.id, details=body.model_dump(mode="json"))
+    if body.sell:
+        menu_item = MenuItem(business_id=actor.business_id, created_by=actor.staff.id,
+                             category_id=body.sell.category_id, name=body.name, station=body.station)
+        db.add(menu_item)
+        db.flush()
+        # (label, price, quantity, in tots): a tot of the spirit, and one counting unit.
+        sold = [("Single tot", body.sell.tot_price, Decimal(1), True)] if body.sell.tot_price is not None else []
+        if body.sell.price is not None:
+            sold.append(("Bottle" if sold else "", body.sell.price, Decimal(f), False))
+        for order, (label, price, quantity, in_tots) in enumerate(sold):
+            option = SellOption(business_id=actor.business_id, created_by=actor.staff.id, menu_item_id=menu_item.id,
+                                label=label, price=price, sort_order=order)
+            db.add(option)
+            db.flush()
+            db.add(RecipeLine(business_id=actor.business_id, created_by=actor.staff.id, sell_option_id=option.id,
+                              stock_item_id=item.id, quantity=quantity, in_tots=in_tots))
+        audit.record(db, business_id=actor.business_id, actor_id=actor.staff.id, action="menu.item_created",
+                     entity_type="menu_item", entity_id=menu_item.id,
+                     details={"name": menu_item.name, "options": [{"label": l, "price": p} for l, p, _, _ in sold]})
     db.commit()
-    return _out(actor, item, Decimal(0), get_settings(db, actor.business_id).tot_size_ml)
+    return _out(actor, item, Decimal(0), tot, _selling(db, actor.business_id, item.id).get(item.id, []))
 
 
 @router.patch("/stock/items/{item_id}")
@@ -149,7 +218,8 @@ def update_item(item_id: uuid.UUID, body: ItemPatch, actor: Owner, db: Db) -> It
         audit.record(db, business_id=actor.business_id, actor_id=actor.staff.id, action="stock.item_updated",
                      entity_type="stock_item", entity_id=item.id, details=changes)
         db.commit()
-    return _out(actor, item, stock.level(db, item), get_settings(db, actor.business_id).tot_size_ml)
+    return _out(actor, item, stock.level(db, item), get_settings(db, actor.business_id).tot_size_ml,
+                _selling(db, actor.business_id, item.id).get(item.id, []))
 
 
 class MovementOut(BaseModel):

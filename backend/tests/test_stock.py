@@ -191,6 +191,31 @@ def test_new_stock_item_and_price_per_counting_unit(client, owner, menu):
     assert Decimal(r.json()["buying_price"]) == 650
 
 
+def test_new_stock_item_goes_on_the_menu_with_its_selling_price(client, owner, menu):
+    """One form: the stock item, the menu item and what each sale takes from stock."""
+    category = client.get("/api/menu/manage", headers=owner).json()["categories"][0]["id"]
+    r = client.post("/api/stock/items", headers=owner, json={
+        "name": "Captain Morgan 250ml", "station": "bar", "unit": "ml", "bottle_size": 250, "buying_price": 600,
+        "sell": {"category_id": category, "price": 900, "tot_price": 120}})
+    assert r.status_code == 201, r.text
+    item = r.json()
+    assert [(s["name"], s["price"]) for s in item["selling"]] == [
+        ("Captain Morgan 250ml · Single tot", 120), ("Captain Morgan 250ml · Bottle", 900)]
+    deliver(client, owner, item["id"], units=2)  # 500 ml
+    tot, bottle = (s["option_id"] for s in item["selling"])
+    sell(client, owner, (tot, 1), (bottle, 1))
+    assert level(client, owner, "Captain Morgan 250ml") == 500 - 25 - 250  # sample tot is 25 ml
+    assert [s["price"] for s in stock(client, owner)["Captain Morgan 250ml"]["selling"]] == [120, 900]
+
+    beer = client.post("/api/stock/items", headers=owner, json={
+        "name": "Hunter's Gold", "station": "bar", "unit": "bottle", "buying_price": 180,
+        "sell": {"category_id": category, "price": 250}}).json()
+    assert [(s["name"], s["price"]) for s in beer["selling"]] == [("Hunter's Gold", 250)]
+    r = client.post("/api/stock/items", headers=owner, json={
+        "name": "Sugar", "station": "kitchen", "unit": "g", "sell": {"category_id": category, "tot_price": 10}})
+    assert r.status_code == 422  # only a spirit sells by the tot
+
+
 def test_stock_movements_are_permanent(client, owner, db, menu):
     deliver(client, owner, stock(client, owner)["Coke 500ml"]["id"], units=1)
     with db.bind.connect() as conn, pytest.raises(ProgrammingError, match="permanent"):

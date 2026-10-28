@@ -67,6 +67,9 @@ cp "$OUT" "$OUT.sha256" "$USB/"
 # The check tool, to run on a counter when something is wrong (report saved on the stick).
 cp "$ROOT/deploy/local/windows/Faida-Check.bat" "$USB/"
 cp "$ROOT/deploy/local/windows/check.ps1" "$USB/Faida-Check.ps1"
+# The sample menu, for a counter whose menu is still empty.
+cp "$ROOT/deploy/local/windows/Load-Demo-Menu.bat" "$USB/"
+cp "$ROOT/deploy/local/windows/load-demo-menu.ps1" "$USB/Load-Demo-Menu.ps1"
 CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
 if [ -n "$CHROME" ]; then
   "$CHROME" --headless=new --no-pdf-header-footer --print-to-pdf="$USB/Faida-POS-Installation-Guide.pdf" \

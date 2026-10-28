@@ -3,6 +3,7 @@ import {
   addSupplier,
   ApiError,
   createStockItem,
+  getManageMenu,
   getMovements,
   getRecipes,
   getStock,
@@ -11,6 +12,7 @@ import {
   recordWaste,
   setRecipe,
   stockTake,
+  updateOption,
   updateStockItem,
   type Recipe,
   type RecipeLine,
@@ -95,6 +97,11 @@ export function StockTab({ session }: { session: Session }) {
                   <span className="grow">{i.name}</span>
                   {i.check && <span className="status-tag cancelled">CHECK: below zero</span>}
                   {!i.check && i.low && <span className="status-tag unpaid_responsible">LOW</span>}
+                  {i.selling.length > 0 && (
+                    <span className="muted" style={{ textAlign: "right" }}>
+                      sells {i.selling.map((s) => formatKsh(s.price)).join(" · ")}
+                    </span>
+                  )}
                   <span className="amount" style={{ minWidth: 220 }}>
                     {i.level_text}
                   </span>
@@ -408,7 +415,20 @@ function ItemDialog({ item, isOwner, onChanged, onClose }: { item: StockItem; is
   const [moves, setMoves] = useState<StockMovement[] | null>(null);
   const [price, setPrice] = useState(item.buying_price ?? "");
   const [reorder, setReorder] = useState(String(Number(item.reorder_level) / (item.bottle_size ?? (item.unit === "ml" || item.unit === "g" ? 1000 : 1))));
+  const [selling, setSelling] = useState(item.selling.map((s) => ({ ...s, price: String(s.price) })));
   const [error, setError] = useState<string | null>(null);
+  const save = async () => {
+    try {
+      await updateStockItem(item.id, { buying_price: price || undefined, reorder_level: reorder || undefined });
+      for (const s of selling) {
+        const before = item.selling.find((b) => b.option_id === s.option_id);
+        if (s.price !== "" && Number(s.price) !== before?.price) await updateOption(s.option_id, { price: Number(s.price) });
+      }
+      onChanged();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
   useEffect(() => {
     getMovements(item.id).then(setMoves, (e) => setError(errorText(e)));
   }, [item.id]);
@@ -424,14 +444,28 @@ function ItemDialog({ item, isOwner, onChanged, onClose }: { item: StockItem; is
             <span className="muted">Reorder at ({plural(item.counting_unit)})</span>
             <input className="text-input" style={{ width: 100 }} inputMode="decimal" value={reorder} onChange={(e) => setReorder(e.target.value)} />
           </label>
-          <button
-            className="btn btn-primary"
-            onClick={() => updateStockItem(item.id, { buying_price: price || undefined, reorder_level: reorder || undefined }).then(onChanged, (e) => setError(errorText(e)))}
-          >
+          <button className="btn btn-primary" onClick={save}>
             SAVE
           </button>
         </div>
       )}
+      {isOwner && selling.length > 0 && (
+        <div className="row" style={{ flexWrap: "wrap" }}>
+          {selling.map((s, i) => (
+            <label key={s.option_id} className="row">
+              <span className="muted">Selling price: {s.name}</span>
+              <input
+                className="text-input"
+                style={{ width: 110 }}
+                inputMode="numeric"
+                value={s.price}
+                onChange={(e) => setSelling(selling.map((x, j) => (j === i ? { ...x, price: e.target.value.replace(/\D/g, "") } : x)))}
+              />
+            </label>
+          ))}
+        </div>
+      )}
+      {isOwner && !selling.length && <p className="muted">Not sold on the menu. Link it under Recipes, or add it from New item.</p>}
       <p className="error-text">{error ?? ""}</p>
       <div className="list-table movements">
         {moves?.map((m, i) => (
@@ -456,12 +490,21 @@ function ItemDialog({ item, isOwner, onChanged, onClose }: { item: StockItem; is
 }
 
 function NewItemDialog({ onDone, onClose }: { onDone: () => void; onClose: () => void }) {
-  const [form, setForm] = useState({ name: "", station: "bar", unit: "bottle", bottle_size: "", pack_name: "", pack_size: "", buying_price: "", reorder_level: "" });
+  const [form, setForm] = useState({ name: "", station: "bar", unit: "bottle", bottle_size: "", pack_name: "", pack_size: "", buying_price: "", reorder_level: "", price: "", tot_price: "" });
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [category, setCategory] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    getManageMenu().then((m) => setCategories(m.categories.filter((c) => c.active)), () => {});
+  }, []);
   const set = (k: keyof typeof form, v: string) => setForm({ ...form, [k]: v });
   const counting = form.unit === "ml" ? (form.bottle_size ? "bottle" : "litre") : form.unit === "g" ? "kg" : form.unit;
-  const save = () =>
-    createStockItem({
+  const spirit = form.unit === "ml" && !!form.bottle_size;
+  const tot = spirit && form.tot_price;
+  const save = () => {
+    if (category && !form.price && !tot) return setError("Type the selling price, or choose Not sold.");
+    if (!category && (form.price || tot)) return setError("Choose the menu category it sells under.");
+    return createStockItem({
       name: form.name.trim(),
       station: form.station,
       unit: form.unit,
@@ -470,7 +513,9 @@ function NewItemDialog({ onDone, onClose }: { onDone: () => void; onClose: () =>
       pack_size: form.pack_size ? num(form.pack_size) : null,
       buying_price: form.buying_price || null,
       reorder_level: form.reorder_level || 0,
+      sell: category ? { category_id: category, price: form.price ? num(form.price) : null, tot_price: tot ? num(form.tot_price) : null } : null,
     }).then(onDone, (e) => setError(errorText(e)));
+  };
   const text = (k: keyof typeof form, placeholder: string, mode: "text" | "decimal" = "text") => (
     <input className="text-input" placeholder={placeholder} inputMode={mode} value={form[k]} onChange={(e) => set(k, e.target.value)} />
   );
@@ -500,6 +545,23 @@ function NewItemDialog({ onDone, onClose }: { onDone: () => void; onClose: () =>
         {text("buying_price", `Buying price per ${counting}`, "decimal")}
         {text("reorder_level", `Reorder at (${plural(counting)})`, "decimal")}
       </div>
+      <h3 className="form-title">Sell it on the menu</h3>
+      <div className="row" style={{ flexWrap: "wrap" }}>
+        <button className={`btn ${category === null ? "btn-primary" : "btn-quiet"}`} onClick={() => setCategory(null)}>
+          Not sold (ingredient)
+        </button>
+        {categories.map((c) => (
+          <button key={c.id} className={`btn ${category === c.id ? "btn-primary" : "btn-quiet"}`} onClick={() => setCategory(c.id)}>
+            {c.name}
+          </button>
+        ))}
+      </div>
+      {category && (
+        <div className="row">
+          {text("price", `Selling price per ${counting} (KSh)`, "decimal")}
+          {spirit && text("tot_price", "Selling price per tot (KSh)", "decimal")}
+        </div>
+      )}
       <p className="error-text">{error ?? ""}</p>
       <div className="row row-end">
         <button className="btn btn-primary" disabled={!form.name.trim()} onClick={save}>

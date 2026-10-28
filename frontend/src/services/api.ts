@@ -376,6 +376,7 @@ export type StockItem = {
   low: boolean;
   check: boolean;
   active: boolean;
+  selling: { option_id: string; name: string; price: number }[];
   buying_price: string | null;
   value: number | null;
 };
