@@ -26,6 +26,8 @@ cp -r "$ROOT/frontend/dist" "$WORK/$NAME/frontend/"
 cp -r "$ROOT/deploy" "$ROOT/docs" "$WORK/$NAME/"
 find "$WORK/$NAME" -name __pycache__ -prune -exec rm -rf {} +
 echo "$VERSION" > "$WORK/$NAME/VERSION"
+# The PC clock must be later than this (the installer refuses a clock that is behind).
+date -u +%Y-%m-%d > "$WORK/$NAME/BUILT"
 git -C "$ROOT" rev-parse --short HEAD > "$WORK/$NAME/COMMIT" 2>/dev/null || true
 
 tar -czf "$OUT/$NAME.tar.gz" -C "$WORK" "$NAME"

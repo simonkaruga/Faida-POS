@@ -8,6 +8,7 @@ import os
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 VERSION = "0.3.1"
@@ -72,6 +73,12 @@ class Config(BaseSettings):
 
     # Built frontend to serve (the cloud serves the owner's phone view from here).
     static_dir: str | None = None
+
+    @field_validator("cloud_url")
+    @classmethod
+    def _web_address_only(cls, value: str | None) -> str | None:
+        # Anything else ("link later", typed at install) means not linked yet.
+        return value if value and value.strip().lower().startswith(("http://", "https://")) else None
 
 
 @lru_cache

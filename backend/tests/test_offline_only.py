@@ -69,3 +69,11 @@ def test_the_owner_dashboard_warns_about_backups(backup_config, printers, busine
     with TestClient(create_app(backup_config, printers=printers)) as c:
         alerts = c.get("/api/dashboard", headers=login(c, OWNER_PIN)).json()["alerts"]
     assert alerts[0] == {"tone": "bad", "text": "No backup has been made yet. Is the USB drive plugged in?"}
+
+
+def test_a_cloud_address_that_is_not_one_means_not_linked(config):
+    # "link later" was typed at the installer's question at the first client.
+    assert config.model_copy(update={"cloud_url": None}).cloud_url is None
+    from app.settings.config import Config
+    assert Config(pin_secret="x", cloud_url="link later").cloud_url is None
+    assert Config(pin_secret="x", cloud_url="https://faida.co.ke").cloud_url == "https://faida.co.ke"

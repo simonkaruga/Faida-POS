@@ -23,6 +23,10 @@ Head "This PC"
 $os = Get-CimInstance Win32_OperatingSystem
 "{0} {1}, build {2}, checked {3}" -f $os.Caption, $os.OSArchitecture, $os.BuildNumber, (Get-Date)
 "Memory {0:N1} GB, free on C: {1:N1} GB" -f ($os.TotalVisibleMemorySize / 1MB), ((Get-PSDrive C).Free / 1GB)
+"Clock: {0}, time zone {1}" -f (Get-Date).ToString("d MMMM yyyy HH:mm"), (Get-TimeZone).Id
+if ((Test-Path "$Base\current\BUILT") -and (Get-Date) -lt [datetime]::ParseExact((Get-Content "$Base\current\BUILT").Trim(), "yyyy-MM-dd", $null)) {
+  Write-Host "WRONG DATE: this PC's clock is behind. Fix it in Settings > Time & Language > Date & time." -ForegroundColor Red
+}
 
 Head "Faida files"
 foreach ($p in "$Base\counter.env", "$Base\current\VERSION", "$Base\current\backend\.venv\Scripts\python.exe") {

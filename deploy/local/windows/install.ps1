@@ -120,7 +120,8 @@ if (-not (Test-Path $EnvFile)) {
   $PaperMm = Read-Host "Receipt paper width in mm, 80 or 58 [80]"
   if (-not $PaperMm) { $PaperMm = "80" }
   $a = Ask-Secret "Backup passphrase (write it down and keep it AWAY from the counter)"
-  $CloudUrl = if ($Offline) { "" } else { Read-Host "Cloud URL, e.g. https://faida.co.ke (empty: link later)" }
+  $CloudUrl = if ($Offline) { "" } else { Read-Host "Cloud address, e.g. https://faida.co.ke. Press Enter to link it later" }
+  if ($CloudUrl -notmatch '^https?://') { $CloudUrl = "" }  # e.g. "later" typed: not linked
   $CloudToken = ""
   if ($CloudUrl) { $CloudToken = Read-Host "Counter token from 'register-device' on the cloud" }
   $PinSecret = & "$Target\backend\.venv\Scripts\python.exe" -c "import secrets; print(secrets.token_urlsafe(32))"
