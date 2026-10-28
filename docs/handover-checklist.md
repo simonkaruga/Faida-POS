@@ -11,7 +11,7 @@ Client: ____________________  Version: ________  Date: ____________
 | 3 | Food prints in the kitchen, drinks at the bar; combos split correctly | |
 | 4 | Choices (mixer, side, how cooked) print on the slip and add their price | |
 | 5 | Happy hour prices apply only during the set hours | |
-| 6 | Cash payment opens the drawer and prints the receipt | |
+| 6 | Cash payment prints the receipt; the drawer opens for hand-overs, floats and pay-outs | |
 | 7 | M-Pesa: last 4 characters recorded; a repeated code is caught | |
 | 8 | Card payment recorded with the slip's last 4 characters | |
 | 9 | Removing an item, a discount, or giving free needs a supervisor PIN, and shows in the closing | |

@@ -37,7 +37,7 @@ Tap the item on the bill:
 
 1. Tap **BILL** to print the bill for the customer. Tap **PAY** when they are ready. Anything not sent yet is sent first, so you can tap items and go straight to **PAY**.
 2. Choose how they pay:
-   - **Cash**: type what they gave you. The screen shows the **change**. Press **TAKE CASH** and the drawer opens.
+   - **Cash**: type what they gave you. The screen shows the **change**. Press **TAKE CASH**. You keep the cash until you hand it over at the end of your shift; the drawer is for the owner's money and opens at hand-over.
    - **M-Pesa**: check the customer's message, type the **last 4 characters** of the code, and press **RECORD M-PESA**. If the screen says the code was already used, stop and call the supervisor.
    - **Card**: when the card machine says *Approved*, type the **last 4 characters** from the card slip and press **RECORD CARD**.
    - **Credit**: only for approved customers. Press **REQUEST CREDIT**.

@@ -60,7 +60,8 @@ The installer asks for:
 
 - [ ] Order a **food** item and SEND. It prints in the **kitchen**.
 - [ ] Order a **drink** and SEND. It prints at the **bar/counter**.
-- [ ] Take a **cash** payment. The **drawer opens** and the receipt prints.
+- [ ] Take a **cash** payment. The receipt prints (customer copy and counter copy). The drawer stays shut: waiters keep their cash until hand-over.
+- [ ] Give a waiter a **float** (Owner area > Shifts & hand-overs). The **drawer opens**.
 - [ ] On the receipt, no line runs off the paper, and the small "Powered by Faida POS" line at the bottom is readable. If lines wrap badly, the paper width setting is wrong.
 - [ ] Unplug the kitchen printer and send a food item. The table shows the orange printer sign. Plug the printer back in and press Print again in Owner area > Printers.
 
