@@ -77,3 +77,19 @@ def test_58mm_paper_keeps_every_line_on_the_paper(tmp_path):
         raise AssertionError("76 mm accepted")
     except ValueError:
         pass
+
+
+def test_printer_settings_as_typed_at_install(config, tmp_path):
+    """"POS80" typed instead of device:\\\\localhost\\POS80 means that Windows share, and a
+    setting Faida can't read never stops the counter from starting."""
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    from app.printing.printers import DevicePrinter, NoPrinter, make_printer, printer_or_none
+
+    share = make_printer("POS80", "counter")
+    assert isinstance(share, DevicePrinter) and share.path == r"\\localhost\POS80"
+    assert isinstance(printer_or_none("usb???", "counter"), NoPrinter)
+    cfg = config.model_copy(update={"counter_printer": "usb???", "kitchen_printer": "usb???"})
+    with TestClient(create_app(cfg)) as c:
+        assert c.get("/api/health").status_code == 200

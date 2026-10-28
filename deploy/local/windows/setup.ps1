@@ -27,7 +27,8 @@ try {
     $Current = (Get-Content "$Base\current\VERSION").Trim()
     if ($Current -eq $Version) {
       try { $Health = Invoke-RestMethod "http://localhost:8000/api/health" -TimeoutSec 5 } catch { $Health = $null }
-      if ($Health -and $Health.set_up -and $Health.version -eq $Version) {
+      $Finished = Get-ScheduledTask -TaskName "Faida kiosk" -ErrorAction SilentlyContinue  # the installer's last step
+      if ($Health -and $Health.set_up -and $Health.version -eq $Version -and $Finished) {
         Write-Host "Faida POS $Version is already installed and running here." -ForegroundColor Green
         & "$Base\current\deploy\local\windows\shortcut.ps1"
       } else {

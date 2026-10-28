@@ -28,7 +28,7 @@ from app.floor.router import router as floor_router
 from app.menu.router import router as menu_router
 from app.payments.router import router as payments_router
 from app.printing.models import PrinterName
-from app.printing.printers import Printer, make_printer
+from app.printing.printers import Printer, printer_or_none
 from app.printing.router import router as printing_router
 from app.printing.service import PrintService
 from app.reports.mailer import MailWorker
@@ -86,8 +86,8 @@ def create_app(
     app.state.keypad = KeypadGuard(config.pin_max_attempts, config.pin_lockout_seconds)
     app.state.owner_logins = LoginGuard()
     app.state.printing = PrintService(app.state.sessionmaker, printers or {
-        PrinterName.counter: make_printer(config.counter_printer if local else "none", "counter", config.counter_paper_mm),
-        PrinterName.kitchen: make_printer(config.kitchen_printer if local else "none", "kitchen", config.kitchen_paper_mm),
+        PrinterName.counter: printer_or_none(config.counter_printer if local else "none", "counter", config.counter_paper_mm),
+        PrinterName.kitchen: printer_or_none(config.kitchen_printer if local else "none", "kitchen", config.kitchen_paper_mm),
     })
     app.state.mail = MailWorker(app.state.sessionmaker, config)
     app.state.sync = (

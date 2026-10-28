@@ -5,10 +5,13 @@
     device:\\\\localhost\\POS80   shared printer on Windows (raw)
     network:192.168.1.50     network printer, port 9100 unless given (host:port)
     none                     no printer here: everything shows as "Not printed"
+    POS80                    just a name: the Windows printer shared as POS80 (\\localhost\POS80)
 
 The paper width (80 or 58 mm) sets how many characters fit on a line.
 """
 
+import logging
+import re
 import socket
 from datetime import datetime
 from pathlib import Path
@@ -102,7 +105,20 @@ def make_printer(spec: str, name: str, paper_mm: int = 80) -> Printer:
         printer = NetworkPrinter(host, int(port or 9100))
     elif kind == "none":
         return NoPrinter()
+    elif re.fullmatch(r"[\w .-]+", spec):
+        # A bare share name, as typed at install ("POS80").
+        printer = DevicePrinter(rf"\\localhost\{spec}")
     else:
         raise ValueError(f"Unknown printer setting {spec!r}")
     printer.width = COLUMNS[paper_mm]
     return printer
+
+
+def printer_or_none(spec: str, name: str, paper_mm: int = 80) -> Printer:
+    """make_printer, but a setting it can't understand never stops the counter from
+    starting: that printer then shows as offline, and the log says why."""
+    try:
+        return make_printer(spec, name, paper_mm)
+    except ValueError as e:
+        logging.getLogger("faida.printing").error("The %s printer is not set up: %s", name, e)
+        return NoPrinter()

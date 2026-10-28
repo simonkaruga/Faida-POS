@@ -110,10 +110,13 @@ if (-not (Test-Path $EnvFile)) {
   if ($db -ne "1") { & "$PgBin\psql.exe" -U postgres -h localhost -qc "CREATE DATABASE faida OWNER faida" }
   Remove-Item Env:\PGPASSWORD
 
-  $CounterPrinter = Read-Host "Counter printer [device:\\localhost\POS80  (share the USB printer as POS80)]"
+  # A bare name (POS80) means the Windows printer shared under that name.
+  function Printer-Setting($Typed) { if ($Typed -and $Typed -notmatch ':') { "device:\\localhost\$Typed" } else { $Typed } }
+  $CounterPrinter = Printer-Setting (Read-Host "Counter printer: press Enter for the USB printer shared as POS80")
   if (-not $CounterPrinter) { $CounterPrinter = "device:\\localhost\POS80" }
-  $KitchenPrinter = Read-Host "Kitchen printer, e.g. network:192.168.1.50 [same as counter]"
+  $KitchenPrinter = Printer-Setting (Read-Host "Kitchen printer: press Enter if there is only one printer (or type network:<its IP>)")
   if (-not $KitchenPrinter) { $KitchenPrinter = $CounterPrinter }
+  Write-Host "  Counter printer: $CounterPrinter    Kitchen printer: $KitchenPrinter"
   $PaperMm = Read-Host "Receipt paper width in mm, 80 or 58 [80]"
   if (-not $PaperMm) { $PaperMm = "80" }
   $a = Ask-Secret "Backup passphrase (write it down and keep it AWAY from the counter)"
