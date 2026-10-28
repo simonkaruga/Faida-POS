@@ -30,11 +30,11 @@ VIAddVersionKey "LegalCopyright" "Avinaya Solutions Ltd"
 !define MUI_ICON "faida.ico"
 !define MUI_ABORTWARNING
 !define MUI_WELCOMEPAGE_TITLE "Faida POS ${VERSION}"
-!define MUI_WELCOMEPAGE_TEXT "This installs Faida POS on this counter PC, or updates it if an older version is here.$\r$\n$\r$\nNo internet is needed: PostgreSQL, Python and everything else are inside this file.$\r$\n$\r$\nBefore you start:$\r$\n  •  Sign in to Windows as the account that will show the counter, and make it an administrator for now.$\r$\n  •  Plug in and switch on the receipt printer; share it in Windows as POS80.$\r$\n  •  Have the backup passphrase, business name, owner's name and menu file ready.$\r$\n  •  When updating: after closing, with every shift ended.$\r$\n$\r$\nA console window will ask the setup questions. Follow docs\install-checklist (the setup guide)."
+!define MUI_WELCOMEPAGE_TEXT "This installs Faida POS on this counter PC, or updates it if an older version is here.$\r$\n$\r$\nNo internet is needed: PostgreSQL, Python and everything else are inside this file.$\r$\n$\r$\nBefore you start:$\r$\n  •  Sign in to Windows as the account that will show the counter, and make it an administrator for now.$\r$\n  •  Plug in and switch on the receipt printer; share it in Windows as POS80.$\r$\n  •  Have the backup passphrase, business name, owner's name and menu file ready.$\r$\n  •  When updating: after closing, with every shift ended.$\r$\n$\r$\nA console window will ask the setup questions. Follow the installation guide (the PDF next to this file), section 4."
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_TITLE "Faida POS setup finished"
-!define MUI_FINISHPAGE_TEXT "Restart the PC: it should open straight into the Faida PIN screen.$\r$\n$\r$\nThen continue with the setup guide from step 3 (printers).$\r$\n$\r$\nSupport (call or WhatsApp): +254 797 033 513"
+!define MUI_FINISHPAGE_TEXT "Restart the PC: it should open straight into the Faida PIN screen.$\r$\n$\r$\nIf the counter screen is ever closed, double-click the Faida POS icon on the desktop.$\r$\n$\r$\nThen continue with the installation guide, section 5.$\r$\n$\r$\nSupport (call or WhatsApp): +254 797 033 513"
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_LANGUAGE "English"
 

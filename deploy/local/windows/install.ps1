@@ -198,6 +198,7 @@ if (-not $ok) { throw "The counter didn't start. See $State\logs\counter.log" }
 Say "8/8 Full-screen counter at login for $KioskUser"
 $Kiosk = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$Base\current\deploy\local\windows\kiosk.ps1`""
 Register-ScheduledTask -TaskName "Faida kiosk" -Action $Kiosk -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $KioskUser) -User $KioskUser -Force | Out-Null
+& "$Base\current\deploy\local\windows\shortcut.ps1"
 
 Write-Host @"
 

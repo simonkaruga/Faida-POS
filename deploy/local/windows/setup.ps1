@@ -28,7 +28,8 @@ try {
     if ($Current -eq $Version) {
       try { $Health = Invoke-RestMethod "http://localhost:8000/api/health" -TimeoutSec 5 } catch { $Health = $null }
       if ($Health -and $Health.set_up -and $Health.version -eq $Version) {
-        Write-Host "Faida POS $Version is already installed and running here. Nothing to do." -ForegroundColor Green
+        Write-Host "Faida POS $Version is already installed and running here." -ForegroundColor Green
+        & "$Base\current\deploy\local\windows\shortcut.ps1"
       } else {
         # An earlier install stopped part-way: stop what is running and finish it.
         Write-Host "Finishing the installation of Faida POS $Version (settings already saved are kept).`n" -ForegroundColor Cyan
@@ -42,6 +43,7 @@ try {
       Write-Host "Updating Faida POS $Current -> $Version. Do this after closing, with every shift ended.`n" -ForegroundColor Cyan
       & "$PSScriptRoot\update.ps1" -Release $Release
       if ($LASTEXITCODE) { $ok = $false }
+      else { & "$Base\current\deploy\local\windows\shortcut.ps1" }  # counters installed before the icon existed
     }
   }
 } catch {

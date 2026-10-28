@@ -8,6 +8,8 @@
 # Needs internet the first time (downloads are cached in releases/windows-cache), the
 # backend's .venv (its package versions are the tested ones), and NSIS: `makensis` on
 # the PATH, or it is unpacked from Ubuntu's nsis package into the cache (no root needed).
+# Also makes releases/USB: the .exe, its checksum and the installation guide as a PDF
+# (printed with Chrome), ready to copy to a USB stick.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$ROOT/backend/app/settings/config.py")"
@@ -58,3 +60,17 @@ echo "Building the installer (a few minutes)..."
 echo "Windows installer ready: $OUT ($(du -h "$OUT" | cut -f1))"
 sha256sum "$OUT" | cut -d' ' -f1 > "$OUT.sha256"
 echo "  sha256 $(cat "$OUT.sha256")"
+
+USB="$ROOT/releases/USB"
+rm -rf "$USB" && mkdir -p "$USB"
+cp "$OUT" "$OUT.sha256" "$USB/"
+CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+if [ -n "$CHROME" ]; then
+  "$CHROME" --headless=new --no-pdf-header-footer --print-to-pdf="$USB/Faida-POS-Installation-Guide.pdf" \
+    "file://$ROOT/docs/windows-install-guide.html" 2>/dev/null
+else
+  cp "$ROOT/docs/windows-install-guide.html" "$USB/"
+  echo "  (no Chrome: copied the guide as HTML; open it and print to PDF)"
+fi
+echo "Copy this folder to the USB stick: $USB"
+ls -lh "$USB" | tail -n +2

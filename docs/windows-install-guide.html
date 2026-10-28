@@ -58,7 +58,7 @@
   <tr><td class="k">Printer</td><td><b>One</b> Xprinter XP-Q851L thermal printer, USB, <b>80 mm</b> paper. Bar slips, kitchen tickets, bills and receipts all print here</td></tr>
   <tr><td class="k">M-Pesa till</td><td><b>3706694</b> (printed on every bill)</td></tr>
   <tr><td class="k">Internet</td><td>The owner asked for the system <b>offline</b>: install as <b>counter only</b> (nothing leaves the bar, no phone view). Confirm with her once more before step 4</td></tr>
-  <tr><td class="k">Installer</td><td><code>FaidaSetup-0.3.1.exe</code>: one file, no internet needed on site</td></tr>
+  <tr><td class="k">Installer</td><td><code>FaidaSetup-0.3.1.exe</code>: one file, no internet needed on site. Puts a <b>Faida POS</b> icon on the desktop</td></tr>
   <tr><td class="k">Support</td><td>+254 797 033 513 (call or WhatsApp). Also shown on the PIN screen and in the Owner area</td></tr>
 </table>
 
@@ -86,7 +86,7 @@
 <h3>Put on a USB stick</h3>
 <table class="tick">
   <tr><th>Item</th><th>✓</th></tr>
-  <tr><td><code>FaidaSetup-0.3.1.exe</code> and <code>FaidaSetup-0.3.1.exe.sha256</code> (from <code>releases/</code>, built with <code>deploy/make-windows-setup.sh</code>)</td><td></td></tr>
+  <tr><td><code>FaidaSetup-0.3.1.exe</code>, <code>FaidaSetup-0.3.1.exe.sha256</code> and this guide: copy the whole folder <code>releases/USB</code> (made by <code>deploy/make-windows-setup.sh</code>)</td><td></td></tr>
   <tr><td>The menu file, <code>chewaz-menu.json</code>: categories, items, sizes, prices, tables, choices (mixers, sides). Use <code>docs/sample-menu.json</code> as the pattern. If the owner wants stock from day one, add the stock items and recipes to the same file</td><td></td></tr>
   <tr><td>The <b>Xprinter Windows driver</b> (from the CD in the printer box, or downloaded from Xprinter's website beforehand). There is no internet on site</td><td></td></tr>
   <tr><td>The <b>Google Chrome offline installer</b> (<code>ChromeStandaloneSetup64.exe</code>), in case the PC's Microsoft Edge is old or missing</td><td></td></tr>
@@ -158,6 +158,7 @@
 </table>
 <ol class="steps" start="8">
   <li>Wait for <b>"Faida 0.3.1 is installed and running"</b>, then <b>"Done."</b> in green. Press <kbd>Enter</kbd> to close the console, then <b>Finish</b>.</li>
+  <li>A <b>Faida POS</b> icon (the orange and navy Faida mark) is now on the desktop. Double-clicking it opens the counter screen full-screen. Faida also opens by itself at sign-in, so the icon is for when someone has closed it.</li>
 </ol>
 <div class="box note"><b>If it stops with red text:</b> read the message; it says what is wrong (e.g. the passphrases didn't match). Fix it and run <code>FaidaSetup-0.3.1.exe</code> again: answers already saved are kept and it carries on. The full log is in <code>C:\Faida\setup-logs</code>. Stuck? Call support: +254 797 033 513.</div>
 
@@ -254,6 +255,7 @@
   <tr><th style="width:34%">What you see</th><th>What to do</th></tr>
   <tr><td>"Windows protected your PC" when starting the setup</td><td>More info &gt; Run anyway (section 4)</td></tr>
   <tr><td>Setup stops with red text</td><td>Read the message, fix it, run the setup again (it keeps what was saved). Log: <code>C:\Faida\setup-logs</code></td></tr>
+  <tr><td>The counter screen was closed and the desktop shows</td><td>Double-click the <b>Faida POS</b> icon on the desktop. If the icon is missing, run <code>FaidaSetup-0.3.1.exe</code> again: it puts the icon back and changes nothing else</td></tr>
   <tr><td>After a restart the desktop shows instead of Faida</td><td>Automatic sign-in is off (section 5), or the counter is still starting: wait 2 minutes. Check Task Scheduler has <b>Faida counter</b> and <b>Faida kiosk</b></td></tr>
   <tr><td>Top bar: "Counter not responding"</td><td>Restart the PC. If it stays, send the file <code>C:\Faida\data\logs\counter.log</code> to support</td></tr>
   <tr><td>Orange <b>Not printed</b>, or "Printer offline"</td><td>Paper, power, USB cable; the printer still shared as <code>POS80</code> (section 3); the "Print Spooler" service running. Then print again from Owner area &gt; Printer log</td></tr>
