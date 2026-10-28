@@ -31,7 +31,20 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
   throw "Run PowerShell as administrator."
 }
 
-function Plain($Secure) { [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($Secure)) }
+function Plain($Secure) { [System.Net.NetworkCredential]::new("", $Secure).Password }
+# A password typed twice (nothing shows while typing), saying clearly why it asks again.
+function Ask-Secret($What, [switch]$Simple) {
+  while ($true) {
+    $a = Plain (Read-Host "$What (nothing shows while you type)" -AsSecureString)
+    if (-not $a) { Write-Host "  It can't be empty. Try again." -ForegroundColor Yellow; continue }
+    if ($Simple -and $a -notmatch '^[A-Za-z0-9]{8,}$') {
+      Write-Host "  Use at least 8 letters and numbers only (no spaces or symbols). Try again." -ForegroundColor Yellow; continue
+    }
+    $b = Plain (Read-Host "  Confirm: type the same again" -AsSecureString)
+    if ($a -ceq $b) { Write-Host "  OK." -ForegroundColor Green; return $a }
+    Write-Host "  The two didn't match (check Caps Lock). Start again." -ForegroundColor Yellow
+  }
+}
 function Bundled($Pattern) { if ($Bundle) { Get-ChildItem (Join-Path $Bundle $Pattern) -ErrorAction SilentlyContinue | Select-Object -First 1 } }
 $HasWinget = [bool](Get-Command winget -ErrorAction SilentlyContinue)
 function Find-Psql { Get-ChildItem "C:\Program Files\PostgreSQL\*\bin\psql.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1 }
@@ -42,11 +55,7 @@ $PgSuperPass = $null  # set here when this installer installs PostgreSQL itself
 $PgBin = Find-Psql
 if (-not $PgBin) {
   if ($PgSetup = Bundled "postgresql-*.exe") {
-    do {
-      $p1 = Plain (Read-Host "Choose a password for PostgreSQL (the database). Write it in the client file" -AsSecureString)
-      $p2 = Plain (Read-Host "Type it again" -AsSecureString)
-    } while (-not $p1 -or $p1 -ne $p2)
-    $PgSuperPass = $p1
+    $PgSuperPass = Ask-Secret "Choose a password for PostgreSQL (the database), letters and numbers, 8 or more. Write it in the client file" -Simple
     Write-Host "Installing PostgreSQL 16 (a few minutes)..."
     Start-Process -Wait $PgSetup.FullName -ArgumentList "--mode", "unattended", "--unattendedmodeui", "minimal",
       "--superpassword", "`"$PgSuperPass`"", "--serverport", "5432", "--disable-components", "pgAdmin,stackbuilder"
@@ -107,12 +116,7 @@ if (-not (Test-Path $EnvFile)) {
   if (-not $KitchenPrinter) { $KitchenPrinter = $CounterPrinter }
   $PaperMm = Read-Host "Receipt paper width in mm, 80 or 58 [80]"
   if (-not $PaperMm) { $PaperMm = "80" }
-  do {
-    $p1 = Read-Host "Backup passphrase (write it down and keep it AWAY from the counter)" -AsSecureString
-    $p2 = Read-Host "Type it again" -AsSecureString
-    $a = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($p1))
-    $b = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($p2))
-  } while (-not $a -or $a -ne $b)
+  $a = Ask-Secret "Backup passphrase (write it down and keep it AWAY from the counter)"
   $CloudUrl = if ($Offline) { "" } else { Read-Host "Cloud URL, e.g. https://faida.co.ke (empty: link later)" }
   $CloudToken = ""
   if ($CloudUrl) { $CloudToken = Read-Host "Counter token from 'register-device' on the cloud" }
