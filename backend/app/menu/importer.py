@@ -278,3 +278,108 @@ def load_images(db: Session, business_id: uuid.UUID, folder: str, images_dir: Pa
         count += 1
     db.commit()
     return count
+
+
+def export_menu(db: Session, business_id: uuid.UUID, images_dir: Path, pictures_to: Path | None = None) -> dict:
+    """This counter's menu, stock items, recipes, tables and settings as a menu file that
+    load-menu reads on another counter (what is on the menu now; nothing sold or counted).
+    Pictures are copied to `pictures_to`, named for load-images."""
+    def num(d: Decimal | None) -> float | int | None:
+        return None if d is None else (int(d) if d == d.to_integral_value() else float(d))
+
+    def price(per_unit: Decimal) -> Decimal:
+        # Kept per ml or g: 1150 / 750 ml comes back as 1149.98. Prices are whole shillings.
+        whole = per_unit.quantize(Decimal(1))
+        return whole if abs(per_unit - whole) < Decimal("0.05") else per_unit.quantize(Decimal("0.01"))
+
+    def mine(model):
+        return select(model).where(model.business_id == business_id)
+
+    stock_names = {}
+    stock = []
+    for s in db.scalars(mine(StockItem).where(StockItem.active).order_by(StockItem.station, StockItem.name)):
+        f = factor(s)
+        stock_names[s.id] = s.name
+        stock.append({k: v for k, v in {
+            "name": s.name, "station": s.station.value, "unit": s.unit.value, "bottle_size": s.bottle_size,
+            "pack_name": s.pack_name, "pack_size": s.pack_size,
+            "buying_price": num(price(s.unit_cost * f)), "reorder_level": num(s.reorder_level / f),
+        }.items() if v is not None})
+
+    def uses(option_id: uuid.UUID) -> list[dict]:
+        out = []
+        for r in db.scalars(select(RecipeLine).where(RecipeLine.sell_option_id == option_id)):
+            if r.stock_item_id in stock_names:
+                out.append({"stock": stock_names[r.stock_item_id], "tots" if r.in_tots else "quantity": num(r.quantity)})
+        return out
+
+    groups = {}
+    modifier_groups = []
+    for g in db.scalars(mine(ModifierGroup).where(ModifierGroup.active).order_by(ModifierGroup.name)):
+        groups[g.id] = g.name
+        options = []
+        for o in db.scalars(select(ModifierOption).where(ModifierOption.group_id == g.id, ModifierOption.active)
+                            .order_by(ModifierOption.sort_order)):
+            option = {"label": o.label, "price": o.price}
+            if o.stock_item_id in stock_names:
+                option |= {"stock": stock_names[o.stock_item_id], "quantity": num(o.stock_quantity)}
+            options.append(option)
+        modifier_groups.append({"name": g.name, "min": g.min_select, "max": g.max_select, "options": options})
+
+    if pictures_to:
+        pictures_to.mkdir(parents=True, exist_ok=True)
+    option_names = {}  # sell option id -> (item name, option label), for combos
+    categories, category_names = [], {}
+    for c in db.scalars(mine(Category).where(Category.active).order_by(Category.sort_order, Category.name)):
+        category_names[str(c.id)] = c.name
+        items = []
+        for it in db.scalars(select(MenuItem).where(MenuItem.category_id == c.id, MenuItem.active)
+                             .order_by(MenuItem.sort_order, MenuItem.name)):
+            options = list(db.scalars(select(SellOption).where(SellOption.menu_item_id == it.id, SellOption.active)
+                                      .order_by(SellOption.sort_order)))
+            if not options:
+                continue
+            for o in options:
+                option_names[o.id] = (it.name, o.label)
+            item: dict = {"name": it.name, "station": it.station.value}
+            if it.favourite:
+                item["favourite"] = True
+            if len(options) == 1 and not options[0].label:
+                item["price"] = options[0].price
+                if u := uses(options[0].id):
+                    item["uses"] = u
+            else:
+                item["options"] = [{"label": o.label, "price": o.price, **({"uses": u} if (u := uses(o.id)) else {})}
+                                   for o in options]
+            links = db.scalars(select(ItemModifierGroup).where(ItemModifierGroup.menu_item_id == it.id)
+                               .order_by(ItemModifierGroup.sort_order))
+            if names := [groups[link.group_id] for link in links if link.group_id in groups]:
+                item["modifier_groups"] = names
+            if it.is_combo:
+                item["combo"] = [{"_option": cc.sell_option_id, "quantity": cc.quantity} for cc in
+                                 db.scalars(select(ComboComponent).where(ComboComponent.combo_item_id == it.id))]
+            if pictures_to and it.image and (images_dir / it.image).is_file():
+                shutil.copyfile(images_dir / it.image, pictures_to / f"{picture_name(it.name)}{Path(it.image).suffix}")
+            items.append(item)
+        categories.append({"name": c.name, "items": items})
+    for cat in categories:  # combo parts by name, once every option is known
+        for item in cat["items"]:
+            if "combo" in item:
+                item["combo"] = [{"item": option_names[p["_option"]][0], "option": option_names[p["_option"]][1],
+                                  "quantity": p["quantity"]} for p in item["combo"] if p["_option"] in option_names]
+
+    settings = get_settings(db, business_id)
+    return {
+        "tables": [{"name": t.name, "section": t.section}
+                   for t in db.scalars(mine(Table).where(Table.active).order_by(Table.sort_order, Table.name))],
+        "tab_section": settings.tab_section,
+        "note_presets": settings.note_presets,
+        "tot_size_ml": settings.tot_size_ml,
+        "stock": stock,
+        "modifier_groups": modifier_groups,
+        "price_rules": [{"name": r.name, "percent_off": r.percent_off, "days": r.days, "start": r.start_time.isoformat("minutes"),
+                         "end": r.end_time.isoformat("minutes"),
+                         "categories": [category_names[c] for c in r.category_ids if c in category_names]}
+                        for r in db.scalars(mine(PriceRule).where(PriceRule.active))],
+        "categories": categories,
+    }

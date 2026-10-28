@@ -5,6 +5,8 @@ On the counter (FAIDA_MODE=local):
     python -m app.cli load-menu ../docs/sample-menu.json
     python -m app.cli load-stock ../docs/sample-menu.json   (stock and recipes only)
     python -m app.cli load-images ../docs/sample-images     (tile pictures, by item name)
+    python -m app.cli export-menu menu.json --pictures pictures   (this menu, for load-menu elsewhere)
+    python -m app.cli test-print                         (a test slip on each printer)
 
 On the cloud (FAIDA_MODE=cloud):
     python -m app.cli register-device --business-id <id> --name "Counter"
@@ -19,6 +21,7 @@ import getpass
 import json
 import sys
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import create_engine, select
@@ -27,7 +30,9 @@ from sqlalchemy.orm import Session
 from app import models as _all_tables  # noqa: F401  (every table, so foreign keys resolve)
 from app.audit import service as audit
 from app.auth.pins import WeakPin, check_new_pin, pin_lookup
-from app.menu.importer import load_images, load_menu, load_stock
+from app.menu.importer import export_menu, load_images, load_menu, load_stock
+from app.printing.document import text
+from app.printing.printers import PrinterError, make_printer
 from app.settings.config import get_config
 from app.settings.models import Business, BusinessSettings
 from app.staff.models import Role, Staff
@@ -104,6 +109,28 @@ def check_health(db: Session, config, args) -> None:
     print("All counters healthy.", file=sys.stderr)
 
 
+def test_print(config) -> int:
+    """A test slip on each printer set up, with what Windows or the printer said. 0 if all printed."""
+    failed = 0
+    seen = set()
+    for name, spec, paper in (("counter", config.counter_printer, config.counter_paper_mm),
+                              ("kitchen", config.kitchen_printer, config.kitchen_paper_mm)):
+        if spec in seen:
+            print(f"Kitchen printer: the same as the counter printer ({spec}).", file=sys.stderr)
+            continue
+        seen.add(spec)
+        try:
+            make_printer(spec, name, paper).print([
+                text("FAIDA POS TEST PRINT", bold=True), text(f"{name.title()} printer: {spec}"),
+                text(datetime.now().strftime("%d %b %Y %H:%M")), text("If you can read this, printing works."),
+            ])
+            print(f"{name.title()} printer ({spec}): sent. Check that a slip came out.", file=sys.stderr)
+        except (PrinterError, ValueError) as e:
+            failed = 1
+            print(f"{name.title()} printer ({spec}): NOT PRINTED. {e}", file=sys.stderr)
+    return failed
+
+
 CLOUD_COMMANDS = {"register-device": register_device, "create-owner": create_owner, "check-health": check_health}
 
 
@@ -119,6 +146,10 @@ def main(argv: list[str] | None = None) -> None:
     stock.add_argument("file")
     images = commands.add_parser("load-images", help="Pictures for items without one, from files named after them")
     images.add_argument("folder")
+    export = commands.add_parser("export-menu", help="This counter's menu, stock items, recipes and tables, for load-menu")
+    export.add_argument("file")
+    export.add_argument("--pictures", help="Folder to copy the menu pictures into, for load-images")
+    commands.add_parser("test-print", help="Print a test slip on the counter (and kitchen) printer")
     device = commands.add_parser("register-device", help="Cloud: allow a counter to upload for a business")
     device.add_argument("--business-id", required=True, type=uuid.UUID)
     device.add_argument("--name", default="Counter")
@@ -137,6 +168,18 @@ def main(argv: list[str] | None = None) -> None:
         return
     if config.mode != "local":
         raise SystemExit("These commands run on the counter (FAIDA_MODE=local).")
+    if args.command == "test-print":
+        raise SystemExit(test_print(config))
+    if args.command == "export-menu":
+        with Session(create_engine(config.database_url), expire_on_commit=False) as db:
+            business_id = db.scalar(select(Business.id))
+            if business_id is None:
+                raise SystemExit("Run init-business first.")
+            data = export_menu(db, business_id, Path(config.state_dir) / "images", Path(args.pictures) if args.pictures else None)
+        Path(args.file).write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        items = sum(len(c["items"]) for c in data["categories"])
+        print(f"Wrote {args.file}: {items} items, {len(data['stock'])} stock items, {len(data['tables'])} tables.", file=sys.stderr)
+        return
     if args.command == "load-images":
         with Session(create_engine(config.database_url), expire_on_commit=False) as db:
             business_id = db.scalar(select(Business.id))

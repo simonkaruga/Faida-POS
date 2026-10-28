@@ -102,6 +102,27 @@ if ($h) {
   "No, and Faida isn't installed completely. Run FaidaSetup.exe again."
 }
 
+Head "Printer"
+$spooler = Get-Service -Name Spooler -ErrorAction SilentlyContinue
+if ($spooler -and $spooler.Status -ne "Running") {
+  "Print Spooler was $($spooler.Status): starting it."
+  Set-Service -Name Spooler -StartupType Automatic -ErrorAction SilentlyContinue
+  Start-Service -Name Spooler -ErrorAction SilentlyContinue
+}
+"Print Spooler: $((Get-Service -Name Spooler -ErrorAction SilentlyContinue).Status)"
+$printers = Get-Printer -ErrorAction SilentlyContinue
+if ($printers) {
+  $printers | ForEach-Object { "  {0}  port {1}  shared as {2}  status {3}" -f $_.Name, $_.PortName, $(if ($_.Shared) { $_.ShareName } else { "-" }), $_.PrinterStatus }
+} else { "No printers in Windows: install the Xprinter driver (section 3 of the guide)." }
+if (-not ($printers | Where-Object { $_.PortName -like "USB*" })) { "NO USB PRINTER: check the USB cable and power, then install the printer driver." }
+if (Test-Path "$Base\current\backend\.venv\Scripts\python.exe") {
+  "Printing a test slip..."
+  $env:FAIDA_ENV_FILE = "$Base\counter.env"
+  Push-Location "$Base\current\backend"
+  & "$Base\current\backend\.venv\Scripts\python.exe" -m app.cli test-print 2>&1 | ForEach-Object { "$_" }
+  Pop-Location
+}
+
 Head "Report"
 if ($Report) { Stop-Transcript | Out-Null; Write-Host "Saved: $Report" }
 Write-Host "Problem not fixed? Send this report, or a photo of this window, to support: +254 797 033 513" -ForegroundColor Yellow

@@ -239,3 +239,23 @@ def test_load_stock_onto_an_existing_menu(client, owner, db, business):
     counts = load_stock(db, business.id, data)
     assert counts == {"stock_items": 24, "recipes": 25}
     assert load_stock(db, business.id, data) == {"stock_items": 0, "recipes": 0}
+
+
+def test_export_menu_gives_back_the_file_it_was_loaded_from(db, business, menu, tmp_path):
+    """A counter's menu exported loads on another counter as it was (Chewaz gets ours)."""
+    import json
+
+    from conftest import SAMPLE_MENU
+
+    from app.menu.importer import MenuFile, export_menu
+
+    with open(SAMPLE_MENU, encoding="utf-8") as f:
+        sample = MenuFile.model_validate({**json.load(f), "price_rules": []})
+    out = MenuFile.model_validate(json.loads(json.dumps(export_menu(db, business.id, tmp_path))))
+    by_name = lambda rows: sorted(rows, key=lambda r: r["name"])  # noqa: E731
+    a, b = out.model_dump(), sample.model_dump()
+    assert a["categories"] == b["categories"]
+    assert by_name(a["stock"]) == by_name(b["stock"])
+    assert by_name(a["modifier_groups"]) == by_name(b["modifier_groups"])
+    assert [t["name"] for t in a["tables"]] == [t if isinstance(t, str) else t["name"] for t in b["tables"]]
+    assert (a["tot_size_ml"], a["note_presets"], a["tab_section"]) == (b["tot_size_ml"], b["note_presets"], b["tab_section"])

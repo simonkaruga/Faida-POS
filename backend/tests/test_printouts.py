@@ -1,5 +1,6 @@
 """Seeing printouts on screen, and the printer log."""
 
+import pytest
 from conftest import login
 
 
@@ -87,9 +88,56 @@ def test_printer_settings_as_typed_at_install(config, tmp_path):
     from app.main import create_app
     from app.printing.printers import DevicePrinter, NoPrinter, make_printer, printer_or_none
 
-    share = make_printer("POS80", "counter")
+    share = make_printer("POS80", "counter", windows=False)
     assert isinstance(share, DevicePrinter) and share.path == r"\\localhost\POS80"
     assert isinstance(printer_or_none("usb???", "counter"), NoPrinter)
     cfg = config.model_copy(update={"counter_printer": "usb???", "kitchen_printer": "usb???"})
     with TestClient(create_app(cfg)) as c:
         assert c.get("/api/health").status_code == 200
+
+
+@pytest.fixture
+def fake_windows(monkeypatch):
+    """win32print and pywintypes as on a Windows counter: an Xprinter on USB001 (not
+    shared) and Microsoft Print to PDF."""
+    import sys
+    import types
+
+    jobs, printers = [], [
+        {"pPrinterName": "Microsoft Print to PDF", "pShareName": None, "pPortName": "PORTPROMPT:", "Attributes": 0, "Status": 0},
+        {"pPrinterName": "XP-80C", "pShareName": None, "pPortName": "USB001", "Attributes": 0, "Status": 0},
+    ]
+    w = types.SimpleNamespace(
+        PRINTER_ENUM_LOCAL=2, PRINTER_ENUM_CONNECTIONS=4,
+        EnumPrinters=lambda flags, name, level: printers,
+        OpenPrinter=lambda name: {"name": name},
+        StartDocPrinter=lambda h, level, info: jobs.append([h["name"], info[2], b""]),
+        StartPagePrinter=lambda h: None,
+        WritePrinter=lambda h, data: jobs[-1].__setitem__(2, jobs[-1][2] + data),
+        EndPagePrinter=lambda h: None, EndDocPrinter=lambda h: None, ClosePrinter=lambda h: None,
+    )
+    monkeypatch.setitem(sys.modules, "win32print", w)
+    monkeypatch.setitem(sys.modules, "pywintypes", types.SimpleNamespace(error=OSError))
+    return printers, jobs
+
+
+def test_windows_prints_through_the_spooler_without_a_share(fake_windows):
+    """At Chewaz nothing printed through \\\\localhost\\POS80: the counter runs as SYSTEM,
+    and the printer needn't be shared. Old settings and a bare name use the spooler."""
+    from app.printing.document import text
+    from app.printing.printers import PrinterError, WindowsPrinter, make_printer
+
+    printers, jobs = fake_windows
+    for spec in (r"device:\\localhost\POS80", "POS80", "windows:XP-80C"):
+        p = make_printer(spec, "counter", windows=True)
+        assert isinstance(p, WindowsPrinter)
+        p.print([text("Hello")])
+    # POS80 isn't a printer's name or share: the only USB printer is used.
+    assert [(name, kind) for name, kind, _ in jobs] == [("XP-80C", "RAW")] * 3 and b"Hello" in jobs[0][2]
+
+    printers[1]["Status"] = 0x80
+    with pytest.raises(PrinterError, match="offline"):
+        make_printer("POS80", "counter", windows=True).print([text("x")])
+    printers.append({"pPrinterName": "Other", "pShareName": None, "pPortName": "USB002", "Attributes": 0, "Status": 0})
+    with pytest.raises(PrinterError, match="No printer called POS80"):
+        make_printer("POS80", "counter", windows=True).print([text("x")])
