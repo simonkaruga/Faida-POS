@@ -37,12 +37,11 @@ function Py($Dir) {
   return $Normal
 }
 . "$PSScriptRoot\python312.ps1"
+. "$PSScriptRoot\stop-backend.ps1"
 function Stop-Counter {
   New-Item -ItemType File -Force "$Base\updating.flag" | Out-Null
   Stop-ScheduledTask -TaskName "Faida counter" -ErrorAction SilentlyContinue
-  Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" | Where-Object { $_.CommandLine -like "*uvicorn*app.main*" } |
-    ForEach-Object { taskkill /T /F /PID $_.ProcessId 2>$null | Out-Null }
-  Start-Sleep 2
+  Stop-Backend
 }
 function Start-Counter {
   Remove-Item -Force "$Base\updating.flag" -ErrorAction SilentlyContinue
@@ -99,7 +98,7 @@ try {
   $null = Py $New -m app.ops wait-healthy --version $NewVersion --seconds 300
 } catch {
   Write-Host "`nUpdate failed: $_`nRolling back to $OldVersion" -ForegroundColor Yellow
-  Stop-Counter
+  try { Stop-Counter } catch { Write-Host $_ }  # roll back even so
   try { $null = Py $New -m alembic downgrade $OldRevision }
   catch {
     Write-Host "Undoing the migrations failed; restoring the backup taken before the update."

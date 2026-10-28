@@ -72,9 +72,8 @@ try {
         # An earlier install stopped part-way: stop what is running and finish it.
         Write-Host "Finishing the installation of Faida POS $Version (settings already saved are kept).`n" -ForegroundColor Cyan
         Stop-ScheduledTask -TaskName "Faida counter" -ErrorAction SilentlyContinue
-        Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" | Where-Object { $_.CommandLine -like "*uvicorn*app.main*" } |
-          ForEach-Object { taskkill /T /F /PID $_.ProcessId 2>$null | Out-Null }
-        Start-Sleep 2
+        . "$PSScriptRoot\stop-backend.ps1"
+        Stop-Backend
         & "$PSScriptRoot\install.ps1" -Offline:$Offline -Bundle $Bundle
       }
     } else {
