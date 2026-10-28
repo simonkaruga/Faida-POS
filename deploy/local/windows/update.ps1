@@ -21,12 +21,28 @@ $OldVersion = (Get-Content "$Old\VERSION").Trim()
 $Log = "$Base\data\logs\update-$(Get-Date -Format yyyyMMdd-HHmmss).log"
 Start-Transcript -Path $Log | Out-Null
 function Say($t) { Write-Host "`n== $t" -ForegroundColor Cyan }
-function Py($Dir) {  # Faida's own Python in $Dir; the launcher is always called as py.exe
+function Py($Dir) {  # Faida's own Python in $Dir
   # Python logs to stderr; in Windows PowerShell that must not count as a failure.
   $ErrorActionPreference = "Continue"
   Push-Location "$Dir\backend"
   try { & "$Dir\backend\.venv\Scripts\python.exe" @args; if ($LASTEXITCODE) { throw "python $($args -join ' ') failed" } }
   finally { Pop-Location }
+}
+# Python 3.12 itself, found without the "py" launcher (it isn't always on the PATH):
+# where Faida's own environment says it is, the registry, then the usual folders.
+function Find-Python312 {
+  $Found = @()
+  $Cfg = "C:\Faida\current\backend\.venv\pyvenv.cfg"
+  if (Test-Path $Cfg) {
+    $Home312 = (Get-Content $Cfg | Where-Object { $_ -match '^home\s*=' }) -replace '^home\s*=\s*', ''
+    if ($Home312) { $Found += Join-Path $Home312.Trim() "python.exe" }
+  }
+  foreach ($Key in "HKLM:\SOFTWARE\Python\PythonCore\3.12\InstallPath", "HKCU:\SOFTWARE\Python\PythonCore\3.12\InstallPath") {
+    $Exe = (Get-ItemProperty $Key -ErrorAction SilentlyContinue).ExecutablePath
+    if ($Exe) { $Found += $Exe }
+  }
+  $Found += "$env:ProgramFiles\Python312\python.exe", "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
+  $Found | Where-Object { $_ -and (Test-Path $_) -and ((& $_ -c "import sys; print(sys.version_info[:2] == (3, 12))") -eq "True") } | Select-Object -First 1
 }
 function Stop-Counter {
   New-Item -ItemType File -Force "$Base\updating.flag" | Out-Null
@@ -61,7 +77,10 @@ try {
   if ($New -eq $Old) { throw "Version $NewVersion is already running." }
   if (Test-Path $New) { Remove-Item -Recurse -Force $New }
   if ($Release) { Copy-Item -Recurse $Src $New } else { Move-Item $Src $New }
-  & py.exe -3.12 -m venv "$New\backend\.venv"
+  $Python312 = Find-Python312
+  if (-not $Python312) { throw "Python 3.12 was not found on this PC. Nothing was changed." }
+  & $Python312 -m venv "$New\backend\.venv"
+  if ($LASTEXITCODE) { throw "Making Faida's Python environment failed. Nothing was changed." }
   $PipFrom = if (Test-Path "$New\backend\wheels") { @("--no-index", "--find-links", "$New\backend\wheels") } else { @() }
   & "$New\backend\.venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check @PipFrom -r "$New\backend\requirements.txt"
   if ($LASTEXITCODE) { throw "Installing the Python packages failed$(if (-not $PipFrom) { ' (is the internet on?)' }). Nothing was changed." }
