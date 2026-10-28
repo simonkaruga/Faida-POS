@@ -48,23 +48,7 @@ function Ask-Secret($What, [switch]$Simple) {
 function Bundled($Pattern) { if ($Bundle) { Get-ChildItem (Join-Path $Bundle $Pattern) -ErrorAction SilentlyContinue | Select-Object -First 1 } }
 $HasWinget = [bool](Get-Command winget -ErrorAction SilentlyContinue)
 function Find-Psql { Get-ChildItem "C:\Program Files\PostgreSQL\*\bin\psql.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1 }
-# Python 3.12 itself, found without the "py" launcher (it isn't always on the PATH):
-# where Faida's own environment says it is, the registry, then the usual folders.
-function Find-Python312 {
-  $Found = @()
-  $Cfg = "C:\Faida\current\backend\.venv\pyvenv.cfg"
-  if (Test-Path $Cfg) {
-    $Home312 = (Get-Content $Cfg | Where-Object { $_ -match '^home\s*=' }) -replace '^home\s*=\s*', ''
-    if ($Home312) { $Found += Join-Path $Home312.Trim() "python.exe" }
-  }
-  foreach ($Key in "HKLM:\SOFTWARE\Python\PythonCore\3.12\InstallPath", "HKCU:\SOFTWARE\Python\PythonCore\3.12\InstallPath") {
-    $Exe = (Get-ItemProperty $Key -ErrorAction SilentlyContinue).ExecutablePath
-    if ($Exe) { $Found += $Exe }
-  }
-  $Found += "$env:ProgramFiles\Python312\python.exe", "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
-  $Found | Where-Object { $_ -and (Test-Path $_) -and ((& $_ -c "import sys; print(sys.version_info[:2] == (3, 12))") -eq "True") } | Select-Object -First 1
-}
-function Has-Python312 { [bool](Find-Python312) }
+. "$PSScriptRoot\python312.ps1"
 
 Say "1/8 PostgreSQL and Python"
 $PgSuperPass = $null  # set here when this installer installs PostgreSQL itself
@@ -85,18 +69,7 @@ if (-not $PgBin) {
   if (-not $PgBin) { throw "PostgreSQL did not install. Check C:\Program Files\PostgreSQL, then run this again." }
 }
 $PgBin = Split-Path $PgBin.FullName
-if (-not (Has-Python312)) {
-  if ($PySetup = Bundled "python-3.12*.exe") {
-    Write-Host "Installing Python 3.12..."
-    Start-Process -Wait $PySetup.FullName -ArgumentList "/quiet", "InstallAllUsers=1", "PrependPath=1", "Include_launcher=1", "Include_test=0"
-  } elseif ($HasWinget) {
-    winget install -e --id Python.Python.3.12 --scope machine --accept-package-agreements --accept-source-agreements
-  } else {
-    throw "Python 3.12 is not installed, and this PC has no winget to fetch it. Run FaidaSetup.exe (it carries Python), or install Python 3.12 by hand and run this again."
-  }
-  $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
-  if (-not (Has-Python312)) { throw "Python 3.12 did not install. Run this again, or install it by hand." }
-}
+Install-Python312 -Bundle $Bundle
 
 Say "2/8 Folders"
 New-Item -ItemType Directory -Force "$Base\releases", "$State\images", "$State\logs", "$Base\update-backups" | Out-Null

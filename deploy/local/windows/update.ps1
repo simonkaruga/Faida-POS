@@ -28,22 +28,7 @@ function Py($Dir) {  # Faida's own Python in $Dir
   try { & "$Dir\backend\.venv\Scripts\python.exe" @args; if ($LASTEXITCODE) { throw "python $($args -join ' ') failed" } }
   finally { Pop-Location }
 }
-# Python 3.12 itself, found without the "py" launcher (it isn't always on the PATH):
-# where Faida's own environment says it is, the registry, then the usual folders.
-function Find-Python312 {
-  $Found = @()
-  $Cfg = "C:\Faida\current\backend\.venv\pyvenv.cfg"
-  if (Test-Path $Cfg) {
-    $Home312 = (Get-Content $Cfg | Where-Object { $_ -match '^home\s*=' }) -replace '^home\s*=\s*', ''
-    if ($Home312) { $Found += Join-Path $Home312.Trim() "python.exe" }
-  }
-  foreach ($Key in "HKLM:\SOFTWARE\Python\PythonCore\3.12\InstallPath", "HKCU:\SOFTWARE\Python\PythonCore\3.12\InstallPath") {
-    $Exe = (Get-ItemProperty $Key -ErrorAction SilentlyContinue).ExecutablePath
-    if ($Exe) { $Found += $Exe }
-  }
-  $Found += "$env:ProgramFiles\Python312\python.exe", "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
-  $Found | Where-Object { $_ -and (Test-Path $_) -and ((& $_ -c "import sys; print(sys.version_info[:2] == (3, 12))") -eq "True") } | Select-Object -First 1
-}
+. "$PSScriptRoot\python312.ps1"
 function Stop-Counter {
   New-Item -ItemType File -Force "$Base\updating.flag" | Out-Null
   Stop-ScheduledTask -TaskName "Faida counter" -ErrorAction SilentlyContinue

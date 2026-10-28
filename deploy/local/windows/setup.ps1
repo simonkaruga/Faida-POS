@@ -32,6 +32,9 @@ try {
     }
   }
   $Installed = (Test-Path "$Base\counter.env") -and (Test-Path "$Base\current\VERSION")
+  # Faida runs on Python 3.12: put it back first if it was uninstalled.
+  . "$PSScriptRoot\python312.ps1"
+  if ($Installed) { Install-Python312 -Bundle $Bundle }
 
   # Close the counter screen (and the kiosk loop of 0.3.1, which could open a window every
   # 2 seconds); it is opened again at the end.
