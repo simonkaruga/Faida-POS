@@ -66,6 +66,14 @@ Sync: every change at the counter is written to `sync_queue` in the same transac
 and uploaded in order when the cloud can be reached. The top bar shows Online, or
 Offline with how many changes are waiting.
 
+### Counter only (no cloud)
+
+A client who wants nothing to leave the bar gets `FAIDA_OFFLINE_ONLY=true` (the
+installers' `--offline` / `-Offline`). Nothing is queued or uploaded, even if a cloud
+URL is set, and the top bar shows "Counter only". There is no phone view; the owner
+uses the Owner area at the counter. Backup trouble, which the cloud would otherwise
+report to Avinaya, shows at the top of the owner's dashboard instead.
+
 ### Backups
 
 ```bash
@@ -74,7 +82,8 @@ Offline with how many changes are waiting.
 ```
 
 Backups hold the database and the PIN secret, encrypted with `FAIDA_BACKUP_PASSPHRASE`;
-the newest 14 are kept. The result is sent to the cloud, and
+the newest 14 are kept. If a backup fails or none has run for 36 hours, the owner's
+dashboard says so. The result is also sent to the cloud, and
 `python -m app.cli check-health` (cloud, for cron) reports counters whose sync or
 backups stopped, or whose clock is off.
 

@@ -2,17 +2,19 @@
 Install Faida on a Windows 10/11 counter PC. From an unpacked release, in PowerShell
 "Run as administrator":
 
-    powershell -ExecutionPolicy Bypass -File deploy\local\windows\install.ps1 [-KioskUser counter] [-Lan]
+    powershell -ExecutionPolicy Bypass -File deploy\local\windows\install.ps1 [-KioskUser counter] [-Lan] [-Offline]
 
 -KioskUser  the Windows account that logs in automatically and shows the counter
             full-screen (default: the account running this)
 -Lan        also serve the screens on the local network (Android touch screen,
             second terminal). Without it only this PC can open them.
+-Offline    counter only: the client keeps everything at the bar. No cloud link,
+            no owner phone view; nothing is queued or sent.
 
 Needs PostgreSQL 16 and Python 3.12; it installs them with winget if missing.
 Safe to run again: existing settings, database and pictures are kept.
 #>
-param([string]$KioskUser = $env:USERNAME, [switch]$Lan)
+param([string]$KioskUser = $env:USERNAME, [switch]$Lan, [switch]$Offline)
 $ErrorActionPreference = "Stop"
 
 $Release = (Resolve-Path "$PSScriptRoot\..\..\..").Path
@@ -80,7 +82,7 @@ if (-not (Test-Path $EnvFile)) {
     $a = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($p1))
     $b = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($p2))
   } while (-not $a -or $a -ne $b)
-  $CloudUrl = Read-Host "Cloud URL, e.g. https://faida.co.ke (empty: link later)"
+  $CloudUrl = if ($Offline) { "" } else { Read-Host "Cloud URL, e.g. https://faida.co.ke (empty: link later)" }
   $CloudToken = ""
   if ($CloudUrl) { $CloudToken = Read-Host "Counter token from 'register-device' on the cloud" }
   $PinSecret = & "$Target\backend\.venv\Scripts\python.exe" -c "import secrets; print(secrets.token_urlsafe(32))"
@@ -99,6 +101,8 @@ FAIDA_KITCHEN_PRINTER=$KitchenPrinter
 FAIDA_COUNTER_PAPER_MM=$PaperMm
 FAIDA_KITCHEN_PAPER_MM=$PaperMm
 FAIDA_BACKUP_PASSPHRASE=$a
+# true: counter only, nothing leaves the bar (no cloud, no phone view).
+FAIDA_OFFLINE_ONLY=$(if ($Offline) { "true" } else { "false" })
 FAIDA_CLOUD_URL=$CloudUrl
 FAIDA_CLOUD_TOKEN=$CloudToken
 # Email the daily closing (optional). Gmail: smtp.gmail.com, 587, an app password.
@@ -110,7 +114,14 @@ FAIDA_SMTP_FROM=
 "@ | Set-Content -Encoding ASCII $EnvFile
   # Only administrators and the system account may read it.
   icacls $EnvFile /inheritance:r /grant:r "Administrators:F" "SYSTEM:F" | Out-Null
-} else { Write-Host "Keeping the existing settings." }
+} else {
+  Write-Host "Keeping the existing settings."
+  if ($Offline) {
+    $lines = @(Get-Content $EnvFile | Where-Object { $_ -notmatch '^FAIDA_OFFLINE_ONLY=' }) + "FAIDA_OFFLINE_ONLY=true"
+    Set-Content -Encoding ASCII $EnvFile $lines
+    Write-Host "Counter only: the cloud link is switched off."
+  }
+}
 $ListenHost = if ($Lan) { "0.0.0.0" } else { "127.0.0.1" }
 Set-Content -Encoding ASCII "$Base\listen.txt" $ListenHost
 if ($Lan) { New-NetFirewallRule -DisplayName "Faida counter" -Direction Inbound -Protocol TCP -LocalPort 8000 -Profile Private -Action Allow -ErrorAction SilentlyContinue | Out-Null }
@@ -160,10 +171,11 @@ Register-ScheduledTask -TaskName "Faida kiosk" -Action $Kiosk -Trigger (New-Sche
 Write-Host @"
 
 Faida $Version is installed and running: http://localhost:8000
-  Settings:  $EnvFile   (printers, cloud link, email)
+  Settings:  $EnvFile   (printers, cloud link or counter only, email)
   Pictures, logs and backup status: $State
   Backups:   every night at 04:30 to a USB drive named FAIDABACKUP
              (rename the drive to FAIDABACKUP; test now: Start-ScheduledTask "Faida backup")
   Update:    $Base\current\deploy\local\windows\update.ps1 -Archive faida-<version>.zip
 Turn on automatic sign-in for $KioskUser (netplwiz), then follow docs\install-checklist.md from step 3.
 "@
+if ($Offline) { Write-Host "Counter only: skip the cloud step (7) of the checklist." }

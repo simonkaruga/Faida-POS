@@ -9,7 +9,7 @@ export type Health = {
   version: string;
   set_up: boolean;
   business_name: string | null;
-  cloud: "not_linked" | "online" | "offline";
+  cloud: "not_linked" | "off" | "online" | "offline"; // off: a counter-only install, by choice
   waiting_to_sync: number | null;
   last_synced_at: string | null;
   printers: "not_set_up" | "ok" | "offline";

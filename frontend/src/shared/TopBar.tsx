@@ -1,4 +1,4 @@
-import { Cloud, CloudOff, Printer } from "lucide-react";
+import { Cloud, CloudOff, HardDrive, Printer } from "lucide-react";
 import { FaidaMark } from "./Brand";
 import { useEffect, useState } from "react";
 import type { Health, Role } from "../services/api";
@@ -31,9 +31,11 @@ export function TopBar({ health, reachable, staff }: Props) {
       ? { tone: "green", label: "Online" }
       : health?.cloud === "offline"
         ? { tone: "yellow", label: `Offline${health.waiting_to_sync ? ` · ${health.waiting_to_sync} to send` : ""}` }
-        : { tone: "muted", label: "Cloud not linked" };
+        : health?.cloud === "off"
+          ? { tone: "muted", label: "Counter only" }
+          : { tone: "muted", label: "Cloud not linked" };
   const printerTone = health?.printers === "ok" ? "green" : health?.printers === "offline" ? "orange" : "muted";
-  const CloudIcon = cloud.tone === "green" ? Cloud : CloudOff;
+  const CloudIcon = cloud.tone === "green" ? Cloud : health?.cloud === "off" && reachable ? HardDrive : CloudOff;
 
   return (
     <header className="topbar">

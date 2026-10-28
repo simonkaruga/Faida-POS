@@ -78,8 +78,10 @@ def create_app(
     app.state.config = config
     app.state.tz = ZoneInfo(config.timezone)
     app.state.engine = engine
-    # In the cloud, rows arrive by sync and must not be queued again.
-    app.state.sessionmaker = sessionmaker(engine, expire_on_commit=False, info={"no_sync_queue": not local})
+    # In the cloud, rows arrive by sync and must not be queued again; a counter-only
+    # install never uploads, so it doesn't queue either.
+    app.state.sessionmaker = sessionmaker(engine, expire_on_commit=False,
+                                          info={"no_sync_queue": not local or config.offline_only})
     app.state.sessions = SessionStore(idle_seconds=config.session_idle_minutes * 60)
     app.state.keypad = KeypadGuard(config.pin_max_attempts, config.pin_lockout_seconds)
     app.state.owner_logins = LoginGuard()
@@ -91,7 +93,7 @@ def create_app(
     app.state.sync = (
         SyncClient(app.state.sessionmaker, config.cloud_url, config.cloud_token, transport=sync_transport,
                    backup_status=lambda: backup.read_status(config))
-        if local and config.cloud_url and config.cloud_token else None
+        if local and config.cloud_url and config.cloud_token and not config.offline_only else None
     )
 
     api = APIRouter(prefix="/api")
@@ -108,7 +110,8 @@ def create_app(
             "version": VERSION,
             "set_up": len(business) == 1,
             "business_name": business[0].name if len(business) == 1 else None,
-            "cloud": "not_linked" if sync is None else sync.status(config.sync_interval_seconds),
+            "cloud": ("off" if config.offline_only else "not_linked") if sync is None
+                     else sync.status(config.sync_interval_seconds),
             "waiting_to_sync": sync.pending() if sync else None,
             "last_synced_at": sync.last_ok_at.isoformat() if sync and sync.last_ok_at else None,
             "printers": app.state.printing.status() if local else "not_set_up",

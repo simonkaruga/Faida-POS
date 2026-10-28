@@ -8,6 +8,7 @@ Client: ____________________  Date: ____________  Technician: __________________
 
 - [ ] Release built on the office machine: `deploy/make-release.sh`. Copy `releases/faida-<version>.zip` (Windows) or `.tar.gz` (Linux) to a USB stick.
 - [ ] Menu typed up as a JSON file, using `docs/sample-menu.json` as the pattern. It holds categories, items, sizes and prices, tables and sections, choices (mixers, sides), combos and happy hour. Recipes and stock items go in a second file if the owner wants stock from day one.
+- [ ] Ask whether the client wants the **owner's phone view** (needs the Faida cloud and internet) or **counter only** (nothing leaves the bar). For counter only, add `--offline` / `-Offline` at step 2 and skip step 7.
 - [ ] On the cloud, the client's **business ID** isn't known yet. You will register the counter at step 7.
 - [ ] Bring: a USB drive for backups (16 GB or more), a network cable, spare thermal paper.
 
@@ -26,6 +27,7 @@ Windows: unzip the release, open PowerShell **as administrator** in that folder,
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File deploy\local\windows\install.ps1 -KioskUser counter
+# counter only: add -Offline
 ```
 
 Linux: unpack the release, then run:
@@ -33,6 +35,7 @@ Linux: unpack the release, then run:
 ```bash
 tar -xzf faida-<version>.tar.gz && cd faida-<version>
 sudo ./deploy/local/linux/install.sh --kiosk-user counter
+# counter only: add --offline
 ```
 
 The installer asks for:
@@ -44,7 +47,7 @@ The installer asks for:
 | Kitchen printer | `network:<its IP>`, for example `network:192.168.1.50` |
 | Receipt paper width | `80` or `58`, the width of the paper roll in mm. If the two printers differ, fix one later in the settings file (`FAIDA_COUNTER_PAPER_MM`, `FAIDA_KITCHEN_PAPER_MM`) |
 | Backup passphrase | A long phrase. **Write it on the client's sealed card and in Avinaya's password manager.** Without it no backup can ever be opened |
-| Cloud URL and token | Leave empty for now; this is done at step 7 |
+| Cloud URL and token | Leave empty for now; this is done at step 7. Not asked with `--offline` |
 | Business name, owner's name, owner PIN | As on receipts. The owner types her own PIN |
 | Menu file | The path to the JSON file |
 
@@ -67,6 +70,7 @@ The installer asks for:
 - [ ] Run one backup now. Windows: `Start-ScheduledTask "Faida backup"`. Linux: `sudo systemctl start faida-backup`.
 - [ ] A `faida-local-….fbk` file is on the drive, in the `faida` folder.
 - [ ] The drive stays plugged in. The backup runs every night at 04:30, or when the PC next starts if it was off.
+- [ ] Show the owner: if a backup fails or the drive is missing, a red line appears at the top of her dashboard in the Owner area. Counter only: that line is the only warning, since nothing reaches Avinaya.
 
 ## 5. Business data (Owner area > Setup)
 
@@ -83,7 +87,9 @@ The installer asks for:
 - [ ] Load stock items and recipes with `python -m app.cli load-stock stock.json`, or enter them in Owner area > Stock.
 - [ ] Do a **stock take** with the owner: count every bottle and crate, and enter it.
 
-## 7. Link to the cloud
+## 7. Link to the cloud (skip for counter only)
+
+Counter only: check the top bar says **Counter only**, then go to step 8.
 
 - [ ] On the counter, get the business ID. Windows: `cd C:\Faida\current\backend; .venv\Scripts\python -m app.ops set-up`. Linux: `cd /opt/faida/current/backend && sudo -u faida env FAIDA_ENV_FILE=/etc/faida/counter.env .venv/bin/python -m app.ops set-up`.
 - [ ] On the cloud, register the counter: `register-device --business-id <id>` (see `deploy/cloud/README.md`). Copy the token it prints.

@@ -6,8 +6,8 @@
 A backup holds the database and the PIN secret (without it staff PINs stop working
 after a restore), so it is always encrypted with FAIDA_BACKUP_PASSPHRASE. Keep that
 passphrase somewhere safe away from the counter: without it a backup can't be opened.
-The result is written to a status file, which the counter sends to the cloud so
-Avinaya is alerted when backups stop.
+The result is written to a status file. The owner's dashboard warns when backups fail
+or stop, and a linked counter also sends it to the cloud so Avinaya is alerted.
 """
 
 import argparse
@@ -22,7 +22,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -32,6 +32,7 @@ from app.settings.config import VERSION, Config, get_config
 
 MAGIC = b"FAIDA-BACKUP-1\n"
 KEEP = 14
+LATE = timedelta(hours=36)  # nightly, with room for a PC that was off for a night
 
 
 class BackupError(Exception):
@@ -62,6 +63,22 @@ def read_status(config: Config) -> dict:
         return json.loads(status_path(config).read_text())
     except (OSError, ValueError):
         return {}
+
+
+def problem(config: Config, at: datetime) -> str | None:
+    """What the owner should know about backups, or None. Silent where backups aren't set
+    up (no passphrase), e.g. on a development machine."""
+    if not config.backup_passphrase:
+        return None
+    status = read_status(config)
+    last = datetime.fromisoformat(status["last_ok_at"]) if status.get("last_ok_at") else None
+    if status.get("error"):  # a good backup clears it
+        return f"Last night's backup failed: {status['error']}"
+    if last is None:
+        return "No backup has been made yet. Is the USB drive plugged in?"
+    if at - last > LATE:
+        return f"No backup since {last.astimezone(at.tzinfo):%d %b}. Is the USB drive plugged in?"
+    return None
 
 
 def _write_status(config: Config, **fields) -> None:

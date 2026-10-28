@@ -19,10 +19,10 @@ Client: ____________________  Version: ________  Date: ____________
 | 11 | End of shift: cash counted, M-Pesa and card checked, shortage recorded | |
 | 12 | Daily closing: sales by section, free items, voids, cash box, stock | |
 | 13 | Closing report: Excel download, print / PDF, and the email arrives | |
-| 14 | Owner's phone: today's numbers with "Last updated" | |
-| 15 | Internet unplugged: selling carries on; the phone catches up when it's back | |
+| 14 | Owner's phone: today's numbers with "Last updated". *Counter only: the top bar says "Counter only", and the owner sees today's numbers in the Owner area* | |
+| 15 | Internet unplugged: selling carries on; the phone catches up when it's back. *Counter only: selling works with the router switched off* | |
 | 16 | Owner can change a price, add an item with a picture, add a table and a staff member | |
-| 17 | Backup file on the USB drive from last night | |
+| 17 | Backup file on the USB drive from last night; the owner knows the red dashboard line means "check the backup drive" | |
 | 18 | Backup passphrase and disk recovery key handed over in a sealed envelope | |
 | 19 | Staff trained and house rules signed | |
 | 20 | Support contact (WhatsApp) saved on the owner's phone: ______________ | |

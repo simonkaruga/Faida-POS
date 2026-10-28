@@ -2,22 +2,26 @@
 # Install Faida on a Linux counter PC (Ubuntu 22.04/24.04 or Debian 12). Run from an
 # unpacked release, as root:
 #
-#   sudo ./deploy/local/linux/install.sh [--kiosk-user counter] [--lan]
+#   sudo ./deploy/local/linux/install.sh [--kiosk-user counter] [--lan] [--offline]
 #
 #   --kiosk-user   the desktop account that logs in automatically and shows the counter
 #                  full-screen (default: the account that ran sudo)
 #   --lan          also serve the screens on the local network (Android touch screen,
 #                  second terminal). Without it only this PC can open them.
+#   --offline      counter only: the client keeps everything at the bar. No cloud link,
+#                  no owner phone view; nothing is queued or sent.
 #
 # Safe to run again: existing settings, database and pictures are kept.
 set -euo pipefail
 
 KIOSK_USER="${SUDO_USER:-}"
 HOST=127.0.0.1
+OFFLINE=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --kiosk-user) KIOSK_USER="$2"; shift 2 ;;
     --lan) HOST=0.0.0.0; shift ;;
+    --offline) OFFLINE=true; shift ;;
     *) echo "Unknown option $1"; exit 2 ;;
   esac
 done
@@ -72,8 +76,9 @@ if [ ! -f "$ENV_FILE" ]; then
     [ -n "$PASS" ] && [ "$PASS" = "$PASS2" ] && break
     echo "Empty, or they don't match. Try again."
   done
-  read -rp "Cloud URL, e.g. https://faida.co.ke (empty: link later): " CLOUD_URL
+  CLOUD_URL=""
   CLOUD_TOKEN=""
+  $OFFLINE || read -rp "Cloud URL, e.g. https://faida.co.ke (empty: link later): " CLOUD_URL
   [ -n "$CLOUD_URL" ] && read -rp "Counter token from 'register-device' on the cloud: " CLOUD_TOKEN
   umask 077
   cat > "$ENV_FILE" <<CONF
@@ -90,6 +95,8 @@ FAIDA_KITCHEN_PRINTER=${KITCHEN_PRINTER:-${COUNTER_PRINTER:-device:/dev/usb/lp0}
 FAIDA_COUNTER_PAPER_MM=$PAPER_MM
 FAIDA_KITCHEN_PAPER_MM=$PAPER_MM
 FAIDA_BACKUP_PASSPHRASE=$PASS
+# true: counter only, nothing leaves the bar (no cloud, no phone view).
+FAIDA_OFFLINE_ONLY=$OFFLINE
 FAIDA_CLOUD_URL=$CLOUD_URL
 FAIDA_CLOUD_TOKEN=$CLOUD_TOKEN
 # Email the daily closing (optional). Gmail: smtp.gmail.com, 587, an app password.
@@ -103,6 +110,11 @@ CONF
   chmod 640 "$ENV_FILE"
 else
   echo "Keeping the existing settings."
+  if $OFFLINE; then
+    sed -i '/^FAIDA_OFFLINE_ONLY=/d' "$ENV_FILE"
+    echo "FAIDA_OFFLINE_ONLY=true" >> "$ENV_FILE"
+    echo "Counter only: the cloud link is switched off."
+  fi
 fi
 echo "FAIDA_HOST=$HOST" > /etc/faida/listen.env
 
@@ -149,11 +161,12 @@ fi
 cat <<DONE
 
 Faida $VERSION is installed and running: http://localhost:8000
-  Settings:  $ENV_FILE   (printers, cloud link, email)
+  Settings:  $ENV_FILE   (printers, cloud link or counter only, email)
   Pictures and backup status: $STATE
   Backups:   every night at 04:30 to a USB drive labelled FAIDABACKUP
              (format it and name it FAIDABACKUP; check with: sudo systemctl start faida-backup)
   Logs:      journalctl -u faida-counter -f
   Update:    sudo $BASE/current/deploy/local/linux/update.sh faida-<version>.tar.gz
-Now follow docs/install-checklist.md from step 3.
+Now follow docs/install-checklist.md from step 3.$($OFFLINE && echo "
+Counter only: skip the cloud step (7) of the checklist.")
 DONE

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from app import backup
 from app.audit import service as audit
 from app.auth.deps import Actor, CurrentActor, Db, require
 from app.auth.permissions import Action, Level, level
@@ -55,7 +56,10 @@ def get_dashboard(actor: Closer, request: Request, db: Db) -> dict[str, Any]:
     """The owner area's home page: today so far against the same day last week, what's
     selling, who's on shift and what needs attention. Profit for the owner only."""
     tz = request.app.state.tz
-    return dashboard(db, actor.business_id, today(db, actor.business_id, tz), tz, now(), _money(actor))
+    data = dashboard(db, actor.business_id, today(db, actor.business_id, tz), tz, now(), _money(actor))
+    if trouble := backup.problem(request.app.state.config, now()):
+        data["alerts"].insert(0, {"tone": "bad", "text": trouble})
+    return data
 
 
 @router.get("/closing")

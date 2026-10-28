@@ -10,7 +10,7 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 
 class Config(BaseSettings):
@@ -44,6 +44,10 @@ class Config(BaseSettings):
     # Wrong PINs in a row before the keypad pauses, and for how long.
     pin_max_attempts: int = 5
     pin_lockout_seconds: int = 30
+
+    # Counter only: the client keeps everything at the bar. Nothing is queued or sent to
+    # the cloud, even if a cloud URL is set; backup warnings show on the owner's dashboard.
+    offline_only: bool = False
 
     # Counter: where to upload, with the token from `register-device` on the cloud.
     cloud_url: str | None = None

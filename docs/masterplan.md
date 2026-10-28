@@ -601,6 +601,7 @@ The quotation promises about **10–14 working days**. The order below makes sur
 | 22 | Pay-outs and cash credit payments had no cash to come from or go to | A **counter cash box**: hand-overs in, floats and pay-outs out, cash credit payments in. Its expected balance is checked at closing |
 | 23 | How discounts work was not defined | **A fixed amount or a percentage of the whole bill**, approved by Owner or Supervisor PIN for waiters. Sales and the waiter's cash due are net of it |
 | 24 | What cancelling a paid bill does was not defined | **Full reversal**: its payments and sales are removed, and the approver picks *not prepared → back to stock* or *already served → waste*. Only while the shift that finished the bill is still open; after hand-over a refund is a pay-out |
+| 25 | The client wants the system offline: nothing leaving the bar | **Counter only** (installer `--offline`): no cloud link, no phone view (4.10), nothing queued for upload. The owner reads reports in the Owner area. Backup failures, normally reported by the cloud health monitor (7.2), show on the owner's dashboard. Linking the cloud later would need a one-time full upload, which is not built yet (decided 28 Oct 2026) |
 
 ### 15.3 Final checks
 
