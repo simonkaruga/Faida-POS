@@ -12,10 +12,14 @@ export default defineConfig({
     },
   },
   server: {
+    // Development ports stay clear of the usual 8000/5173, so other projects can run
+    // alongside. An installed counter still serves everything on 8000.
+    port: 5180,
+    strictPort: true,
     proxy: {
-      // In development the counter backend runs on 8000 and the cloud backend on 8100.
-      "/api": "http://localhost:8000",
-      "/cloud": { target: "http://localhost:8100", rewrite: (path) => path.replace(/^\/cloud/, "") },
+      // In development the counter backend runs on 8010 and the cloud backend on 8110.
+      "/api": "http://localhost:8010",
+      "/cloud": { target: "http://localhost:8110", rewrite: (path) => path.replace(/^\/cloud/, "") },
     },
   },
   test: {

@@ -3,8 +3,8 @@
   "private": true,
   "scripts": {
     "start": "concurrently --kill-others --names api,cloud,web --prefix-colors blue,magenta,green \"npm:start:api\" \"npm:start:cloud\" \"npm:start:web\"",
-    "start:api": "cd backend && .venv/bin/uvicorn app.main:create_app --factory --reload --port 8000",
-    "start:cloud": "cd backend && .venv/bin/uvicorn app.main:create_app --factory --reload --port 8100 --env-file .env.cloud",
+    "start:api": "cd backend && .venv/bin/uvicorn app.main:create_app --factory --reload --port 8010",
+    "start:cloud": "cd backend && .venv/bin/uvicorn app.main:create_app --factory --reload --port 8110 --env-file .env.cloud",
     "start:web": "npm --prefix frontend run dev"
   },
   "devDependencies": {

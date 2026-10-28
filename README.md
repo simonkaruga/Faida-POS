@@ -40,14 +40,14 @@ cp .env.example .env          # set FAIDA_PIN_SECRET and FAIDA_DATABASE_URL
 Then, from the repo root:
 
 ```bash
-npm start      # counter backend :8000, cloud backend :8100, frontend http://localhost:5173
+npm start      # counter backend :8010, cloud backend :8110, frontend http://localhost:5180
 ```
 
 `npm run start:api`, `start:cloud` and `start:web` start just one of them. PostgreSQL
 must already be running.
 
-- Counter screens: http://localhost:5173
-- Owner's phone view: http://localhost:5173/phone.html (try it in the browser's phone mode)
+- Counter screens: http://localhost:5180
+- Owner's phone view: http://localhost:5180/phone.html (try it in the browser's phone mode)
 
 ### The development cloud
 
