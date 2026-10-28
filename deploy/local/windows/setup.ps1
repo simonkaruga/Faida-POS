@@ -32,6 +32,28 @@ try {
     }
   }
   $Installed = (Test-Path "$Base\counter.env") -and (Test-Path "$Base\current\VERSION")
+
+  # Close the counter screen (and the kiosk loop of 0.3.1, which could open a window every
+  # 2 seconds); it is opened again at the end.
+  Stop-ScheduledTask -TaskName "Faida kiosk" -ErrorAction SilentlyContinue
+  Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" | Where-Object { $_.CommandLine -like "*kiosk.ps1*" } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+  Get-CimInstance Win32_Process -Filter "Name = 'chrome.exe' OR Name = 'msedge.exe'" | Where-Object { $_.CommandLine -like "*FaidaKiosk*" } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+
+  if ($Installed) {
+    # Neither counter only nor a real cloud address (e.g. "link later" was typed): ask.
+    $Saved = Get-Content "$Base\counter.env"
+    if (-not $Offline -and -not ($Saved -match '^FAIDA_OFFLINE_ONLY=true') -and -not ($Saved -match '^FAIDA_CLOUD_URL=https?://')) {
+      $Answer = Read-Host "Counter only: nothing leaves the bar, no internet needed (no phone view)? Press Enter for YES, or type N"
+      if ($Answer -notmatch '^[nN]') { $Offline = [switch]$true }
+    }
+    if ($Offline -and -not ($Saved -match '^FAIDA_OFFLINE_ONLY=true')) {
+      Set-Content -Encoding ASCII "$Base\counter.env" (@($Saved | Where-Object { $_ -notmatch '^FAIDA_OFFLINE_ONLY=' }) + "FAIDA_OFFLINE_ONLY=true")
+      Write-Host "Counter only: the cloud link is switched off."
+    }
+  }
+
   if (-not $Installed) {
     Write-Host "Installing Faida POS $Version on this PC.`n" -ForegroundColor Cyan
     & "$PSScriptRoot\install.ps1" -Offline:$Offline -Bundle $Bundle
@@ -46,11 +68,6 @@ try {
       } else {
         # An earlier install stopped part-way: stop what is running and finish it.
         Write-Host "Finishing the installation of Faida POS $Version (settings already saved are kept).`n" -ForegroundColor Cyan
-        $Env = Get-Content "$Base\counter.env"
-        if (-not $Offline -and -not ($Env -match '^FAIDA_OFFLINE_ONLY=true') -and -not ($Env -match '^FAIDA_CLOUD_URL=https?://')) {
-          $Answer = Read-Host "Counter only: nothing leaves the bar, no internet needed (no phone view)? Press Enter for YES, or type N"
-          if ($Answer -notmatch '^[nN]') { $Offline = [switch]$true }
-        }
         Stop-ScheduledTask -TaskName "Faida counter" -ErrorAction SilentlyContinue
         Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" | Where-Object { $_.CommandLine -like "*uvicorn*app.main*" } |
           ForEach-Object { taskkill /T /F /PID $_.ProcessId 2>$null | Out-Null }
@@ -70,6 +87,7 @@ try {
 }
 
 if ($ok) {
+  Start-ScheduledTask -TaskName "Faida kiosk" -ErrorAction SilentlyContinue  # the counter screen again
   Write-Host "`nDone." -ForegroundColor Green
 } else {
   Write-Host "`nSetup did not finish. Fix the problem above and run FaidaSetup.exe again; settings already saved are kept." -ForegroundColor Red
