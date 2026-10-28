@@ -83,7 +83,7 @@ try {
   Set-Current $New
   Py $New -m alembic upgrade head
   Start-Counter
-  Py $New -m app.ops wait-healthy --version $NewVersion --seconds 90
+  Py $New -m app.ops wait-healthy --version $NewVersion --seconds 300
 } catch {
   Write-Host "`nUpdate failed: $_`nRolling back to $OldVersion" -ForegroundColor Yellow
   Stop-Counter

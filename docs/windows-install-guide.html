@@ -86,7 +86,7 @@
 <h3>Put on a USB stick</h3>
 <table class="tick">
   <tr><th>Item</th><th>✓</th></tr>
-  <tr><td><code>FaidaSetup-0.3.1.exe</code>, <code>FaidaSetup-0.3.1.exe.sha256</code> and this guide: copy the whole folder <code>releases/USB</code> (made by <code>deploy/make-windows-setup.sh</code>)</td><td></td></tr>
+  <tr><td><code>FaidaSetup-0.3.1.exe</code>, <code>FaidaSetup-0.3.1.exe.sha256</code>, <code>Faida-Check.bat</code> (with <code>Faida-Check.ps1</code>) and this guide: copy the whole folder <code>releases/USB</code> (made by <code>deploy/make-windows-setup.sh</code>)</td><td></td></tr>
   <tr><td>The menu file, <code>chewaz-menu.json</code>: categories, items, sizes, prices, tables, choices (mixers, sides). Use <code>docs/sample-menu.json</code> as the pattern. If the owner wants stock from day one, add the stock items and recipes to the same file</td><td></td></tr>
   <tr><td>The <b>Xprinter Windows driver</b> (from the CD in the printer box, or downloaded from Xprinter's website beforehand). There is no internet on site</td><td></td></tr>
   <tr><td>The <b>Google Chrome offline installer</b> (<code>ChromeStandaloneSetup64.exe</code>), in case the PC's Microsoft Edge is old or missing</td><td></td></tr>
@@ -160,6 +160,7 @@
   <li>Wait for <b>"Faida 0.3.1 is installed and running"</b>, then <b>"Done."</b> in green. Press <kbd>Enter</kbd> to close the console, then <b>Finish</b>.</li>
   <li>A <b>Faida POS</b> icon (the orange and navy Faida mark) is now on the desktop. Double-clicking it opens the counter screen full-screen. Faida also opens by itself at sign-in, so the icon is for when someone has closed it.</li>
 </ol>
+<div class="box note"><b>"Waiting for Faida to start"</b> can take a few minutes the first time on a 4 GB PC. Be patient. If Faida still doesn't answer after 5 minutes, the setup checks why by itself, tries to start it, and shows the result.</div>
 <div class="box note"><b>If it stops with red text:</b> read the message; it says what is wrong (e.g. the passphrases didn't match). Fix it and run <code>FaidaSetup-0.3.1.exe</code> again: answers already saved are kept and it carries on. The full log is in <code>C:\Faida\setup-logs</code>. Stuck? Call support: +254 797 033 513.</div>
 
 <h2>5. Sign-in, restart and full screen <span class="time">≈ 10 min</span></h2>
@@ -254,6 +255,7 @@
 <table>
   <tr><th style="width:34%">What you see</th><th>What to do</th></tr>
   <tr><td>"Windows protected your PC" when starting the setup</td><td>More info &gt; Run anyway (section 4)</td></tr>
+  <tr><td>"The counter didn't start" or "Not healthy after … s"</td><td>Open Edge and go to <code>localhost:8000</code>. If the Faida PIN screen shows, it was only slow: run <code>FaidaSetup-0.3.1.exe</code> again to finish. If not, double-click <b>Faida-Check.bat</b> on the USB stick (see below)</td></tr>
   <tr><td>Setup stops with red text</td><td>Read the message, fix it, run the setup again (it keeps what was saved). Log: <code>C:\Faida\setup-logs</code></td></tr>
   <tr><td>The counter screen was closed and the desktop shows</td><td>Double-click the <b>Faida POS</b> icon on the desktop. If the icon is missing, run <code>FaidaSetup-0.3.1.exe</code> again: it puts the icon back and changes nothing else</td></tr>
   <tr><td>After a restart the desktop shows instead of Faida</td><td>Automatic sign-in is off (section 5), or the counter is still starting: wait 2 minutes. Check Task Scheduler has <b>Faida counter</b> and <b>Faida kiosk</b></td></tr>
@@ -266,6 +268,9 @@
   <tr><td>"Too many wrong PINs. Try again in … seconds."</td><td>Too many wrong PINs in a row. Wait, then type carefully</td></tr>
   <tr><td>The PC is slow</td><td>Close anything else running; check nothing else starts with Windows (section 2.7)</td></tr>
 </table>
+
+<h3>Faida-Check: when something is wrong</h3>
+<p>On the USB stick, next to the installer, is <b>Faida-Check.bat</b>. Double-click it on the counter PC and click <b>Yes</b> when Windows asks. It checks the files, the database, Faida's background task, port 8000 and the log. If Faida isn't running, it starts it, and often that fixes the problem by itself: it then says <b>FIXED</b>. Either way it saves a report file (<code>faida-report-….txt</code>, with passwords hidden) <b>on the USB stick</b>. Bring the stick back, or send the report or a photo of the window to support: +254 797 033 513.</p>
 
 <h2>13. Updating later</h2>
 <ul>

@@ -194,11 +194,17 @@ $Backup = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfil
 $BSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 Register-ScheduledTask -TaskName "Faida backup" -Action $Backup -Trigger (New-ScheduledTaskTrigger -Daily -At 4:30am) -Settings $BSettings -User "SYSTEM" -RunLevel Highest -Force | Out-Null
 
+Write-Host "Waiting for Faida to start. The first time can take a few minutes on a slow PC..."
 Push-Location "$Base\current\backend"
-& $Py -m app.ops wait-healthy --version $Version --seconds 90
+& $Py -m app.ops wait-healthy --version $Version --seconds 300
 $ok = -not $LASTEXITCODE
 Pop-Location
-if (-not $ok) { throw "The counter didn't start. See $State\logs\counter.log" }
+if (-not $ok) {
+  Write-Host "`nFaida didn't answer yet. Checking why, and trying to start it..." -ForegroundColor Yellow
+  & "$Here\check.ps1" -ReportDir "$Base\setup-logs" -NoPause
+  try { $ok = [bool](Invoke-RestMethod "http://127.0.0.1:8000/api/health" -TimeoutSec 5) } catch { $ok = $false }
+  if (-not $ok) { throw "The counter didn't start. The check above says why; its report is in $Base\setup-logs." }
+}
 
 Say "8/8 Full-screen counter at login for $KioskUser"
 $Kiosk = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$Base\current\deploy\local\windows\kiosk.ps1`""
