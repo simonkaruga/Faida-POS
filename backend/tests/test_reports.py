@@ -209,3 +209,21 @@ def test_owner_slips_print_on_the_receipt_printer(client, owner, people, opts, p
     assert slip("debtors", login(client, JANE)).status_code == 403
     counter.fail = True
     assert slip("debtors").json() == {"status": "not_printed"}
+
+
+def test_expense_details_and_month_totals(client, owner):
+    r = client.post("/api/expenses", headers=owner, json={
+        "category": "supplies", "quantity": 3, "unit_price": 800, "payee": "Mama Mboga", "paid_how": "cash_box",
+        "note": "Charcoal"})
+    assert r.status_code == 201, r.text
+    e = r.json()
+    assert (e["amount"], e["from_cash_box"], e["payee"]) == (2400, True, "Mama Mboga")
+    assert client.get("/api/cashbox", headers=owner).json()["expected"] == -2400
+    client.post("/api/expenses", headers=owner, json={
+        "category": "power", "amount": 4500, "payee": "KPLC", "paid_how": "mpesa", "reference": "QK7PX2"})
+    assert client.post("/api/expenses", headers=owner, json={"category": "rent"}).status_code == 422
+    rent = client.post("/api/expenses", headers=owner, json={"category": "rent", "amount": 9000}).json()
+    client.post(f"/api/expenses/{rent['id']}/reverse", headers=owner)
+    month = client.get("/api/expenses/summary", headers=owner).json()["this_month"]
+    assert month["total"] == 6900
+    assert (month["by_category"]["supplies"], month["by_category"]["power"], month["by_category"]["rent"]) == (2400, 4500, 0)

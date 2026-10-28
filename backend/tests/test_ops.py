@@ -17,7 +17,7 @@ def test_busy_counts_open_bills(client, owner, menu):
 
 
 def test_revision_is_the_latest_migration():
-    assert ops.revision(TEST_DB).startswith("0007")
+    assert ops.revision(TEST_DB).startswith("0008")
 
 
 def test_set_up_prints_the_business_id(monkeypatch, capsys, business):

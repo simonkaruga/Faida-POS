@@ -13,9 +13,9 @@ from app.auth.permissions import Action
 from app.credit.models import CreditCollection, CreditCustomer
 from app.credit.service import oldest_unpaid, owed
 from app.db import now
-from app.floor.models import BillStatus
+from app.floor.models import Bill, BillStatus
 from app.floor.schemas import BillOut, bill_detail
-from app.floor.service import Printing, amounts, finish_bill, load_bill
+from app.floor.service import Printing, amounts, finish_bill, load_bill, place
 from app.payments.models import Method
 from app.payments.router import make_receipt, mpesa_ref
 from app.settings.service import get_settings, today
@@ -64,6 +64,33 @@ def debtors(actor: Collector, db: Db) -> list[CustomerOut]:
     rows = [_out(db, c) for c in db.scalars(select(CreditCustomer).where(CreditCustomer.business_id == actor.business_id))]
     owing = [r for r in rows if r.owed > 0]
     return sorted(owing, key=lambda r: r.oldest_unpaid or now())
+
+
+class HistoryRow(BaseModel):
+    at: datetime
+    kind: str  # "credit": a bill put on credit; "paid": the customer paying
+    what: str  # the order, or how it was paid
+    amount: int
+    balance: int  # still owed after this
+    by: str | None
+
+
+@router.get("/credit/customers/{customer_id}/history")
+def history(customer_id: uuid.UUID, actor: Collector, db: Db) -> list[HistoryRow]:
+    """Every credit and payment, oldest first, with what is still owed after each."""
+    customer = _customer(db, actor, customer_id)
+    names = {s.id: s.name for s in db.scalars(select(Staff).where(Staff.business_id == actor.business_id))}
+    rows = [(b.closed_at or b.created_at, "credit", f"{place(db, b)} · #{b.number:04d}", b.credit_amount, names.get(b.waiter_id))
+            for b in db.scalars(select(Bill).where(Bill.credit_customer_id == customer.id, Bill.status == BillStatus.credit))]
+    method = {"cash": "Cash", "mpesa": "M-Pesa", "card": "Card"}
+    rows += [(c.created_at, "paid", method[c.method.value] + (f" · code {c.mpesa_ref}" if c.mpesa_ref else ""), c.amount,
+              names.get(c.created_by))
+             for c in db.scalars(select(CreditCollection).where(CreditCollection.customer_id == customer.id))]
+    out, balance = [], 0
+    for at, kind, what, amount, by in sorted(rows, key=lambda r: r[0]):
+        balance += amount if kind == "credit" else -amount
+        out.append(HistoryRow(at=at, kind=kind, what=what, amount=amount, balance=balance, by=by))
+    return out
 
 
 class CustomerIn(BaseModel):

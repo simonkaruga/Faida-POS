@@ -45,6 +45,7 @@ import { Keypad } from "../shared/Keypad";
 import { Modal } from "../shared/Modal";
 import { formatKsh } from "../shared/money";
 import { toast } from "../shared/Toast";
+import { useThemeChoice } from "../shared/theme";
 
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong.");
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -713,27 +714,12 @@ export function SettingsEditor() {
   const [newNote, setNewNote] = useState("");
   const [start, setStart] = useState(getStartScreen);
   const [newEmail, setNewEmail] = useState("");
-  const [theme, setTheme] = useState(() => {
-    try {
-      return localStorage.getItem("faida-theme") ?? "light";
-    } catch {
-      return "light";
-    }
-  });
+  const [theme, changeTheme] = useThemeChoice();
   useEffect(() => {
     if (data) setForm(data);
   }, [data]);
   if (!form) return <div className="screen-loading">{error ?? <span className="spinner" />}</div>;
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setForm({ ...form, [k]: v });
-  const changeTheme = (t: string) => {
-    setTheme(t);
-    document.documentElement.dataset.theme = t;
-    try {
-      localStorage.setItem("faida-theme", t);
-    } catch {
-      // the choice just won't be remembered on this device
-    }
-  };
   const save = () =>
     updateSettings({
       business_day_cutoff: form.business_day_cutoff.slice(0, 5),
@@ -778,9 +764,9 @@ export function SettingsEditor() {
         <div className="row" style={{ marginTop: 10 }}>
           <span className="muted">This screen:</span>
           <div className="segmented">
-            {["light", "dark"].map((t) => (
+            {(["light", "dark", "auto"] as const).map((t) => (
               <button key={t} className={theme === t ? "on" : ""} onClick={() => changeTheme(t)}>
-                {t === "dark" ? "Dark (dim bar)" : "Bright"}
+                {{ light: "Bright", dark: "Dark (dim bar)", auto: "Auto: dark 6 pm to 6 am" }[t]}
               </button>
             ))}
           </div>

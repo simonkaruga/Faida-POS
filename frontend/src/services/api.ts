@@ -281,6 +281,8 @@ export const putOnCredit = (billId: string, customerId: string, approvalId?: str
 export const markUnpaid = (billId: string) => api<Bill>(`/bills/${billId}/unpaid`, { method: "POST" });
 export const collectCredit = (customerId: string, body: { amount: number; method: "cash" | "mpesa"; mpesa_code?: string }) =>
   api<CreditCustomer>(`/credit/customers/${customerId}/collections`, { body });
+export type CreditHistoryRow = { at: string; kind: "credit" | "paid"; what: string; amount: number; balance: number; by: string | null };
+export const getCreditHistory = (customerId: string) => api<CreditHistoryRow[]>(`/credit/customers/${customerId}/history`);
 
 // Shifts and cash-up
 export type CashUp = {
@@ -354,6 +356,8 @@ export const getActiveStaff = () => api<(Person & { role: Role })[]>("/staff/act
 export type CashBox = {
   expected: number;
   today: { id: string; kind: "handover" | "float" | "payout" | "credit_collected" | "owner"; amount: number; note: string | null; by: string; at: string }[];
+  takings: { cash: number; mpesa: number; card: number; credit: number; unpaid: number; total: number; credit_paid_cash: number; credit_paid_mpesa: number } | null;
+  payments: { at: string; what: string; method: "cash" | "mpesa" | "card" | "credit" | "credit_paid"; paid_by: "cash" | "mpesa" | "card" | null; amount: number; ref: string | null; by: string }[];
 };
 export const getCashBox = () => api<CashBox>("/cashbox");
 export const recordPayout = (amount: number, reason: string) => api<CashBox>("/payouts", { body: { amount, reason } });
@@ -460,7 +464,24 @@ export type Report = {
   credit_collected: { cash: number; mpesa: number; total: number };
   comps: Comps;
 };
-export type Expense = { id: string; category: string; amount: number; note: string | null; business_day: string; from_cash_box: boolean; reversed: boolean; is_reversal: boolean; by: string };
+export type PaidHow = "cash_box" | "cash" | "mpesa" | "bank";
+export type Expense = {
+  id: string;
+  category: string;
+  amount: number;
+  note: string | null;
+  business_day: string;
+  from_cash_box: boolean;
+  reversed: boolean;
+  is_reversal: boolean;
+  by: string;
+  payee: string | null;
+  paid_how: PaidHow | null;
+  reference: string | null;
+  quantity: string | null;
+  unit_price: number | null;
+};
+export type MonthTotals = { month: string; total: number; by_category: Record<string, number> };
 
 export const getClosing = (day?: string) => api<Closing>(`/closing${day ? `?day=${day}` : ""}`);
 /** Owner printouts on the counter's receipt printer (80 mm). */
@@ -499,8 +520,19 @@ export const getDashboard = () => api<Dashboard>("/dashboard");
 
 export const getReport = (start: string, end: string) => api<Report>(`/reports?start=${start}&end=${end}`);
 export const getExpenses = (start: string, end: string) => api<Expense[]>(`/expenses?start=${start}&end=${end}`);
-export const addExpense = (body: { category: string; amount: number; note?: string; from_cash_box: boolean }) =>
-  api<Expense>("/expenses", { body });
+export const addExpense = (body: {
+  category: string;
+  amount?: number;
+  note?: string;
+  business_day?: string;
+  payee?: string;
+  paid_how: PaidHow;
+  reference?: string;
+  quantity?: number;
+  unit_price?: number;
+}) => api<Expense>("/expenses", { body });
+export const getExpenseSummary = (month?: string) =>
+  api<{ this_month: MonthTotals; last_month: MonthTotals }>(`/expenses/summary${month ? `?month=${month}` : ""}`);
 export const reverseExpense = (id: string) => api<Expense>(`/expenses/${id}/reverse`, { method: "POST" });
 
 // Selling extras
@@ -604,6 +636,7 @@ export const resetPin = (id: string, pin: string) => api<void>(`/staff/${id}/pin
 export const deactivateStaff = (id: string) => api<StaffRow>(`/staff/${id}/deactivate`, { method: "POST" });
 
 export const updateSettings = (body: Partial<Settings>) => api<Settings>("/settings", { method: "PATCH", body });
+export const exitScreen = () => api<void>("/settings/exit-screen", { method: "POST" });
 
 // Audit log (owner only): every void, discount, approval, price change...
 export type AuditEntry = {
@@ -623,3 +656,49 @@ export const getAudit = (opts: { before?: string; logins?: boolean } = {}) => {
   if (opts.before) q.set("before", opts.before);
   return api<AuditEntry[]>(`/audit?${q}`);
 };
+
+// Salaries (owner)
+export type PayType = "monthly" | "weekly" | "daily";
+export type Employee = {
+  id: string;
+  name: string;
+  job: string | null;
+  phone: string | null;
+  staff_id: string | null;
+  staff_name: string | null;
+  pay_type: PayType;
+  pay_rate: number;
+  active: boolean;
+  balance: number;
+  paid_to: string | null;
+  shortages: { handover_id: string; day: string; amount: number }[];
+};
+export type PayEntry = {
+  id: string;
+  kind: "salary" | "advance" | "deduction" | "shortage" | "payment" | "reversal";
+  amount: number;
+  balance: number;
+  note: string | null;
+  business_day: string;
+  period_start: string | null;
+  period_end: string | null;
+  reversed: boolean;
+  by: string | null;
+  at: string;
+};
+export type EmployeeIn = { name: string; job: string | null; phone: string | null; staff_id: string | null; pay_type: PayType; pay_rate: number };
+export const getEmployees = () => api<Employee[]>("/payroll/employees");
+export const addEmployee = (body: EmployeeIn) => api<Employee>("/payroll/employees", { body });
+export const updateEmployee = (id: string, body: Partial<EmployeeIn & { active: boolean }>) =>
+  api<Employee>(`/payroll/employees/${id}`, { method: "PATCH", body });
+export const getPayEntries = (id: string) => api<PayEntry[]>(`/payroll/employees/${id}/entries`);
+export const getDaysWorked = (id: string, start: string, end: string) =>
+  api<{ days_worked: number | null }>(`/payroll/employees/${id}/days?start=${start}&end=${end}`);
+export const giveAdvance = (id: string, body: { amount: number; paid_how: PaidHow; reference?: string; note?: string }) =>
+  api<Employee>(`/payroll/employees/${id}/advances`, { body });
+export const addDeduction = (id: string, body: { amount: number; note: string }) => api<Employee>(`/payroll/employees/${id}/deductions`, { body });
+export const paySalary = (
+  id: string,
+  body: { period_start: string; period_end: string; earned: number; paid: number; paid_how: PaidHow; reference?: string; note?: string },
+) => api<Employee>(`/payroll/employees/${id}/pay`, { body });
+export const reversePayEntry = (entryId: string) => api<Employee>(`/payroll/entries/${entryId}/reverse`, { method: "POST" });

@@ -21,6 +21,8 @@ import {
   UtensilsCrossed,
   Vault,
   type LucideIcon,
+  MonitorUp,
+  Banknote,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import {
@@ -32,7 +34,9 @@ import {
   getActiveStaff,
   getAlerts,
   getCashBox,
+  getCreditHistory,
   getCustomers,
+  exitScreen,
   getHealth,
   getShifts,
   getSettings,
@@ -43,6 +47,7 @@ import {
   reprint,
   setShortageStatus,
   type CashBox,
+  type CreditHistoryRow,
   type CreditCustomer,
   type Session,
   type ShiftRow,
@@ -59,12 +64,13 @@ import { AuditLog } from "./AuditLog";
 import { FinishedBills } from "./FinishedBills";
 import { Dashboard } from "./Dashboard";
 import { ClosingTab, ExpensesTab, ReportsTab } from "./OwnerReports";
+import { SalariesTab } from "./Salaries";
 import { ChoicesEditor, MenuEditor, SettingsEditor, StaffEditor, TablesEditor } from "./OwnerSetup";
 import { StockTab } from "./StockTab";
 
 type Tab =
   | "dashboard"
-  | "shifts" | "credit" | "cash" | "stock" | "bills" | "printers" | "closing" | "reports" | "expenses" | "audit"
+  | "shifts" | "credit" | "cash" | "stock" | "bills" | "printers" | "closing" | "reports" | "expenses" | "salaries" | "audit"
   | "menu" | "choices" | "tables" | "staff" | "settings";
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong.");
 const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "");
@@ -107,6 +113,9 @@ export function OwnerArea({ session, onBack, onLock }: { session: Session; onBac
     }
   };
   const isOwner = session.permissions.view_financials === "allow";
+  const [exiting, setExiting] = useState<null | "ask" | "closing">(null);
+  // Only the Windows counter has the kiosk task that closes the window.
+  const canExit = session.permissions.manage_business === "allow" && navigator.userAgent.includes("Windows");
   const groups: [string, NavItem[]][] = [
     ["Today", [
       { tab: "dashboard", label: "Dashboard", icon: LayoutDashboard, hint: "Today at a glance", print: true, slip: { kind: "closing", label: "Today's slip" } },
@@ -123,7 +132,8 @@ export function OwnerArea({ session, onBack, onLock }: { session: Session; onBac
     ...(isOwner
       ? ([["Owner", [
           { tab: "reports", label: "Reports", icon: ChartColumn, hint: "Sales, profit, sellers" },
-          { tab: "expenses", label: "Expenses", icon: HandCoins, hint: "Rent, power, salaries", print: true },
+          { tab: "expenses", label: "Expenses", icon: HandCoins, hint: "Rent, power, supplies: who was paid, how, for what", print: true },
+          { tab: "salaries", label: "Salaries", icon: Banknote, hint: "Pay, advances, deductions and shortages per employee", print: true },
           { tab: "audit", label: "Audit log", icon: ScrollText, hint: "Who did what: removals, discounts, approvals, changes", print: true },
         ]], ["Setup", [
           { tab: "menu", label: "Menu & prices", icon: UtensilsCrossed, hint: "Items, sizes, prices, pictures, combos" },
@@ -177,6 +187,11 @@ export function OwnerArea({ session, onBack, onLock }: { session: Session; onBac
             ))}
           </div>
         </div>
+        {canExit && (
+          <button className="btn btn-quiet no-print" style={{ margin: "8px 12px" }} onClick={() => setExiting("ask")}>
+            <MonitorUp size={20} /> Exit to desktop
+          </button>
+        )}
         <p className="owner-support no-print">
           <Phone size={16} /> Faida support
           <strong>{SUPPORT_PHONE}</strong>
@@ -210,6 +225,7 @@ export function OwnerArea({ session, onBack, onLock }: { session: Session; onBac
           {tab === "closing" && <ClosingTab />}
           {tab === "reports" && <ReportsTab />}
           {tab === "expenses" && <ExpensesTab />}
+          {tab === "salaries" && <SalariesTab />}
           {tab === "audit" && <AuditLog />}
           {tab === "menu" && <MenuEditor />}
           {tab === "choices" && <ChoicesEditor />}
@@ -218,6 +234,28 @@ export function OwnerArea({ session, onBack, onLock }: { session: Session; onBac
           {tab === "settings" && <SettingsEditor />}
         </div>
       </section>
+      {exiting && (
+        <Modal title="Exit to the Windows desktop?" onClose={() => setExiting(null)}>
+          {exiting === "ask" ? (
+            <>
+              <p style={{ margin: 0, fontSize: 18 }}>
+                The full-screen counter closes. Faida keeps running in the background, so no orders are lost. To open it again, double-click the{" "}
+                <strong>Faida POS</strong> icon on the desktop (it also opens by itself when the PC restarts).
+              </p>
+              <div className="row row-end">
+                <button className="btn btn-quiet" onClick={() => setExiting(null)}>
+                  Cancel
+                </button>
+                <button className="btn btn-primary" onClick={() => exitScreen().then(() => setExiting("closing"), () => setExiting(null))}>
+                  EXIT TO DESKTOP
+                </button>
+              </div>
+            </>
+          ) : (
+            <p style={{ margin: 0, fontSize: 18 }}>Closing… (a few seconds)</p>
+          )}
+        </Modal>
+      )}
     </main>
   );
 }
@@ -339,6 +377,11 @@ function ShiftsTab({ session }: { session: Session }) {
           GIVE FLOAT
         </button>
       </div>
+      <p className="muted" style={{ marginTop: 0 }}>
+        <strong>Float</strong>: small change (e.g. KSh 1,000 in coins and notes) taken from the counter cash box and given to a waiter at the
+        start of a shift, so they can give customers change. It is not a sale and not a gift: at hand-over the waiter brings it back with their
+        cash sales, so the cash they must hand over = cash from their sales + float. Each shift below shows how much was expected and received.
+      </p>
       <div className="list-table">
         {rows.map((r) => {
           const h = r.handover;
@@ -402,7 +445,8 @@ function ShiftsTab({ session }: { session: Session }) {
       {floatFor && (
         <AmountDialog title={`Float for ${floatFor.name}`} submitLabel="GIVE FLOAT" onSubmit={(n) => giveFloat(floatFor.id, n).then(load)} onClose={() => setFloatFor(null)}>
           <p className="muted" style={{ margin: 0 }}>
-            Change from the counter cash box. It's added to {floatFor.name}'s cash to hand over.
+            Change taken from the counter cash box for {floatFor.name} to give customers change. At hand-over they bring it back:
+            it is added to the cash they must hand over.
           </p>
         </AmountDialog>
       )}
@@ -410,7 +454,8 @@ function ShiftsTab({ session }: { session: Session }) {
       {shortage?.handover && (
         <Modal title={`${shortage.shift.staff.name}: short ${formatKsh(-shortage.handover.difference)}`} onClose={() => setShortage(null)}>
           <p className="muted" style={{ margin: 0 }}>
-            Faida never deducts pay. A deduction is your decision under your house rules and employment law.
+            Faida never deducts pay by itself. Deducted: it comes off their pay account in Salaries (if their PIN is linked there). A deduction is
+            your decision under your house rules and employment law.
           </p>
           <div className="choice-list">
             {(["paid_back", "deducted", "forgiven"] as const).map((o) => (
@@ -461,6 +506,8 @@ function CreditTab({ session }: { session: Session }) {
   const [collecting, setCollecting] = useState<CreditCustomer | null>(null);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<CreditCustomer | null>(null);
+  const [viewing, setViewing] = useState<CreditCustomer | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = () => getCustomers().then((c) => setCustomers([...c].sort((a, b) => (a.oldest_unpaid ?? "9").localeCompare(b.oldest_unpaid ?? "9"))), (e) => setError(errorText(e)));
   useEffect(() => {
@@ -468,6 +515,32 @@ function CreditTab({ session }: { session: Session }) {
   }, []);
   if (!customers) return <p className="muted">{error ?? "Loading…"}</p>;
   const total = customers.reduce((s, c) => s + c.owed, 0);
+  const owing = customers.filter((c) => c.owed > 0);
+  const paidUp = customers.filter((c) => c.owed === 0);
+  const row = (c: CreditCustomer) => (
+    <div key={c.id} className="shift-row">
+      <span className="grow">
+        <strong>{c.name}</strong>
+        <span className="muted"> {c.phone ?? ""}</span>
+      </span>
+      {c.owed > 0 ? <span className="warn">owes {formatKsh(c.owed)}</span> : <span className="result-badge balanced">Paid up</span>}
+      <span className="muted">limit {formatKsh(c.credit_limit)}</span>
+      <span className="muted">{c.oldest_unpaid ? `since ${new Date(c.oldest_unpaid).toLocaleDateString("en-GB")}` : ""}</span>
+      <button className="btn btn-quiet no-print" onClick={() => setViewing(c)}>
+        History
+      </button>
+      {c.owed > 0 && (
+        <button className="btn btn-primary no-print" onClick={() => setCollecting(c)}>
+          Record payment
+        </button>
+      )}
+      {isOwner && (
+        <button className="btn btn-quiet no-print" onClick={() => setEditing(c)} aria-label={`Change ${c.name}`}>
+          <Pencil size={18} /> {c.owed === 0 ? "Change / remove" : "Change"}
+        </button>
+      )}
+    </div>
+  );
   return (
     <>
       <div className="row" style={{ marginBottom: 12 }}>
@@ -478,39 +551,78 @@ function CreditTab({ session }: { session: Session }) {
           </button>
         )}
       </div>
+      <p className="muted" style={{ marginTop: 0 }}>
+        A customer can pay part of what they owe: the rest stays as their balance. When everything is paid they move to Paid up, where the owner can
+        remove them from the list (their history is kept).
+      </p>
+      {message && <p className="ok-text">{message}</p>}
       <div className="list-table">
-        {customers.map((c) => (
-          <div key={c.id} className="shift-row">
-            <span className="grow">
-              <strong>{c.name}</strong>
-              <span className="muted"> {c.phone ?? ""}</span>
-            </span>
-            <span className={c.owed ? "warn" : "muted"}>owes {formatKsh(c.owed)}</span>
-            <span className="muted">limit {formatKsh(c.credit_limit)}</span>
-            <span className="muted">{c.oldest_unpaid ? `since ${new Date(c.oldest_unpaid).toLocaleDateString("en-GB")}` : ""}</span>
-            {c.owed > 0 && (
-              <button className="btn btn-quiet" onClick={() => setCollecting(c)}>
-                Record payment
-              </button>
-            )}
-            {isOwner && (
-              <button className="btn btn-quiet no-print" onClick={() => setEditing(c)} aria-label={`Change ${c.name}`}>
-                <Pencil size={18} /> Change
-              </button>
-            )}
-          </div>
-        ))}
-        {!customers.length && <p className="muted">No credit customers yet.</p>}
+        {owing.map(row)}
+        {!owing.length && <p className="muted">Nobody owes anything.</p>}
       </div>
+      {paidUp.length > 0 && (
+        <>
+          <h2 className="section-title">Paid up</h2>
+          <div className="list-table">{paidUp.map(row)}</div>
+        </>
+      )}
       <p className="error-text">{error ?? ""}</p>
-      {collecting && <CollectDialog customer={collecting} onDone={() => (setCollecting(null), load())} onClose={() => setCollecting(null)} />}
+      {collecting && (
+        <CollectDialog
+          customer={collecting}
+          onDone={(after, paid) => (
+            setCollecting(null),
+            setMessage(`${after.name} paid ${formatKsh(paid)}. ${after.owed > 0 ? `Balance still owed: ${formatKsh(after.owed)}.` : "Paid in full."}`),
+            load()
+          )}
+          onClose={() => setCollecting(null)}
+        />
+      )}
+      {viewing && <CreditHistory customer={viewing} onClose={() => setViewing(null)} />}
       {adding && <AddCustomerDialog onDone={() => (setAdding(false), load())} onClose={() => setAdding(false)} />}
       {editing && <EditCustomerDialog customer={editing} onDone={() => (setEditing(null), load())} onClose={() => setEditing(null)} />}
     </>
   );
 }
 
-function CollectDialog({ customer, onDone, onClose }: { customer: CreditCustomer; onDone: () => void; onClose: () => void }) {
+/** Every credit and payment of one customer, with the balance after each. */
+function CreditHistory({ customer, onClose }: { customer: CreditCustomer; onClose: () => void }) {
+  const [rows, setRows] = useState<CreditHistoryRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    getCreditHistory(customer.id).then(setRows, (e) => setError(errorText(e)));
+  }, [customer.id]);
+  return (
+    <Modal title={`${customer.name}: ${customer.owed > 0 ? `owes ${formatKsh(customer.owed)}` : "paid up"}`} onClose={onClose} wide>
+      <div className="list-table movements">
+        {rows?.map((r, i) => (
+          <div key={i} className="row" style={{ fontSize: 17 }}>
+            <span className="muted" style={{ minWidth: 130 }}>
+              {new Date(r.at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+            </span>
+            <span style={{ minWidth: 110 }}>{r.kind === "credit" ? "On credit" : "Paid"}</span>
+            <span className="grow muted">
+              {r.what}
+              {r.by ? ` · ${r.by}` : ""}
+            </span>
+            <span className={r.kind === "credit" ? "warn" : "ok-text"} style={{ minWidth: 110, textAlign: "right" }}>
+              {r.kind === "credit" ? "+" : "−"}
+              {formatKsh(r.amount)}
+            </span>
+            <span style={{ minWidth: 150, textAlign: "right" }}>
+              <span className="muted">balance </span>
+              <strong>{formatKsh(r.balance)}</strong>
+            </span>
+          </div>
+        ))}
+        {rows?.length === 0 && <p className="muted">Nothing yet.</p>}
+        {error && <p className="error-text">{error}</p>}
+      </div>
+    </Modal>
+  );
+}
+
+function CollectDialog({ customer, onDone, onClose }: { customer: CreditCustomer; onDone: (after: CreditCustomer, paid: number) => void; onClose: () => void }) {
   const [method, setMethod] = useState<"cash" | "mpesa">("cash");
   const [code, setCode] = useState("");
   const [codeLength, setCodeLength] = useState(4);
@@ -522,7 +634,7 @@ function CollectDialog({ customer, onDone, onClose }: { customer: CreditCustomer
       title={`${customer.name} pays (owes ${formatKsh(customer.owed)})`}
       submitLabel="RECORD PAYMENT"
       extra={(n) => n <= customer.owed && (method === "cash" || code.length === codeLength)}
-      onSubmit={(n) => collectCredit(customer.id, { amount: n, method, mpesa_code: method === "mpesa" && codeLength ? code : undefined }).then(onDone)}
+      onSubmit={(n) => collectCredit(customer.id, { amount: n, method, mpesa_code: method === "mpesa" && codeLength ? code : undefined }).then((after) => onDone(after, n))}
       onClose={onClose}
     >
       <div className="row">
@@ -590,6 +702,34 @@ function EditCustomerDialog({ customer, onDone, onClose }: { customer: CreditCus
   );
 }
 
+const PAID = { cash: "Cash", mpesa: "M-Pesa", card: "Card", credit: "Credit (owed)" } as const;
+
+/** Today's money by how it was paid. Only cash goes in the box; M-Pesa is on the till. */
+function Takings({ t }: { t: NonNullable<CashBox["takings"]> }) {
+  const tile = (label: string, value: number, note: string) => (
+    <div className="kpi">
+      <span className="kpi-label">{label}</span>
+      <strong className="kpi-value">{formatKsh(value)}</strong>
+      <span className="kpi-note">{note}</span>
+    </div>
+  );
+  return (
+    <>
+      <h2 className="section-title">Today's sales by payment</h2>
+      <div className="kpis" style={{ marginBottom: 16 }}>
+        <div className="kpi kpi-big">
+          <span className="kpi-label">Total sales</span>
+          <strong className="kpi-value">{formatKsh(t.total)}</strong>
+          <span className="kpi-note">{t.unpaid > 0 ? `of which ${formatKsh(t.unpaid)} unpaid (waiter responsible)` : "every finished order today"}</span>
+        </div>
+        {tile("Cash", t.cash, t.credit_paid_cash ? `+ ${formatKsh(t.credit_paid_cash)} credit paid in cash` : "in waiters' hands until hand-over")}
+        {tile("M-Pesa", t.mpesa, t.credit_paid_mpesa ? `+ ${formatKsh(t.credit_paid_mpesa)} credit paid by M-Pesa` : `on the till${t.card ? ` · card ${formatKsh(t.card)}` : ""}`)}
+        {tile("Credit", t.credit, "sold on credit today, still owed")}
+      </div>
+    </>
+  );
+}
+
 function CashTab({ session }: { session: Session }) {
   const isOwner = session.permissions.manage_business === "allow";
   const [box, setBox] = useState<CashBox | null>(null);
@@ -624,7 +764,25 @@ function CashTab({ session }: { session: Session }) {
           </>
         )}
       </div>
-      <h2 className="section-title">Today</h2>
+      {box.takings && <Takings t={box.takings} />}
+      <h2 className="section-title">Payments today</h2>
+      <div className="list-table">
+        {box.payments.map((p, i) => (
+          <div key={i} className="shift-row">
+            <span className="muted">{time(p.at)}</span>
+            <span className={`status-tag pay-${p.method === "credit_paid" ? p.paid_by : p.method}`} style={{ minWidth: 150, textAlign: "center" }}>
+              {p.method === "credit_paid" ? `Credit paid · ${PAID[p.paid_by ?? "cash"]}` : PAID[p.method]}
+            </span>
+            <span className="grow">
+              {p.what} <span className="muted">· {p.by}</span>
+              {p.ref && <span className="muted"> · code {p.ref}</span>}
+            </span>
+            <strong>{formatKsh(p.amount)}</strong>
+          </div>
+        ))}
+        {!box.payments.length && <p className="muted">No payments yet today.</p>}
+      </div>
+      <h2 className="section-title">Cash in and out of the box today</h2>
       <div className="list-table">
         {box.today.map((m) => (
           <div key={m.id} className="shift-row">

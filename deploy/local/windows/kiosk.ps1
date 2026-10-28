@@ -16,7 +16,28 @@ function Test-KioskOpen {
     Where-Object { $_.CommandLine -like "*FaidaKiosk*" } | Select-Object -First 1)
 }
 
+# "Exit to desktop" (owner only) writes this file: close the window and leave it closed
+# until the Faida POS icon opens it again (or Windows signs in again).
+$ExitFlag = "C:\Faida\data\exit-screen.flag"
+function Get-ExitTime { (Get-Item $ExitFlag -ErrorAction SilentlyContinue).LastWriteTime }
+$Handled = Get-ExitTime
+$Paused = $false
+
 while ($true) {
+  $Asked = Get-ExitTime
+  if ($Asked -and $Asked -ne $Handled) {
+    $Handled = $Asked
+    $Paused = $true
+    Start-Sleep 1  # let the page show it is closing
+    Get-CimInstance Win32_Process -Filter "Name = 'chrome.exe' OR Name = 'msedge.exe'" -ErrorAction SilentlyContinue |
+      Where-Object { $_.CommandLine -like "*FaidaKiosk*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Start-Sleep 5
+  }
+  if ($Paused) {
+    if (Test-KioskOpen) { $Paused = $false }  # opened again from the icon: keep it open from now on
+    Start-Sleep 5
+    continue
+  }
   if (-not (Test-KioskOpen)) {
     if ($Chrome) {
       Start-Process $Chrome -ArgumentList "--kiosk", "--app=$Url", "--user-data-dir=$KioskProfile", "--no-first-run", "--noerrdialogs", "--disable-infobars", "--disable-session-crashed-bubble", "--disable-translate", "--overscroll-history-navigation=0", "--disable-pinch"

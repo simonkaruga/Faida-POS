@@ -10,6 +10,7 @@ from app.menu.models import (
     Category, ComboComponent, ItemModifierGroup, MenuItem, ModifierGroup, ModifierOption, PriceRule, SellOption,
 )
 from app.payments.models import Payment
+from app.payroll.models import Employee, EmployeeEntry
 from app.printing.models import Ticket
 from app.reports.models import DailyClosing, EmailOutbox
 from app.sequences import Sequence
@@ -28,5 +29,5 @@ __all__ = [
     "ShortageStatus", "CashMovement", "Delivery", "DeliveryLine", "RecipeLine", "StockItem",
     "StockMovement", "StockTake", "StockTakeLine", "Supplier", "Expense", "DailyClosing", "Device",
     "OwnerAccount", "SyncQueueEntry", "ComboComponent", "ItemModifierGroup", "ModifierGroup", "ModifierOption",
-    "PriceRule", "EmailOutbox",
+    "PriceRule", "EmailOutbox", "Employee", "EmployeeEntry",
 ]

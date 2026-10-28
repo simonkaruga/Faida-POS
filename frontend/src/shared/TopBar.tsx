@@ -1,8 +1,9 @@
-import { Cloud, CloudOff, HardDrive, Printer } from "lucide-react";
+import { Cloud, CloudOff, HardDrive, Moon, Printer, Sun, SunMoon } from "lucide-react";
 import { FaidaMark } from "./Brand";
 import { useEffect, useState } from "react";
 import type { Health, Role } from "../services/api";
 import { initials } from "./look";
+import { useThemeChoice, type ThemeChoice } from "./theme";
 import "./topbar.css";
 
 type Props = {
@@ -12,6 +13,11 @@ type Props = {
 };
 
 const ROLE = { owner: "Owner", supervisor: "Supervisor", waiter: "Waiter" } as const;
+const LOOK = {
+  light: { next: "dark", icon: Sun, label: "Bright" },
+  dark: { next: "auto", icon: Moon, label: "Dark" },
+  auto: { next: "light", icon: SunMoon, label: "Auto" },
+} as const satisfies Record<ThemeChoice, { next: ThemeChoice; icon: unknown; label: string }>;
 
 function useClock() {
   const [now, setNow] = useState(() => new Date());
@@ -25,6 +31,8 @@ function useClock() {
 /** Always shows status (masterplan 9.2 rule 7): who is working, cloud, printers, time. */
 export function TopBar({ health, reachable, staff }: Props) {
   const now = useClock();
+  const [look, setLook] = useThemeChoice();
+  const LookIcon = LOOK[look].icon;
   const cloud = !reachable
     ? { tone: "red", label: "Counter not responding" }
     : health?.cloud === "online"
@@ -59,6 +67,14 @@ export function TopBar({ health, reachable, staff }: Props) {
       <span className={`status ${printerTone}`}>
         <Printer size={18} /> {health?.printers === "ok" ? "Printers OK" : health?.printers === "offline" ? "Printer offline" : "No printer"}
       </span>
+      <button
+        className="status topbar-look"
+        onClick={() => setLook(LOOK[look].next)}
+        title="Bright, dark, or auto: dark from 6 pm to 6 am"
+        aria-label={`Screen look: ${LOOK[look].label}. Tap to change.`}
+      >
+        <LookIcon size={18} /> {LOOK[look].label}
+      </button>
       <span className="topbar-clock">
         {now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
         <small>{now.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</small>

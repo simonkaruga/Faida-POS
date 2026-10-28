@@ -17,6 +17,7 @@ from app.floor.service import amounts, cancel_untouched, finish_bill, place
 from app.printing import layouts
 from app.printing.models import PrinterName, Ticket, TicketKind
 from app.sequences import next_number
+from app.payroll import router as payroll
 from app.settings.service import business_name, today
 from app.shifts.models import (
     CashMovement, CashMovementKind, Handover, Shift, ShiftStatus, ShortageOutcome, ShortageStatus,
@@ -326,7 +327,7 @@ class ShortageIn(BaseModel):
 @router.post("/handovers/{handover_id}/shortage-status")
 def shortage_status(
     handover_id: uuid.UUID, body: ShortageIn,
-    actor: Annotated[Actor, Depends(require(Action.record_shortage_status))], db: Db,
+    actor: Annotated[Actor, Depends(require(Action.record_shortage_status))], request: Request, db: Db,
 ) -> HandoverOut:
     """Owner only: a shortage was paid back, deducted or forgiven. Faida never deducts
     pay itself; a deduction is the owner's decision under her house rules and the law."""
@@ -341,6 +342,7 @@ def shortage_status(
                  entity_type="handover", entity_id=handover.id,
                  details={"staff": db.get(Staff, handover.staff_id).name, "short": -handover.difference,
                           "outcome": body.outcome.value, "note": body.note})
+    payroll.shortage_decided(db, actor, request, handover, body.outcome)
     db.commit()
     return _handover_out(db, handover)
 

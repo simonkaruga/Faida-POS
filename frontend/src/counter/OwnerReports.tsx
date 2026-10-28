@@ -7,10 +7,13 @@ import {
   closeDay,
   getClosing,
   getExpenses,
+  getExpenseSummary,
   getReport,
   reverseExpense,
   type Closing,
   type Expense,
+  type MonthTotals,
+  type PaidHow,
   type Report,
 } from "../services/api";
 import { Keypad } from "../shared/Keypad";
@@ -264,14 +267,21 @@ export function ReportsTab() {
 }
 
 const CATEGORIES = ["rent", "power", "water", "salaries", "transport", "repairs", "licences", "supplies", "other"];
+const title = (c: string) => c.charAt(0).toUpperCase() + c.slice(1);
+const PAID_HOW = { cash_box: "Cash from the box", cash: "Own cash", mpesa: "M-Pesa", bank: "Bank" } as const;
 
-/** Running costs (owner). Pay-outs from takings are counted as expenses automatically. */
+/** Running costs (owner): who was paid, how, for what, and the month's totals by
+ * category. Pay-outs from takings are counted as expenses automatically. */
 export function ExpensesTab() {
   const [today, setToday] = useState<string | null>(null);
   const [rows, setRows] = useState<Expense[] | null>(null);
+  const [summary, setSummary] = useState<{ this_month: MonthTotals; last_month: MonthTotals } | null>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const load = (day: string) => getExpenses(iso(new Date(new Date(`${day}T12:00:00`).getFullYear(), new Date(`${day}T12:00:00`).getMonth(), 1)), day).then(setRows, (e) => setError(errorText(e)));
+  const load = (day: string) => {
+    getExpenses(`${day.slice(0, 8)}01`, day).then(setRows, (e) => setError(errorText(e)));
+    getExpenseSummary(day.slice(0, 7)).then(setSummary, () => {});
+  };
   useEffect(() => {
     getClosing().then((c) => (setToday(c.day), load(c.day)), (e) => setError(errorText(e)));
   }, []);
@@ -288,17 +298,32 @@ export function ExpensesTab() {
         </button>
       </div>
       <p className="muted" style={{ marginTop: 0 }}>
-        Pay-outs taken from the day's cash are counted as expenses in profit automatically.
+        Pay-outs taken from the day's cash are counted as expenses in profit automatically. Salaries paid from the Salaries page show here too.
       </p>
+      {summary && (
+        <Section title="This month by category">
+          {CATEGORIES.filter((c) => summary.this_month.by_category[c] || summary.last_month.by_category[c]).map((c) => (
+            <Row key={c} label={title(c)} value={`${formatKsh(summary.this_month.by_category[c] ?? 0)}   (last month ${formatKsh(summary.last_month.by_category[c] ?? 0)})`} />
+          ))}
+          <Row label="Total" value={`${formatKsh(summary.this_month.total)}   (last month ${formatKsh(summary.last_month.total)})`} strong />
+        </Section>
+      )}
+      <h2 className="section-title">Every expense this month</h2>
       <div className="list-table">
         {rows.map((e) => (
           <div key={e.id} className={`shift-row ${e.reversed || e.is_reversal ? "reversed-row" : ""}`}>
             <span className="muted" style={{ minWidth: 110 }}>
               {nice(e.business_day)}
             </span>
-            <strong style={{ minWidth: 110 }}>{e.category}</strong>
-            <span className="grow muted">
-              {e.note} {e.from_cash_box ? "· from cash box" : ""} · {e.by}
+            <strong style={{ minWidth: 110 }}>{title(e.category)}</strong>
+            <span className="grow">
+              {e.payee && <strong>{e.payee} </strong>}
+              {e.note && <span>{e.note} </span>}
+              <span className="muted">
+                {e.quantity && e.unit_price ? `· ${Number(e.quantity)} × ${formatKsh(e.unit_price)} ` : ""}
+                {e.paid_how ? `· ${PAID_HOW[e.paid_how]}` : e.from_cash_box ? "· from cash box" : ""}
+                {e.reference ? ` · ref ${e.reference}` : ""} · {e.by}
+              </span>
             </span>
             <span>{formatKsh(e.amount)}</span>
             {!e.reversed && !e.is_reversal && (
@@ -311,45 +336,92 @@ export function ExpensesTab() {
         {!rows.length && <p className="muted">No expenses this month.</p>}
       </div>
       <p className="error-text">{error ?? ""}</p>
-      {adding && <AddExpense onDone={() => (setAdding(false), load(today))} onClose={() => setAdding(false)} />}
+      {adding && <AddExpense today={today} onDone={() => (setAdding(false), load(today))} onClose={() => setAdding(false)} />}
     </>
   );
 }
 
-function AddExpense({ onDone, onClose }: { onDone: () => void; onClose: () => void }) {
+function AddExpense({ today, onDone, onClose }: { today: string; onDone: () => void; onClose: () => void }) {
   const [category, setCategory] = useState("rent");
-  const [value, setValue] = useState("");
-  const [note, setNote] = useState("");
-  const [fromBox, setFromBox] = useState(false);
+  const [f, setF] = useState({ payee: "", note: "", quantity: "", unit_price: "", amount: "", reference: "", day: today });
+  const [paidHow, setPaidHow] = useState<PaidHow>("cash_box");
   const [error, setError] = useState<string | null>(null);
+  const set = (k: keyof typeof f, v: string) => setF({ ...f, [k]: v });
+  const byUnit = !!(f.quantity && f.unit_price);
+  const amount = byUnit ? Math.round(Number(f.quantity) * Number(f.unit_price)) : Number(f.amount || 0);
   const save = () =>
-    value && addExpense({ category, amount: Number(value), note: note.trim() || undefined, from_cash_box: fromBox }).then(onDone, (e) => setError(errorText(e)));
+    amount > 0 &&
+    addExpense({
+      category,
+      amount: byUnit ? undefined : amount,
+      quantity: byUnit ? Number(f.quantity) : undefined,
+      unit_price: byUnit ? Number(f.unit_price) : undefined,
+      payee: f.payee.trim() || undefined,
+      note: f.note.trim() || undefined,
+      paid_how: paidHow,
+      reference: f.reference.trim() || undefined,
+      business_day: f.day !== today ? f.day : undefined,
+    }).then(onDone, (e) => setError(errorText(e)));
+  const field = (k: keyof typeof f, label: string, placeholder: string, mode: "text" | "numeric" | "decimal" = "text") => (
+    <label className="form-field grow" style={{ minWidth: 0, flexBasis: 0 }}>
+      <span>{label}</span>
+      <input
+        className="text-input"
+        style={{ width: "100%", minWidth: 0 }}
+        placeholder={placeholder}
+        inputMode={mode}
+        value={f[k]}
+        maxLength={k === "note" ? 200 : k === "payee" ? 80 : 40}
+        onChange={(e) => set(k, mode === "numeric" ? e.target.value.replace(/\D/g, "") : mode === "decimal" ? e.target.value.replace(/[^\d.]/g, "") : e.target.value)}
+      />
+    </label>
+  );
   return (
     <Modal title="Add expense" onClose={onClose} wide>
-      <div className="row" style={{ alignItems: "flex-start", gap: 24 }}>
-        <div className="choice-list grow">
-          <div className="choice-grid">
-            {CATEGORIES.map((c) => (
-              <button key={c} className={`choice ${category === c ? "selected" : ""}`} onClick={() => setCategory(c)}>
-                {c.charAt(0).toUpperCase() + c.slice(1)}
-              </button>
-            ))}
-          </div>
-          <div className="field-box active">
-            <span className="muted">Amount</span>
-            <strong>{value ? formatKsh(Number(value)) : "—"}</strong>
-          </div>
-          <input className="text-input" placeholder="Note, e.g. KPLC tokens" value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} />
-          <label className="row" style={{ fontSize: 18 }}>
-            <input type="checkbox" checked={fromBox} onChange={(e) => setFromBox(e.target.checked)} style={{ width: 28, height: 28 }} />
-            Paid in cash from the counter box
-          </label>
-          <p className="error-text">{error ?? ""}</p>
-          <button className="btn btn-primary" disabled={!value} onClick={save}>
-            SAVE
+      <div className="choice-grid">
+        {CATEGORIES.map((c) => (
+          <button key={c} className={`choice ${category === c ? "selected" : ""}`} onClick={() => setCategory(c)}>
+            {title(c)}
           </button>
-        </div>
-        <Keypad value={value} onChange={(v) => setValue(v.replace(/^0+/, ""))} onEnter={save} maxLength={8} />
+        ))}
+      </div>
+      <div className="row">
+        {field("payee", "Paid to", "e.g. KPLC, landlord, Mama Mboga")}
+        {field("note", "What for", "e.g. tokens, 3 bags of charcoal")}
+      </div>
+      <div className="row" style={{ alignItems: "flex-end" }}>
+        {field("quantity", "Quantity (optional)", "e.g. 3", "decimal")}
+        {field("unit_price", "Price of one (KSh)", "e.g. 800", "numeric")}
+        {byUnit ? (
+          <label className="form-field grow" style={{ minWidth: 0, flexBasis: 0 }}>
+            <span>Amount (KSh)</span>
+            <strong style={{ fontSize: 24, padding: "10px 0" }}>{formatKsh(amount)}</strong>
+          </label>
+        ) : (
+          field("amount", "Amount (KSh)", "total paid", "numeric")
+        )}
+      </div>
+      <h3 className="form-title">Paid how</h3>
+      <div className="segmented">
+        {(Object.keys(PAID_HOW) as PaidHow[]).map((h) => (
+          <button key={h} className={paidHow === h ? "on" : ""} onClick={() => setPaidHow(h)}>
+            {PAID_HOW[h]}
+          </button>
+        ))}
+      </div>
+      <div className="row" style={{ alignItems: "flex-end" }}>
+        {field("reference", paidHow === "mpesa" ? "M-Pesa code" : "Receipt or reference (optional)", paidHow === "mpesa" ? "e.g. QK7PX2ABCD" : "e.g. receipt 0042")}
+        <label className="form-field grow" style={{ minWidth: 0, flexBasis: 0 }}>
+          <span>Day it belongs to</span>
+          <input className="text-input" style={{ width: "100%" }} type="date" value={f.day} max={today} onChange={(e) => set("day", e.target.value)} />
+        </label>
+      </div>
+      {paidHow === "cash_box" && <p className="muted">The counter cash box goes down by {formatKsh(amount)}.</p>}
+      <p className="error-text">{error ?? ""}</p>
+      <div className="row row-end">
+        <button className="btn btn-primary" disabled={!(amount > 0)} onClick={save}>
+          SAVE {amount > 0 ? formatKsh(amount) : ""}
+        </button>
       </div>
     </Modal>
   );

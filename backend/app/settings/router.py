@@ -1,13 +1,15 @@
 from datetime import time
+from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.audit import service as audit
 from app.auth.deps import Actor, CurrentActor, Db, require
 from app.auth.permissions import Action
+from app.db import now
 from app.settings.models import BusinessSettings, MpesaCodeEntry
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -73,3 +75,15 @@ def update_settings(body: SettingsPatch, actor: Owner, db: Db) -> SettingsOut:
         )
         db.commit()
     return SettingsOut.model_validate(row, from_attributes=True)
+
+
+@router.post("/exit-screen", status_code=204)
+def exit_screen(actor: Owner, request: Request, db: Db) -> None:
+    """Owner only: close the full-screen counter to reach the Windows desktop. The kiosk
+    task (kiosk.ps1) sees this file change, closes the window and doesn't reopen it until
+    the Faida POS icon is used or Windows signs in again."""
+    path = Path(request.app.state.config.state_dir) / "exit-screen.flag"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(now().isoformat())
+    audit.record(db, business_id=actor.business_id, actor_id=actor.staff.id, action="screen.exited")
+    db.commit()

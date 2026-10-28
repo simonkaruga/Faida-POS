@@ -20,6 +20,7 @@ const LABEL: Record<string, string> = {
   "bill_line.voided": "Item removed",
   "business.created": "Business set up",
   "cash.float": "Float given",
+  "screen.exited": "Closed the counter screen (to the desktop)",
   "cash.payout": "Pay-out",
   "cash.owner": "Owner cash",
   "credit.collected": "Credit paid",

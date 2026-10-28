@@ -447,6 +447,10 @@
 .status-tag.credit { background: rgb(242 194 48 / 0.2); color: var(--yellow); }
 .status-tag.unpaid_responsible { background: rgb(240 138 36 / 0.2); color: var(--orange); }
 .status-tag.cancelled { background: rgb(214 69 69 / 0.2); color: var(--red); }
+.status-tag.pay-cash { background: rgb(47 168 106 / 0.2); color: var(--green); }
+.status-tag.pay-mpesa { background: color-mix(in srgb, var(--blue) 18%, transparent); color: var(--blue-strong); }
+.status-tag.pay-card { background: var(--surface-raised); }
+.status-tag.pay-credit { background: rgb(242 194 48 / 0.2); color: var(--yellow); }
 .shift-row .result-badge { font-size: 16px; padding: 4px 12px; }
 .audit-row { flex-wrap: wrap; row-gap: 2px; font-size: 16px; }
 .audit-row .grow { min-width: 240px; }

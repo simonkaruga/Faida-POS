@@ -81,3 +81,11 @@ def test_keypad_pauses_after_repeated_wrong_pins():
     assert guard.seconds_locked() == 1
     clock.t = 30
     assert guard.seconds_locked() == 0
+
+
+def test_only_the_owner_closes_the_full_screen(client, owner, waiter, config, tmp_path, monkeypatch):
+    monkeypatch.setattr(client.app.state, "config", config.model_copy(update={"state_dir": str(tmp_path)}))
+    assert client.post("/api/settings/exit-screen", headers=waiter).status_code == 403
+    assert not (tmp_path / "exit-screen.flag").exists()
+    assert client.post("/api/settings/exit-screen", headers=owner).status_code == 204
+    assert (tmp_path / "exit-screen.flag").exists()  # kiosk.ps1 watches this file

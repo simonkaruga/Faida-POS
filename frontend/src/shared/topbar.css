@@ -23,6 +23,7 @@
 .status.orange { color: #fdba74; }
 .status.red { background: rgb(229 72 77 / 0.25); color: #fecaca; }
 .status.muted { color: #9fb0d4; }
+.topbar-look { border: 0; font: inherit; font-weight: 600; font-size: 15px; cursor: pointer; min-height: 40px; }
 .topbar-clock { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 20px; text-align: right; line-height: 1.05; }
 .topbar-clock small { display: block; font-size: 12px; font-weight: 500; color: #b8c4e0; }
 

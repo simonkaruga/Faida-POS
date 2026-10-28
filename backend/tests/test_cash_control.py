@@ -204,6 +204,11 @@ def test_credit_rules(client, owner, staff, items, tabs):
     assert client.get("/api/cashbox", headers=owner).json()["expected"] == 1500
     assert my_shift(client, jane)["cash_up"]["credit"] == 2500
 
+    # Part paid: the history shows each credit and payment with the balance after it.
+    hist = client.get(f"/api/credit/customers/{otieno['id']}/history", headers=sam).json()
+    assert [(h["kind"], h["amount"], h["balance"]) for h in hist] == [("credit", 1250, 1250), ("credit", 1250, 2500), ("paid", 1500, 1000)]
+    assert client.get(f"/api/credit/customers/{otieno['id']}/history", headers=jane).status_code == 403
+
 
 def test_credit_receipt_names_the_customer(client, owner, staff, items, tabs, printers):
     sam = login(client, SAM)
@@ -335,3 +340,72 @@ def test_waiters_see_their_finished_bills(client, owner, staff, items, tabs):
     (row,) = client.get("/api/bills", headers=jane).json()
     assert row["number"] == bill["number"] and row["status"] == "paid"
     assert len(client.get("/api/bills", headers=owner).json()) == 1
+
+
+def test_cash_box_shows_todays_money_by_how_it_was_paid(client, owner, staff, items, tabs):
+    jane = login(client, JANE)
+    pay(client, jane, tabs(jane, items, [100]), method="cash", amount=100)
+    pay(client, jane, tabs(jane, items, [1200]), method="mpesa", amount=1200, mpesa_code="QK7P")
+    otieno = customer(client, owner)
+    bill = tabs(jane, items, [1250])
+    client.post(f"/api/bills/{bill['id']}/credit", headers=jane,
+                json={"customer_id": otieno["id"], "approval_id": approve(client, jane, "approve_credit")})
+    client.post(f"/api/credit/customers/{otieno['id']}/collections", headers=owner,
+                json={"amount": 500, "method": "mpesa", "mpesa_code": "ZX12"})
+    box = client.get("/api/cashbox", headers=owner).json()
+    t = box["takings"]
+    assert (t["cash"], t["mpesa"], t["credit"], t["total"]) == (100, 1200, 1250, 2550)
+    assert (t["credit_paid_cash"], t["credit_paid_mpesa"]) == (0, 500)
+    assert sorted((p["method"], p["amount"], p["ref"]) for p in box["payments"]) == [
+        ("cash", 100, None), ("credit", 1250, None), ("credit_paid", 500, "ZX12"), ("mpesa", 1200, "QK7P")]
+
+
+def test_salaries_advances_deductions_and_shortages(client, owner, staff, items, tabs):
+    """Pay = salary - advance - deduction - shortage the owner marked Deducted."""
+    jane = login(client, JANE)
+    r = client.post("/api/payroll/employees", headers=owner, json={
+        "name": "Jane Wanjiru", "job": "Waitress", "staff_id": staff_id(client, owner, "Jane"),
+        "pay_type": "monthly", "pay_rate": 15000})
+    assert r.status_code == 201, r.text
+    emp = r.json()
+    cook = client.post("/api/payroll/employees", headers=owner, json={"name": "Otieno", "job": "Cook", "pay_type": "daily",
+                                                                       "pay_rate": 800}).json()
+    assert client.get("/api/payroll/employees", headers=jane).status_code == 403
+    assert client.post("/api/payroll/employees", headers=owner, json={
+        "name": "Again", "staff_id": emp["staff_id"], "pay_type": "weekly", "pay_rate": 1}).status_code == 409
+
+    base = f"/api/payroll/employees/{emp['id']}"
+    client.post(base + "/advances", headers=owner, json={"amount": 2000, "note": "School fees"})
+    assert client.get("/api/cashbox", headers=owner).json()["expected"] == -2000  # from the box
+    client.post(base + "/deductions", headers=owner, json={"amount": 300, "note": "Broke 3 glasses"})
+
+    # A shortage shows as undecided; marked Deducted it comes off her pay.
+    pay(client, jane, tabs(jane, items, [1000]), method="cash", amount=1000)
+    h = close(client, jane, my_shift(client, jane)["shift"]["id"], received=600).json()
+    emp = client.get("/api/payroll/employees", headers=owner).json()[0]
+    assert [s["amount"] for s in emp["shortages"]] == [400] and emp["balance"] == -2300
+    client.post(f"/api/handovers/{h['id']}/shortage-status", headers=owner, json={"outcome": "deducted"})
+    emp = next(e for e in client.get("/api/payroll/employees", headers=owner).json() if e["id"] == emp["id"])
+    assert emp["shortages"] == [] and emp["balance"] == -2700
+    # Forgiven after all: the deduction is undone.
+    client.post(f"/api/handovers/{h['id']}/shortage-status", headers=owner, json={"outcome": "forgiven"})
+    client.post(f"/api/handovers/{h['id']}/shortage-status", headers=owner, json={"outcome": "deducted"})
+
+    r = client.post(base + "/pay", headers=owner, json={
+        "period_start": "2026-10-01", "period_end": "2026-10-31", "earned": 15000, "paid": 12300, "paid_how": "mpesa"})
+    assert r.status_code == 201, r.text
+    assert r.json()["balance"] == 0 and r.json()["paid_to"] == "2026-10-31"
+    rows = client.get(base + "/entries", headers=owner).json()
+    assert [(x["kind"], x["amount"]) for x in rows] == [
+        ("advance", -2000), ("deduction", -300), ("shortage", -400), ("reversal", 400), ("shortage", -400),
+        ("salary", 15000), ("payment", -12300)]
+    assert client.post(base + "/pay", headers=owner, json={
+        "period_start": "2026-11-01", "period_end": "2026-11-30", "earned": 0, "paid": 1}).status_code == 409
+
+    # A mistaken advance is reversed, cash back in the box; salaries expenses follow.
+    adv = client.post(f"/api/payroll/employees/{cook['id']}/advances", headers=owner, json={"amount": 500}).json()
+    line = client.get(f"/api/payroll/employees/{cook['id']}/entries", headers=owner).json()[0]
+    assert adv["balance"] == -500
+    assert client.post(f"/api/payroll/entries/{line['id']}/reverse", headers=owner).json()["balance"] == 0
+    month = client.get("/api/expenses/summary", headers=owner).json()["this_month"]
+    assert month["by_category"]["salaries"] == 2000 + 12300
