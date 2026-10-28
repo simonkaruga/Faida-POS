@@ -15,6 +15,7 @@ from app.menu.importer import load_menu
 from app.payments.models import Payment
 from app.settings.config import VERSION
 from app.stock.models import RecipeLine
+from app.menu.models import PriceRule
 from app.sync.models import Device, OwnerAccount, SyncQueueEntry
 from app.sync.push import SyncError
 
@@ -68,6 +69,9 @@ def test_a_day_offline_then_the_phone_matches_the_counter(linked, cloud, cloud_d
     counter, link, _ = linked
     with open(SAMPLE_MENU, encoding="utf-8") as f:
         load_menu(db, business.id, json.load(f))
+    for rule in db.scalars(select(PriceRule)):  # the sample happy hour (weekdays 17-19) would change the totals
+        rule.active = False
+    db.commit()
     owner = pin(counter, OWNER_PIN)
     counter.app.state.sync.push_all()  # online at opening
 

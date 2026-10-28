@@ -75,3 +75,18 @@ def test_backups_must_be_encrypted(backup_config, tmp_path):
     (tmp_path / "usb").mkdir()
     with pytest.raises(backup.BackupError, match="PASSPHRASE"):
         backup.create(backup_config.model_copy(update={"backup_passphrase": None}), str(tmp_path / "usb" / "x"))
+
+
+def test_pg_tools_are_found_on_windows(config, tmp_path, monkeypatch):
+    """On Windows the tools are pg_dump.exe: looking for "pg_dump" failed every backup."""
+    bin_dir = tmp_path / "PostgreSQL" / "16" / "bin"
+    bin_dir.mkdir(parents=True)
+    (bin_dir / "pg_dump.exe").write_bytes(b"")
+    cfg = config.model_copy(update={"pg_bin": str(bin_dir)})
+    assert backup._tool(cfg, "pg_dump", windows=True) == str(bin_dir / "pg_dump.exe")
+    with pytest.raises(backup.BackupError, match="pg_restore not found in"):
+        backup._tool(cfg, "pg_restore", windows=True)
+    # No FAIDA_PG_BIN and nothing on the PATH: PostgreSQL's usual folder.
+    monkeypatch.setattr(backup.shutil, "which", lambda name: None)
+    monkeypatch.setenv("ProgramFiles", str(tmp_path))
+    assert backup._tool(config.model_copy(update={"pg_bin": None}), "pg_dump", windows=True) == str(bin_dir / "pg_dump.exe")

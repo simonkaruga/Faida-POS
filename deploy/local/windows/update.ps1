@@ -21,12 +21,20 @@ $OldVersion = (Get-Content "$Old\VERSION").Trim()
 $Log = "$Base\data\logs\update-$(Get-Date -Format yyyyMMdd-HHmmss).log"
 Start-Transcript -Path $Log | Out-Null
 function Say($t) { Write-Host "`n== $t" -ForegroundColor Cyan }
-function Py($Dir) {  # Faida's own Python in $Dir
-  # Python logs to stderr; in Windows PowerShell that must not count as a failure.
-  $ErrorActionPreference = "Continue"
-  Push-Location "$Dir\backend"
-  try { & "$Dir\backend\.venv\Scripts\python.exe" @args; if ($LASTEXITCODE) { throw "python $($args -join ' ') failed" } }
-  finally { Pop-Location }
+# Runs Faida's own Python in $Dir with the given arguments, showing everything it prints.
+# Returns its normal output; $script:PySaid holds all of it. If it fails, the error says
+# why, with Python's own message.
+function Py($Dir) {
+  $Out = [IO.Path]::GetTempFileName(); $Err = [IO.Path]::GetTempFileName()
+  $Quoted = $args | ForEach-Object { if ("$_" -match '\s') { '"' + $_ + '"' } else { "$_" } }
+  $P = Start-Process -FilePath "$Dir\backend\.venv\Scripts\python.exe" -ArgumentList $Quoted -WorkingDirectory "$Dir\backend" `
+    -NoNewWindow -Wait -PassThru -RedirectStandardOutput $Out -RedirectStandardError $Err
+  $Normal = "$(Get-Content $Out -Raw)".Trim()
+  $script:PySaid = ("$Normal`n" + "$(Get-Content $Err -Raw)").Trim()
+  Remove-Item $Out, $Err -ErrorAction SilentlyContinue
+  if ($script:PySaid) { Write-Host $script:PySaid }
+  if ($P.ExitCode) { throw "python $($args -join ' ') failed:`n$($script:PySaid)" }
+  return $Normal
 }
 . "$PSScriptRoot\python312.ps1"
 function Stop-Counter {
@@ -47,7 +55,7 @@ function Set-Current($Dir) {
 
 try {
   Say "Checking the counter is closed"
-  if (-not $Force) { Py $Old -m app.ops busy }
+  if (-not $Force) { $null = Py $Old -m app.ops busy }
 
   Say "Unpacking"
   if ($Release) {
@@ -71,10 +79,10 @@ try {
   if ($LASTEXITCODE) { throw "Installing the Python packages failed$(if (-not $PipFrom) { ' (is the internet on?)' }). Nothing was changed." }
 
   Say "Backup before updating"
-  $out = Py $Old -m app.backup create --to "$Base\update-backups" --keep 5 2>&1 | Out-String
-  $Backup = ([regex]::Match($out, "Backup written: (.+)")).Groups[1].Value.Trim()
-  if (-not $Backup) { throw "The backup failed; nothing was changed. $out" }
-  $OldRevision = (Py $Old -m app.ops revision | Out-String).Trim()
+  $null = Py $Old -m app.backup create --to "$Base\update-backups" --keep 5
+  $Backup = ([regex]::Match($script:PySaid, "Backup written: (.+)")).Groups[1].Value.Trim()
+  if (-not $Backup) { throw "The backup failed; nothing was changed. $($script:PySaid)" }
+  $OldRevision = (Py $Old -m app.ops revision).Trim()
 } catch {
   Write-Host $_ -ForegroundColor Red
   Stop-Transcript | Out-Null
@@ -85,21 +93,21 @@ try {
   Say "Switching to $NewVersion"
   Stop-Counter
   Set-Current $New
-  Py $New -m alembic upgrade head
+  $null = Py $New -m alembic upgrade head
   Start-Counter
-  Py $New -m app.ops wait-healthy --version $NewVersion --seconds 300
+  $null = Py $New -m app.ops wait-healthy --version $NewVersion --seconds 300
 } catch {
   Write-Host "`nUpdate failed: $_`nRolling back to $OldVersion" -ForegroundColor Yellow
   Stop-Counter
-  try { Py $New -m alembic downgrade $OldRevision }
+  try { $null = Py $New -m alembic downgrade $OldRevision }
   catch {
     Write-Host "Undoing the migrations failed; restoring the backup taken before the update."
-    Py $Old -m app.backup restore --file $Backup | Out-Null
+    $null = Py $Old -m app.backup restore --file $Backup
   }
   Set-Current $Old
   Start-Counter
   try {
-    Py $Old -m app.ops wait-healthy --version $OldVersion --seconds 90
+    $null = Py $Old -m app.ops wait-healthy --version $OldVersion --seconds 90
     Write-Host "Rolled back. $OldVersion is running again; nothing was lost. Log: $Log" -ForegroundColor Yellow
   } catch {
     Write-Host "ROLLBACK DID NOT COME BACK HEALTHY. Call Avinaya. Backup: $Backup  Log: $Log" -ForegroundColor Red

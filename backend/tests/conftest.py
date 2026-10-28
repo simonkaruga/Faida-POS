@@ -116,8 +116,10 @@ SAMPLE_MENU = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "sampl
 
 @pytest.fixture
 def menu(db, business):
+    # Without the sample happy hour (weekdays 17-19), so prices don't depend on the hour
+    # the tests run; the happy hour test makes its own.
     with open(SAMPLE_MENU, encoding="utf-8") as f:
-        load_menu(db, business.id, json.load(f))
+        load_menu(db, business.id, {**json.load(f), "price_rules": []})
 
 
 def login(client, pin):

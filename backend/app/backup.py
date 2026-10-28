@@ -43,11 +43,22 @@ def _key(passphrase: str, salt: bytes) -> bytes:
     return base64.urlsafe_b64encode(hashlib.scrypt(passphrase.encode(), salt=salt, n=2**14, r=8, p=1, dklen=32))
 
 
-def _tool(config: Config, name: str) -> str:
-    path = str(Path(config.pg_bin) / name) if config.pg_bin else shutil.which(name)
-    if not path or not Path(path).exists():
-        raise BackupError(f"{name} not found. Set FAIDA_PG_BIN to PostgreSQL's bin folder.")
-    return path
+def _tool(config: Config, name: str, windows: bool = os.name == "nt") -> str:
+    """pg_dump or pg_restore: in FAIDA_PG_BIN if set, else on the PATH, else (Windows) in
+    PostgreSQL's usual folder. On Windows the file is name.exe."""
+    files = [f"{name}.exe", name] if windows else [name]
+    folders = [Path(config.pg_bin)] if config.pg_bin else []
+    if not folders:
+        if found := shutil.which(name):
+            return found
+        if windows:
+            folders = sorted(Path(os.environ.get("ProgramFiles", r"C:\Program Files")).glob("PostgreSQL/*/bin"), reverse=True)
+    for folder in folders:
+        for file in files:
+            if (folder / file).is_file():
+                return str(folder / file)
+    where = f" in {config.pg_bin}" if config.pg_bin else ""
+    raise BackupError(f"{name} not found{where}. Set FAIDA_PG_BIN to PostgreSQL's bin folder.")
 
 
 def _libpq(url: str) -> str:
