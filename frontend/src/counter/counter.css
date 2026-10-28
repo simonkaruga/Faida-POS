@@ -448,6 +448,8 @@
 .status-tag.unpaid_responsible { background: rgb(240 138 36 / 0.2); color: var(--orange); }
 .status-tag.cancelled { background: rgb(214 69 69 / 0.2); color: var(--red); }
 .shift-row .result-badge { font-size: 16px; padding: 4px 12px; }
+.audit-row { flex-wrap: wrap; row-gap: 2px; font-size: 16px; }
+.audit-row .grow { min-width: 240px; }
 .alert-row { padding: 10px 16px; margin-bottom: 8px; border-radius: var(--radius); background: rgb(240 138 36 / 0.15); color: var(--orange); font-weight: 700; font-size: 18px; }
 .reversed { text-decoration: line-through; }
 

@@ -9,8 +9,10 @@ import {
   LayoutDashboard,
   LogOut,
   Package,
+  Pencil,
   Printer,
   ReceiptText,
+  ScrollText,
   Settings2,
   SlidersHorizontal,
   TriangleAlert,
@@ -36,6 +38,7 @@ import {
   giveFloat,
   ownerCash,
   recordPayout,
+  updateCustomer,
   reprint,
   setShortageStatus,
   type CashBox,
@@ -50,6 +53,7 @@ import { Keypad } from "../shared/Keypad";
 import { Modal } from "../shared/Modal";
 import { formatKsh } from "../shared/money";
 import { getPrintouts, KIND_NAME, ReceiptDialog, StatusPill, type Printout } from "../shared/Receipt";
+import { AuditLog } from "./AuditLog";
 import { FinishedBills } from "./FinishedBills";
 import { Dashboard } from "./Dashboard";
 import { ClosingTab, ExpensesTab, ReportsTab } from "./OwnerReports";
@@ -58,7 +62,7 @@ import { StockTab } from "./StockTab";
 
 type Tab =
   | "dashboard"
-  | "shifts" | "credit" | "cash" | "stock" | "bills" | "printers" | "closing" | "reports" | "expenses"
+  | "shifts" | "credit" | "cash" | "stock" | "bills" | "printers" | "closing" | "reports" | "expenses" | "audit"
   | "menu" | "choices" | "tables" | "staff" | "settings";
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong.");
 const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "");
@@ -118,6 +122,7 @@ export function OwnerArea({ session, onBack, onLock }: { session: Session; onBac
       ? ([["Owner", [
           { tab: "reports", label: "Reports", icon: ChartColumn, hint: "Sales, profit, sellers" },
           { tab: "expenses", label: "Expenses", icon: HandCoins, hint: "Rent, power, salaries", print: true },
+          { tab: "audit", label: "Audit log", icon: ScrollText, hint: "Who did what: removals, discounts, approvals, changes", print: true },
         ]], ["Setup", [
           { tab: "menu", label: "Menu & prices", icon: UtensilsCrossed, hint: "Items, sizes, prices, pictures, combos" },
           { tab: "choices", label: "Choices & happy hour", icon: SlidersHorizontal, hint: "Mixers, sides, offers by time" },
@@ -198,6 +203,7 @@ export function OwnerArea({ session, onBack, onLock }: { session: Session; onBac
           {tab === "closing" && <ClosingTab />}
           {tab === "reports" && <ReportsTab />}
           {tab === "expenses" && <ExpensesTab />}
+          {tab === "audit" && <AuditLog />}
           {tab === "menu" && <MenuEditor />}
           {tab === "choices" && <ChoicesEditor />}
           {tab === "tables" && <TablesEditor />}
@@ -259,18 +265,20 @@ function PrinterLog() {
 
 const reprintSlip = (id: string) => api<Printout>(`/handover-slips/${id}/reprint`, { method: "POST" });
 
-function AmountDialog({ title, children, onSubmit, onClose, submitLabel, extra }: {
+function AmountDialog({ title, children, onSubmit, onClose, submitLabel, extra, initial, zeroOk }: {
   title: string;
   children?: ReactNode;
   onSubmit: (amount: number) => Promise<unknown>;
   onClose: () => void;
   submitLabel: string;
   extra?: (amount: number) => boolean;
+  initial?: number;
+  zeroOk?: boolean;
 }) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(initial ? String(initial) : "");
   const [error, setError] = useState<string | null>(null);
   const n = Number(value || 0);
-  const ok = n > 0 && (extra ? extra(n) : true);
+  const ok = (n > 0 || (!!zeroOk && value !== "")) && (extra ? extra(n) : true);
   const submit = () => ok && onSubmit(n).then(onClose, (e) => setError(errorText(e)));
   return (
     <Modal title={title} onClose={onClose} wide>
@@ -286,7 +294,7 @@ function AmountDialog({ title, children, onSubmit, onClose, submitLabel, extra }
             {submitLabel}
           </button>
         </div>
-        <Keypad value={value} onChange={(v) => (setValue(v.replace(/^0+/, "")), setError(null))} onEnter={submit} maxLength={8} />
+        <Keypad value={value} onChange={(v) => (setValue(v.replace(/^0+(?=\d)/, "")), setError(null))} onEnter={submit} maxLength={8} />
       </div>
     </Modal>
   );
@@ -445,6 +453,7 @@ function CreditTab({ session }: { session: Session }) {
   const [customers, setCustomers] = useState<CreditCustomer[] | null>(null);
   const [collecting, setCollecting] = useState<CreditCustomer | null>(null);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<CreditCustomer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = () => getCustomers().then((c) => setCustomers([...c].sort((a, b) => (a.oldest_unpaid ?? "9").localeCompare(b.oldest_unpaid ?? "9"))), (e) => setError(errorText(e)));
   useEffect(() => {
@@ -477,6 +486,11 @@ function CreditTab({ session }: { session: Session }) {
                 Record payment
               </button>
             )}
+            {isOwner && (
+              <button className="btn btn-quiet no-print" onClick={() => setEditing(c)} aria-label={`Change ${c.name}`}>
+                <Pencil size={18} /> Change
+              </button>
+            )}
           </div>
         ))}
         {!customers.length && <p className="muted">No credit customers yet.</p>}
@@ -484,6 +498,7 @@ function CreditTab({ session }: { session: Session }) {
       <p className="error-text">{error ?? ""}</p>
       {collecting && <CollectDialog customer={collecting} onDone={() => (setCollecting(null), load())} onClose={() => setCollecting(null)} />}
       {adding && <AddCustomerDialog onDone={() => (setAdding(false), load())} onClose={() => setAdding(false)} />}
+      {editing && <EditCustomerDialog customer={editing} onDone={() => (setEditing(null), load())} onClose={() => setEditing(null)} />}
     </>
   );
 }
@@ -531,6 +546,38 @@ function AddCustomerDialog({ onDone, onClose }: { onDone: () => void; onClose: (
       <input className="text-input" placeholder="Phone" value={phone} maxLength={20} onChange={(e) => setPhone(e.target.value)} />
       <p className="muted" style={{ margin: 0 }}>
         Credit limit (amount):
+      </p>
+    </AmountDialog>
+  );
+}
+
+/** Owner only: name, phone and credit limit. A limit of 0 stops new credit; a customer
+ * who owes nothing can be removed from the list (kept in the records). */
+function EditCustomerDialog({ customer, onDone, onClose }: { customer: CreditCustomer; onDone: () => void; onClose: () => void }) {
+  const [name, setName] = useState(customer.name);
+  const [phone, setPhone] = useState(customer.phone ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const remove = () => updateCustomer(customer.id, { active: false }).then(onDone, (e) => setError(errorText(e)));
+  return (
+    <AmountDialog
+      title={`Change ${customer.name}`}
+      submitLabel="SAVE"
+      initial={customer.credit_limit}
+      zeroOk
+      extra={() => !!name.trim()}
+      onSubmit={(limit) => updateCustomer(customer.id, { name: name.trim(), phone: phone.trim(), credit_limit: limit }).then(onDone)}
+      onClose={onClose}
+    >
+      <input className="text-input" placeholder="Name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
+      <input className="text-input" placeholder="Phone" value={phone} maxLength={20} onChange={(e) => setPhone(e.target.value)} />
+      {customer.owed === 0 && (
+        <button className="btn btn-quiet" onClick={remove}>
+          REMOVE FROM LIST
+        </button>
+      )}
+      <p className="error-text">{error ?? ""}</p>
+      <p className="muted" style={{ margin: 0 }}>
+        Credit limit (owes {formatKsh(customer.owed)} now; 0 stops new credit):
       </p>
     </AmountDialog>
   );

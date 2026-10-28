@@ -95,7 +95,7 @@ The installer asks for:
 ## 8. Training and handover
 
 - [ ] Each waiter is trained with `docs/staff-guide.md` (15–30 minutes each) and has signed `docs/house-rules.md`.
-- [ ] The owner is trained on the Owner area: closing, cash-up, stock, reports, Excel export and the Setup pages.
+- [ ] The owner is trained on the Owner area: closing, cash-up, stock, reports, Excel export, the audit log and the Setup pages.
 - [ ] Soft launch: 2–3 days alongside her current method.
 - [ ] Demo done, and `docs/handover-checklist.md` signed by the owner.
 

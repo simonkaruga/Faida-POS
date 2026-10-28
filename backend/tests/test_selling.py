@@ -157,6 +157,21 @@ def test_void_needs_approval_and_records_the_reason(client, waiter, supervisor, 
     assert client.post(url, json={"reason": "not_prepared"}, headers=supervisor).status_code == 409
 
 
+def test_audit_log_shows_the_approver_and_hides_logins(client, owner, waiter, supervisor, round1):
+    line = round1["lines"][0]
+    approval = approve(client, waiter, "void_item")
+    client.post(f"/api/bills/{round1['id']}/lines/{line['id']}/void",
+                json={"reason": "not_prepared", "approval_id": approval}, headers=waiter)
+    log = client.get("/api/audit", headers=owner).json()
+    assert any(e["action"] == "staff.login" for e in log)
+    void = next(e for e in log if e["action"] == "bill_line.voided")
+    assert (void["by"], void["approved_by"], void["reason"]) == ("Jane", "Sam", "ok")
+    quiet = client.get("/api/audit?logins=false", headers=owner).json()
+    assert quiet and all(e["action"] != "staff.login" for e in quiet)
+    older = client.get("/api/audit", params={"before": void["created_at"]}, headers=owner).json()
+    assert older and all(e["created_at"] < void["created_at"] for e in older)
+
+
 def test_cash_payment_shows_change_and_prints_two_receipts(client, waiter, round1, printers):
     r = pay(client, waiter, round1, method="cash", amount=1250, tendered=2000)
     assert r.status_code == 201, r.text

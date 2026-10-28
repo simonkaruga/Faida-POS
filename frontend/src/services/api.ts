@@ -274,6 +274,8 @@ export const getCustomers = () => api<CreditCustomer[]>("/credit/customers");
 export const getDebtors = () => api<CreditCustomer[]>("/credit/debtors");
 export const createCustomer = (body: { name: string; phone: string | null; credit_limit: number }) =>
   api<CreditCustomer>("/credit/customers", { body });
+export const updateCustomer = (id: string, body: Partial<{ name: string; phone: string; credit_limit: number; active: boolean }>) =>
+  api<CreditCustomer>(`/credit/customers/${id}`, { method: "PATCH", body });
 export const putOnCredit = (billId: string, customerId: string, approvalId?: string) =>
   api<Bill>(`/bills/${billId}/credit`, { body: { customer_id: customerId, approval_id: approvalId } });
 export const markUnpaid = (billId: string) => api<Bill>(`/bills/${billId}/unpaid`, { method: "POST" });
@@ -601,3 +603,22 @@ export const resetPin = (id: string, pin: string) => api<void>(`/staff/${id}/pin
 export const deactivateStaff = (id: string) => api<StaffRow>(`/staff/${id}/deactivate`, { method: "POST" });
 
 export const updateSettings = (body: Partial<Settings>) => api<Settings>("/settings", { method: "PATCH", body });
+
+// Audit log (owner only): every void, discount, approval, price change...
+export type AuditEntry = {
+  id: string;
+  created_at: string;
+  action: string;
+  by: string | null;
+  entity_type: string | null;
+  entity_id: string | null;
+  approval_id: string | null;
+  approved_by: string | null;
+  reason: string | null;
+  details: Record<string, unknown>;
+};
+export const getAudit = (opts: { before?: string; logins?: boolean } = {}) => {
+  const q = new URLSearchParams({ limit: "100", logins: String(opts.logins ?? false) });
+  if (opts.before) q.set("before", opts.before);
+  return api<AuditEntry[]>(`/audit?${q}`);
+};
