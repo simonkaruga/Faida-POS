@@ -48,7 +48,7 @@ function Ask-Secret($What, [switch]$Simple) {
 function Bundled($Pattern) { if ($Bundle) { Get-ChildItem (Join-Path $Bundle $Pattern) -ErrorAction SilentlyContinue | Select-Object -First 1 } }
 $HasWinget = [bool](Get-Command winget -ErrorAction SilentlyContinue)
 function Find-Psql { Get-ChildItem "C:\Program Files\PostgreSQL\*\bin\psql.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1 }
-function Has-Python312 { try { & py -3.12 --version *> $null; return $LASTEXITCODE -eq 0 } catch { return $false } }
+function Has-Python312 { try { & py.exe -3.12 --version *> $null; return $LASTEXITCODE -eq 0 } catch { return $false } }
 
 Say "1/8 PostgreSQL and Python"
 $PgSuperPass = $null  # set here when this installer installs PostgreSQL itself
@@ -91,7 +91,7 @@ if ($Release -ne $Target) {
   if (Test-Path $Target) { Remove-Item -Recurse -Force $Target }
   Copy-Item -Recurse $Release $Target
 }
-& py -3.12 -m venv "$Target\backend\.venv"
+& py.exe -3.12 -m venv "$Target\backend\.venv"
 # Packages from the release's wheels folder (FaidaSetup.exe has one), else from the internet.
 $PipFrom = if (Test-Path "$Target\backend\wheels") { @("--no-index", "--find-links", "$Target\backend\wheels") } else { @() }
 & "$Target\backend\.venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check @PipFrom -r "$Target\backend\requirements.txt"

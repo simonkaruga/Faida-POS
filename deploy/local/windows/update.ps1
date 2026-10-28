@@ -21,7 +21,7 @@ $OldVersion = (Get-Content "$Old\VERSION").Trim()
 $Log = "$Base\data\logs\update-$(Get-Date -Format yyyyMMdd-HHmmss).log"
 Start-Transcript -Path $Log | Out-Null
 function Say($t) { Write-Host "`n== $t" -ForegroundColor Cyan }
-function Py($Dir) {
+function Py($Dir) {  # Faida's own Python in $Dir; the launcher is always called as py.exe
   # Python logs to stderr; in Windows PowerShell that must not count as a failure.
   $ErrorActionPreference = "Continue"
   Push-Location "$Dir\backend"
@@ -61,7 +61,7 @@ try {
   if ($New -eq $Old) { throw "Version $NewVersion is already running." }
   if (Test-Path $New) { Remove-Item -Recurse -Force $New }
   if ($Release) { Copy-Item -Recurse $Src $New } else { Move-Item $Src $New }
-  & py -3.12 -m venv "$New\backend\.venv"
+  & py.exe -3.12 -m venv "$New\backend\.venv"
   $PipFrom = if (Test-Path "$New\backend\wheels") { @("--no-index", "--find-links", "$New\backend\wheels") } else { @() }
   & "$New\backend\.venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check @PipFrom -r "$New\backend\requirements.txt"
   if ($LASTEXITCODE) { throw "Installing the Python packages failed$(if (-not $PipFrom) { ' (is the internet on?)' }). Nothing was changed." }
