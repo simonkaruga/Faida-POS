@@ -78,7 +78,23 @@ try {
       }
     } else {
       Write-Host "Updating Faida POS $Current -> $Version. Do this after closing, with every shift ended.`n" -ForegroundColor Cyan
-      & "$PSScriptRoot\update.ps1" -Release $Release
+      # Shifts or orders still open: the owner may update anyway. They are kept and carry
+      # on after the update; nobody may sell during it.
+      $env:FAIDA_ENV_FILE = "$Base\counter.env"
+      Push-Location "$Base\current\backend"
+      $ErrorActionPreference = "Continue"  # Python's message on stderr is not a failure here
+      $Busy = & "$Base\current\backend\.venv\Scripts\python.exe" -m app.ops busy 2>&1 | ForEach-Object { "$_" }
+      $IsBusy = [bool]$LASTEXITCODE
+      $ErrorActionPreference = "Stop"
+      Pop-Location
+      $Force = $false
+      if ($IsBusy) {
+        Write-Host ($Busy -join "`n") -ForegroundColor Yellow
+        Write-Host "Open orders and shifts are kept and carry on after the update, but nobody may sell for the next few minutes."
+        $Force = (Read-Host "Type UPDATE to update anyway, or press Enter to stop and update after closing") -eq "UPDATE"
+        if (-not $Force) { throw "Not updated: shifts or orders are still open. Run FaidaSetup.exe again after closing." }
+      }
+      & "$PSScriptRoot\update.ps1" -Release $Release -Force:$Force
       if ($LASTEXITCODE) { $ok = $false }
       else { & "$Base\current\deploy\local\windows\shortcut.ps1" }  # counters installed before the icon existed
     }
