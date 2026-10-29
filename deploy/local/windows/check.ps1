@@ -43,6 +43,13 @@ if (Test-Path "$Base\counter.env") {
   }
 }
 
+Head "Counter screen files"
+$Page = "$Base\current\frontend\dist\index.html"
+if (Test-Path $Page) {
+  $Scripts = [regex]::Matches((Get-Content $Page -Raw), '/assets/[^"]+') | ForEach-Object { $_.Value }
+  foreach ($s in $Scripts) { "{0}  {1}" -f $(if (Test-Path "$Base\current\frontend\dist$($s -replace '/', '\')") { "OK     " } else { "MISSING" }), $s }
+} else { "MISSING  $Page" }
+
 Head "Database (PostgreSQL service)"
 $pg = Get-Service -Name "postgresql*" -ErrorAction SilentlyContinue
 if ($pg) { $pg | ForEach-Object { "{0}: {1} ({2})" -f $_.Name, $_.Status, $_.StartType } } else { "No PostgreSQL service found." }

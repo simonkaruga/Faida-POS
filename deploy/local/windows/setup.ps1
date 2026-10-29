@@ -43,6 +43,12 @@ try {
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
   Get-CimInstance Win32_Process -Filter "Name = 'chrome.exe' OR Name = 'msedge.exe'" | Where-Object { $_.CommandLine -like "*FaidaKiosk*" } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+  # Forget the old version's pages: a kept page asks for scripts the new version doesn't
+  # have, and the screen stays blank (Chewaz, 0.3.3). Only the browser's cache is removed.
+  Start-Sleep 2
+  Get-ChildItem "C:\Users\*\AppData\Local\FaidaKiosk\Default" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+    foreach ($Cache in "Cache", "Code Cache", "GPUCache") { Remove-Item -Recurse -Force (Join-Path $_.FullName $Cache) -ErrorAction SilentlyContinue }
+  }
 
   if ($Installed) {
     # Neither counter only nor a real cloud address (e.g. "link later" was typed): ask.
