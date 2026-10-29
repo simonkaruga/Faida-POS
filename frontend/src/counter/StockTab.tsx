@@ -22,6 +22,7 @@ import {
   type Supplier,
   type Variance,
 } from "../services/api";
+import { Pencil } from "lucide-react";
 import { Keypad } from "../shared/Keypad";
 import { Modal } from "../shared/Modal";
 import { formatKsh } from "../shared/money";
@@ -51,7 +52,7 @@ export function StockTab({ session }: { session: Session }) {
   }, []);
 
   if (!items) return <p className="muted">{error ?? "Loading…"}</p>;
-  if (view === "take") return <StockTakeView items={items} onDone={() => (setView("list"), load())} />;
+  if (view === "take") return <StockTakeView items={items} isOwner={isOwner} onReload={load} onDone={() => (setView("list"), load())} />;
   if (view === "recipes") return <RecipesView items={items} onBack={() => setView("list")} />;
 
   const total = items.reduce((s, i) => s + (i.value ?? 0), 0);
@@ -295,7 +296,9 @@ type Count = { full: string; tenths: number };
 
 /** Count sealed bottles (or kg, pieces) and the open bottle in tenths. Faida doesn't show
  * what it expects until the count is saved, so the count isn't nudged. */
-function StockTakeView({ items, onDone }: { items: StockItem[]; onDone: () => void }) {
+function StockTakeView({ items, isOwner, onReload, onDone }: { items: StockItem[]; isOwner: boolean; onReload: () => void; onDone: () => void }) {
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<StockItem | null>(null);
   const [station, setStation] = useState<"bar" | "kitchen">("bar");
   const [counts, setCounts] = useState<Record<string, Count>>({});
   const [selected, setSelected] = useState<string | null>(null);
@@ -351,6 +354,11 @@ function StockTakeView({ items, onDone }: { items: StockItem[]; onDone: () => vo
             </button>
           ))}
           <span className="grow muted">{counted} counted</span>
+          {isOwner && (
+            <button className="btn btn-quiet" onClick={() => setAdding(true)}>
+              + New item
+            </button>
+          )}
           <button className="btn btn-quiet" onClick={onDone}>
             Cancel
           </button>
@@ -376,6 +384,11 @@ function StockTakeView({ items, onDone }: { items: StockItem[]; onDone: () => vo
                   <input type="range" min={0} max={9} step={1} value={c?.tenths ?? 0} onChange={(e) => set(i.id, { tenths: Number(e.target.value) })} />
                   <strong>{c?.tenths ?? 0}/10</strong>
                 </label>
+              )}
+              {isOwner && (
+                <button className="btn btn-quiet take-edit" onClick={() => setEditing(i)} aria-label={`Change ${i.name}`}>
+                  <Pencil size={18} />
+                </button>
               )}
             </div>
           );
@@ -407,19 +420,37 @@ function StockTakeView({ items, onDone }: { items: StockItem[]; onDone: () => vo
           <p className="muted">Tap an item to count it.</p>
         )}
       </div>
+      {adding && <NewItemDialog onDone={() => (setAdding(false), onReload())} onClose={() => setAdding(false)} />}
+      {editing && <ItemDialog item={editing} isOwner={isOwner} onChanged={() => (setEditing(null), onReload())} onClose={() => setEditing(null)} />}
     </div>
   );
 }
 
 function ItemDialog({ item, isOwner, onChanged, onClose }: { item: StockItem; isOwner: boolean; onChanged: () => void; onClose: () => void }) {
   const [moves, setMoves] = useState<StockMovement[] | null>(null);
-  const [price, setPrice] = useState(item.buying_price ?? "");
-  const [reorder, setReorder] = useState(String(Number(item.reorder_level) / (item.bottle_size ?? (item.unit === "ml" || item.unit === "g" ? 1000 : 1))));
+  const [f, setF] = useState({
+    name: item.name,
+    bottle_size: item.bottle_size ? String(item.bottle_size) : "",
+    pack_name: item.pack_name ?? "",
+    pack_size: item.pack_size ? String(item.pack_size) : "",
+    price: item.buying_price ?? "",
+    reorder: String(Number(item.reorder_level) / (item.bottle_size ?? (item.unit === "ml" || item.unit === "g" ? 1000 : 1))),
+  });
   const [selling, setSelling] = useState(item.selling.map((s) => ({ ...s, price: String(s.price) })));
+  const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  const resized = item.unit === "ml" && item.bottle_size !== null && f.bottle_size !== "" && Number(f.bottle_size) !== item.bottle_size;
   const save = async () => {
     try {
-      await updateStockItem(item.id, { buying_price: price || undefined, reorder_level: reorder || undefined });
+      await updateStockItem(item.id, {
+        name: f.name.trim() || undefined,
+        bottle_size: resized ? Number(f.bottle_size) : undefined,
+        pack_name: f.pack_name.trim() || undefined,
+        pack_size: f.pack_size ? Number(f.pack_size) : undefined,
+        buying_price: f.price || undefined,
+        reorder_level: f.reorder || undefined,
+      });
       for (const s of selling) {
         const before = item.selling.find((b) => b.option_id === s.option_id);
         if (s.price !== "" && Number(s.price) !== before?.price) await updateOption(s.option_id, { price: Number(s.price) });
@@ -429,43 +460,77 @@ function ItemDialog({ item, isOwner, onChanged, onClose }: { item: StockItem; is
       setError(errorText(e));
     }
   };
+  const remove = () => updateStockItem(item.id, { active: false }).then(onChanged, (e) => setError(errorText(e)));
   useEffect(() => {
     getMovements(item.id).then(setMoves, (e) => setError(errorText(e)));
   }, [item.id]);
+  const field = (label: string, k: keyof typeof f, mode: "text" | "numeric" | "decimal" = "text") => (
+    <label className="form-field grow" style={{ minWidth: 0, flexBasis: 0 }}>
+      <span>{label}</span>
+      <input className="text-input" style={{ width: "100%", minWidth: 0 }} inputMode={mode} value={f[k]} onChange={set(k)} />
+    </label>
+  );
   return (
     <Modal title={`${item.name}: ${item.level_text}`} onClose={onClose} wide>
       {isOwner && (
-        <div className="row" style={{ flexWrap: "wrap" }}>
-          <label className="row">
-            <span className="muted">Buying price per {item.counting_unit}</span>
-            <input className="text-input" style={{ width: 130 }} inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} />
-          </label>
-          <label className="row">
-            <span className="muted">Reorder at ({plural(item.counting_unit)})</span>
-            <input className="text-input" style={{ width: 100 }} inputMode="decimal" value={reorder} onChange={(e) => setReorder(e.target.value)} />
-          </label>
-          <button className="btn btn-primary" onClick={save}>
-            SAVE
-          </button>
-        </div>
+        <>
+          <div className="row" style={{ alignItems: "flex-end" }}>
+            {field("Name", "name")}
+            {item.unit === "ml" && item.bottle_size !== null && field("ml in one bottle", "bottle_size", "numeric")}
+          </div>
+          {resized && Number(item.level) > 0 && (
+            <p className="warn" style={{ margin: 0 }}>
+              The {Number(item.level).toLocaleString()} ml in stock stay as they are: about {(Number(item.level) / Number(f.bottle_size)).toFixed(1)} bottles of{" "}
+              {f.bottle_size} ml. Count it again after saving.
+            </p>
+          )}
+          <div className="row" style={{ alignItems: "flex-end" }}>
+            {field("Pack it comes in", "pack_name")}
+            {field(`${plural(item.counting_unit)} per pack`, "pack_size", "numeric")}
+            {field(`Buying price per ${item.counting_unit}`, "price", "decimal")}
+            {field(`Warn when below (${plural(item.counting_unit)})`, "reorder", "decimal")}
+          </div>
+          {selling.length > 0 && (
+            <div className="row" style={{ alignItems: "flex-end", flexWrap: "wrap" }}>
+              {selling.map((s, i) => (
+                <label key={s.option_id} className="form-field" style={{ minWidth: 160 }}>
+                  <span>Selling price: {s.name}</span>
+                  <input
+                    className="text-input"
+                    inputMode="numeric"
+                    value={s.price}
+                    onChange={(e) => setSelling(selling.map((x, j) => (j === i ? { ...x, price: e.target.value.replace(/\D/g, "") } : x)))}
+                  />
+                </label>
+              ))}
+            </div>
+          )}
+          {!selling.length && <p className="muted">Not sold on the menu. Link it under Recipes, or add it from New item.</p>}
+          <div className="row">
+            {removing ? (
+              <>
+                <span className="warn grow">Remove {item.name} from the stock list? Its history is kept.</span>
+                <button className="btn btn-quiet" onClick={() => setRemoving(false)}>
+                  Keep
+                </button>
+                <button className="btn btn-red" onClick={remove}>
+                  REMOVE
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="btn btn-quiet" onClick={() => setRemoving(true)}>
+                  Remove from stock
+                </button>
+                <span className="grow" />
+                <button className="btn btn-primary" disabled={!f.name.trim()} onClick={save}>
+                  SAVE
+                </button>
+              </>
+            )}
+          </div>
+        </>
       )}
-      {isOwner && selling.length > 0 && (
-        <div className="row" style={{ flexWrap: "wrap" }}>
-          {selling.map((s, i) => (
-            <label key={s.option_id} className="row">
-              <span className="muted">Selling price: {s.name}</span>
-              <input
-                className="text-input"
-                style={{ width: 110 }}
-                inputMode="numeric"
-                value={s.price}
-                onChange={(e) => setSelling(selling.map((x, j) => (j === i ? { ...x, price: e.target.value.replace(/\D/g, "") } : x)))}
-              />
-            </label>
-          ))}
-        </div>
-      )}
-      {isOwner && !selling.length && <p className="muted">Not sold on the menu. Link it under Recipes, or add it from New item.</p>}
       <p className="error-text">{error ?? ""}</p>
       <div className="list-table movements">
         {moves?.map((m, i) => (

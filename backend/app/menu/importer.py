@@ -25,7 +25,7 @@ from app.menu.models import (
 )
 from app.settings.service import get_settings
 from app.stock.models import RecipeLine, StockItem, StockUnit
-from app.stock.service import factor
+from app.stock.service import buying_price, factor
 
 Price = Annotated[int, Field(ge=0)]
 
@@ -287,11 +287,6 @@ def export_menu(db: Session, business_id: uuid.UUID, images_dir: Path, pictures_
     def num(d: Decimal | None) -> float | int | None:
         return None if d is None else (int(d) if d == d.to_integral_value() else float(d))
 
-    def price(per_unit: Decimal) -> Decimal:
-        # Kept per ml or g: 1150 / 750 ml comes back as 1149.98. Prices are whole shillings.
-        whole = per_unit.quantize(Decimal(1))
-        return whole if abs(per_unit - whole) < Decimal("0.05") else per_unit.quantize(Decimal("0.01"))
-
     def mine(model):
         return select(model).where(model.business_id == business_id)
 
@@ -303,7 +298,7 @@ def export_menu(db: Session, business_id: uuid.UUID, images_dir: Path, pictures_
         stock.append({k: v for k, v in {
             "name": s.name, "station": s.station.value, "unit": s.unit.value, "bottle_size": s.bottle_size,
             "pack_name": s.pack_name, "pack_size": s.pack_size,
-            "buying_price": num(price(s.unit_cost * f)), "reorder_level": num(s.reorder_level / f),
+            "buying_price": num(buying_price(s)), "reorder_level": num(s.reorder_level / f),
         }.items() if v is not None})
 
     def uses(option_id: uuid.UUID) -> list[dict]:

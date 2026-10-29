@@ -156,6 +156,6 @@ def make_receipt(db: Db, actor: Actor, bill: Bill, printing: Printing, footer: s
     a = amounts(db, bill)
     number = next_number(db, actor.business_id, "receipt")
     content = layouts.receipt(printing.header(db, bill, now()), number, group_items(lines, for_customer=True),
-                              a.gross, a.discount, rows, footer)
+                              a.gross, a.discount, rows, footer, get_settings(db, actor.business_id).mpesa_till_number)
     return printing.new_ticket(db, actor, bill, TicketKind.receipt, PrinterName.counter, content,
                                number, copies=[None, "COUNTER COPY"])

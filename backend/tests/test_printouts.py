@@ -18,9 +18,11 @@ def test_receipt_on_screen_matches_the_printout(client, owner, menu, add_staff):
     assert doc["copies"] == [None, "COUNTER COPY"] and doc["title"].startswith("Tab - Kamau")
     texts = [row.get("text") or " ".join(row.get("cols", [])) for row in doc["content"]]
     assert any("2 x Coke" in t for t in texts) and any("Not a KRA tax invoice" in t for t in texts)
-    vendor = doc["content"][-1]
-    assert vendor["small"] and vendor["text"] == "Powered by Faida POS · Avinaya Solutions Ltd · +254 797 033 513"
+    vendor, thanks = doc["content"][-2:]  # the thank-you line last, under the small print
+    assert vendor["small"] and vendor["text"] == "Powered by Faida POS · Avinaya Solutions Ltd"
+    assert not thanks.get("small") and thanks["text"]
     assert "Avinaya" not in " ".join(row.get("text", "") for row in doc["content"] if not row.get("small"))
+    assert "797" not in " ".join(row.get("text", "") for row in doc["content"])  # no support number for customers
     assert client.get(f"/api/tickets/{receipt['id']}", headers=login(client, "4826")).status_code == 403
 
     log = client.get("/api/printouts", headers=owner).json()
@@ -141,3 +143,20 @@ def test_windows_prints_through_the_spooler_without_a_share(fake_windows):
     printers.append({"pPrinterName": "Other", "pShareName": None, "pPortName": "USB002", "Attributes": 0, "Status": 0})
     with pytest.raises(PrinterError, match="No printer called POS80"):
         make_printer("POS80", "counter", windows=True).print([text("x")])
+
+
+def test_till_number_on_the_bill_and_the_receipt(client, owner, menu):
+    """Chewaz: the M-Pesa till on both, and the thank-you line last."""
+    r = client.patch("/api/settings", headers=owner, json={"mpesa_till_number": "3706694", "receipt_footer": "Thank you, karibu tena!"})
+    assert r.status_code == 200, r.text
+    coke = next(i for c in client.get("/api/menu", headers=owner).json()["categories"] for i in c["items"] if i["name"] == "Coke")
+    bill = client.post("/api/bills", json={"tab_name": "Kamau"}, headers=owner).json()
+    client.post(f"/api/bills/{bill['id']}/send", headers=owner, json={"items": [{"sell_option_id": coke["options"][0]["id"]}]})
+    printed = client.post(f"/api/bills/{bill['id']}/print", headers=owner).json()
+    paid = client.post(f"/api/bills/{bill['id']}/payments", headers=owner, json={"method": "cash", "amount": 100}).json()["bill"]
+    for kind in ("bill", "receipt"):
+        t = next(t for t in paid["tickets"] if t["kind"] == kind)
+        rows = client.get(f"/api/tickets/{t['id']}", headers=owner).json()["content"]
+        assert any(r.get("text") == "Buy Goods Till No. 3706694" for r in rows), kind
+        assert rows[-1]["text"] == "Thank you, karibu tena!", kind
+    assert printed

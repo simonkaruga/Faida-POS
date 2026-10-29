@@ -100,7 +100,7 @@ def _out(actor: Actor, item: StockItem, qty: Decimal, tot_size: int | None, sell
         bottle_size=item.bottle_size, pack_name=item.pack_name, pack_size=item.pack_size, level=qty,
         level_text=stock.describe(item, qty, tot_size), reorder_level=item.reorder_level,
         low=item.reorder_level > 0 and qty <= item.reorder_level, check=qty < 0, active=item.active, selling=list(selling),
-        buying_price=(item.unit_cost * factor(item)).quantize(Decimal("0.01")) if money else None,
+        buying_price=stock.buying_price(item) if money else None,
         value=stock.value(max(qty, Decimal(0)), item.unit_cost) if money else None,
     )
 
@@ -151,6 +151,7 @@ class ItemIn(BaseModel):
 
 class ItemPatch(BaseModel):
     name: Annotated[str, Field(min_length=1, max_length=80)] | None = None
+    bottle_size: Annotated[int, Field(ge=50, le=5000)] | None = None  # ml in one bottle (spirits)
     pack_name: Annotated[str, Field(max_length=20)] | None = None
     pack_size: Annotated[int, Field(ge=1, le=1000)] | None = None
     buying_price: Qty | None = None
@@ -202,9 +203,18 @@ def create_item(body: ItemIn, actor: Owner, db: Db) -> ItemOut:
 @router.patch("/stock/items/{item_id}")
 def update_item(item_id: uuid.UUID, body: ItemPatch, actor: Owner, db: Db) -> ItemOut:
     item = _item(db, actor, item_id)
-    f = factor(item)
     changes = {}
-    for field, new in body.model_dump(exclude_unset=True).items():
+    if body.bottle_size and body.bottle_size != item.bottle_size:
+        if item.unit is not StockUnit.ml:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Only items kept in ml have a bottle size.")
+        # Same buying price and reorder level per bottle; stock stays in ml (count it again).
+        old = factor(item)
+        price, reorder = item.unit_cost * old, item.reorder_level / old
+        changes["bottle_size"] = [str(item.bottle_size), str(body.bottle_size)]
+        item.bottle_size = body.bottle_size
+        item.unit_cost, item.reorder_level = price / body.bottle_size, reorder * body.bottle_size
+    f = factor(item)
+    for field, new in body.model_dump(exclude_unset=True, exclude={"bottle_size"}).items():
         if new is None:
             continue
         if field == "buying_price":

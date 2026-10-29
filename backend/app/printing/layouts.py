@@ -32,8 +32,9 @@ class PaymentRow:
     tip: int = 0
 
 
-# Small print at the foot of every bill and receipt: who made the till.
-VENDOR_LINE = "Powered by Faida POS · Avinaya Solutions Ltd · +254 797 033 513"
+# Small print at the foot of every bill and receipt: who made the till (no phone number:
+# customers read it, and support is for the bar).
+VENDOR_LINE = "Powered by Faida POS · Avinaya Solutions Ltd"
 
 
 def _vendor() -> list[Row]:
@@ -106,20 +107,32 @@ def _totals(gross: int, discount: int) -> list[Row]:
     return rows + [cols("TOTAL", ksh(gross - discount), size=2, bold=True)]
 
 
-def bill(h: Header, items: list[ItemRow], gross: int, discount: int, paid: int, till: str | None) -> list[Row]:
+def _till(till: str | None) -> list[Row]:
+    if not till:
+        return []
+    return [rule(), text("Pay by M-Pesa", bold=True, align="center"),
+            text(f"Buy Goods Till No. {till}", size=2, bold=True, align="center")]
+
+
+def _foot(footer: str | None) -> list[Row]:
+    """The thank-you line last, under the small print."""
+    return _vendor() + ([text(footer, bold=True, align="center")] if footer else [])
+
+
+def bill(h: Header, items: list[ItemRow], gross: int, discount: int, paid: int, till: str | None,
+         footer: str | None = None) -> list[Row]:
     total = gross - discount
     doc = _head(h, "BILL") + _items(items) + _totals(gross, discount)
     if paid:
         doc += [cols("Already paid", ksh(paid)), cols("TO PAY", ksh(total - paid), bold=True)]
-    if till:
-        doc += [rule(), text("Pay by M-Pesa", bold=True, align="center"),
-                text(f"Buy Goods Till No. {till}", size=2, bold=True, align="center")]
+    doc += _till(till)
     doc.append(text("Not a KRA tax invoice", align="center"))
-    return doc + _vendor()
+    return doc + _foot(footer)
 
 
 def receipt(
-    h: Header, number: int, items: list[ItemRow], gross: int, discount: int, payments: list[PaymentRow], footer: str
+    h: Header, number: int, items: list[ItemRow], gross: int, discount: int, payments: list[PaymentRow], footer: str,
+    till: str | None = None,
 ) -> list[Row]:
     doc = _head(h, f"RECEIPT No. {number:04d}") + _items(items) + _totals(gross, discount) + [rule()]
     for p in payments:
@@ -128,8 +141,8 @@ def receipt(
             doc.append(cols("   Given / Change", f"{ksh(p.tendered)} / {ksh(p.tendered - p.amount)}"))
         if p.tip:
             doc.append(cols("   Tip (M-Pesa)", ksh(p.tip)))
-    doc += [rule(), text("Not a KRA tax invoice", bold=True, align="center"), text(footer, align="center")]
-    return doc + _vendor()
+    doc += _till(till) + [rule(), text("Not a KRA tax invoice", bold=True, align="center")]
+    return doc + _foot(footer)
 
 
 def handover_slip(

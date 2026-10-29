@@ -464,13 +464,14 @@
 .delivery-row { display: flex; align-items: center; gap: var(--gap); flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 18px; }
 .take { display: grid; grid-template-columns: 1fr 360px; gap: 16px; height: 100%; }
 .take-list { overflow: auto; display: flex; flex-direction: column; gap: 6px; }
-.take-row { display: flex; align-items: center; gap: 16px; padding: 4px 8px; border-radius: var(--radius); background: var(--surface); border: 2px solid var(--border); }
+.take-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 4px 8px; border-radius: var(--radius); background: var(--surface); border: 2px solid var(--border); }
 .take-row.active { border-color: var(--blue); }
 .take-row.done { background: rgb(47 168 106 / 0.12); }
-.take-name { flex: 1; display: flex; justify-content: space-between; align-items: center; min-height: var(--tap-min); background: none; border: none; color: var(--text); font: inherit; font-size: 18px; text-align: left; cursor: pointer; }
-.take-name strong { font-size: 20px; }
-.tenths { display: flex; align-items: center; gap: 10px; font-size: 16px; }
-.tenths input { width: 220px; height: 40px; accent-color: var(--blue); }
+.take-name { flex: 1; min-width: 180px; display: flex; gap: 10px; justify-content: space-between; align-items: center; min-height: var(--tap-min); background: none; border: none; color: var(--text); font: inherit; font-size: 18px; text-align: left; cursor: pointer; }
+.take-name strong { flex: none; font-size: 20px; }
+.tenths { flex: 1 0 100%; order: 3; padding: 0 0 4px; display: flex; align-items: center; gap: 10px; font-size: 16px; }
+.tenths input { flex: 1; max-width: 320px; height: 40px; accent-color: var(--blue); }
+.take-edit { flex: none; min-height: 40px; padding: 0 10px; }
 .tenths strong { min-width: 44px; font-size: 20px; }
 .movements { max-height: 56vh; overflow: auto; }
 

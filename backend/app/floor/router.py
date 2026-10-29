@@ -351,8 +351,9 @@ def print_bill(bill_id: uuid.UUID, actor: CurrentActor, request: Request, db: Db
         raise HTTPException(status.HTTP_409_CONFLICT, "Nothing has been sent on this bill yet.")
     a = amounts(db, bill)
     printing = _printing(request)
+    settings = get_settings(db, actor.business_id)
     content = layouts.bill(printing.header(db, bill, now()), group_items(lines, for_customer=True), a.gross, a.discount, a.paid,
-                           get_settings(db, actor.business_id).mpesa_till_number)
+                           settings.mpesa_till_number, settings.receipt_footer)
     ticket = printing.new_ticket(db, actor, bill, TicketKind.bill, PrinterName.counter, content, bill.number)
     db.commit()
     request.app.state.printing.print_tickets([ticket])

@@ -26,6 +26,14 @@ def factor(item: StockItem) -> int:
     return 1000 if item.unit in (StockUnit.ml, StockUnit.g) else 1
 
 
+def buying_price(item: StockItem) -> Decimal:
+    """What one counting unit (a bottle, a kg) cost. Kept per ml or g, 1,150 for 750 ml
+    comes back as 1,149.98: prices are whole shillings, so it is shown as 1,150."""
+    per_unit = item.unit_cost * factor(item)
+    whole = per_unit.quantize(Decimal(1))
+    return whole if abs(per_unit - whole) < Decimal("0.05") else per_unit.quantize(Decimal("0.01"))
+
+
 def levels(db: Session, business_id: uuid.UUID) -> dict[uuid.UUID, Decimal]:
     rows = db.execute(
         select(StockMovement.stock_item_id, func.sum(StockMovement.quantity))

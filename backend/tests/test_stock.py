@@ -259,3 +259,16 @@ def test_export_menu_gives_back_the_file_it_was_loaded_from(db, business, menu, 
     assert by_name(a["modifier_groups"]) == by_name(b["modifier_groups"])
     assert [t["name"] for t in a["tables"]] == [t if isinstance(t, str) else t["name"] for t in b["tables"]]
     assert (a["tot_size_ml"], a["note_presets"], a["tab_section"]) == (b["tot_size_ml"], b["note_presets"], b["tab_section"])
+
+
+def test_stock_item_bottle_size_name_and_removal(client, owner, menu):
+    s = stock(client, owner)["Jameson 750ml"]
+    deliver(client, owner, s["id"], units=2)  # 1,500 ml
+    r = client.patch(f"/api/stock/items/{s['id']}", headers=owner, json={"bottle_size": 1000, "name": "Jameson 1L"})
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert (j["name"], j["bottle_size"], Decimal(j["level"])) == ("Jameson 1L", 1000, 1500)  # 1.5 bottles now
+    assert Decimal(j["buying_price"]) == Decimal(s["buying_price"])  # still per bottle
+    assert client.patch(f"/api/stock/items/{stock(client, owner)['Coke 500ml']['id']}", headers=owner,
+                        json={"bottle_size": 500}).status_code == 422
+    assert client.patch(f"/api/stock/items/{s['id']}", headers=owner, json={"active": False}).json()["active"] is False
