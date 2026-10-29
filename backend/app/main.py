@@ -132,6 +132,10 @@ def create_app(
             # Files at the top of the build (favicon, phone icon) as themselves; any other
             # path is a screen of the app.
             top = {f.name for f in static.iterdir() if f.is_file()}
-            return FileResponse(static / path if path in top else static / page)
+            if path in top and not path.endswith(".html"):
+                return FileResponse(static / path)
+            # The page names this build's scripts: never kept, or after an update the
+            # browser asks for the old ones and shows a blank screen (Chewaz, 0.3.3).
+            return FileResponse(static / (path if path in top else page), headers={"Cache-Control": "no-cache"})
 
     return app

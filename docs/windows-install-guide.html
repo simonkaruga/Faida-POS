@@ -46,7 +46,7 @@
 
 <div class="cover">
   <h1>Faida POS installation guide</h1>
-  <p class="lead">Windows counter, version 0.3.3 · step by step, from an empty PC to the owner's signature</p>
+  <p class="lead">Windows counter, version 0.3.4 · step by step, from an empty PC to the owner's signature</p>
   <div class="client">Chewaz Bar and Restaurant</div>
   <p class="small">Prepared by Avinaya Solutions Ltd · 28 October 2026 · Support (call or WhatsApp): <b>+254 797 033 513</b></p>
 </div>
@@ -58,7 +58,7 @@
   <tr><td class="k">Printer</td><td><b>One</b> Xprinter XP-Q851L thermal printer, USB, <b>80 mm</b> paper. Bar slips, kitchen tickets, bills and receipts all print here</td></tr>
   <tr><td class="k">M-Pesa till</td><td><b>3706694</b> (printed on every bill)</td></tr>
   <tr><td class="k">Internet</td><td>The owner asked for the system <b>offline</b>: install as <b>counter only</b> (nothing leaves the bar, no phone view). Confirm with her once more before step 4</td></tr>
-  <tr><td class="k">Installer</td><td><code>FaidaSetup-0.3.3.exe</code>: one file, no internet needed on site. Puts a <b>Faida POS</b> icon on the desktop</td></tr>
+  <tr><td class="k">Installer</td><td><code>FaidaSetup-0.3.4.exe</code>: one file, no internet needed on site. Puts a <b>Faida POS</b> icon on the desktop</td></tr>
   <tr><td class="k">Support</td><td>+254 797 033 513 (call or WhatsApp). Also shown on the PIN screen and in the Owner area</td></tr>
 </table>
 
@@ -86,7 +86,7 @@
 <h3>Put on a USB stick</h3>
 <table class="tick">
   <tr><th>Item</th><th>✓</th></tr>
-  <tr><td><code>FaidaSetup-0.3.3.exe</code>, <code>FaidaSetup-0.3.3.exe.sha256</code>, <code>Faida-Check.bat</code> (with <code>Faida-Check.ps1</code>) and this guide: copy the whole folder <code>releases/USB</code> (made by <code>deploy/make-windows-setup.sh</code>)</td><td></td></tr>
+  <tr><td><code>FaidaSetup-0.3.4.exe</code>, <code>FaidaSetup-0.3.4.exe.sha256</code>, <code>Faida-Check.bat</code> (with <code>Faida-Check.ps1</code>) and this guide: copy the whole folder <code>releases/USB</code> (made by <code>deploy/make-windows-setup.sh</code>)</td><td></td></tr>
   <tr><td>The menu file, <code>chewaz-menu.json</code>: categories, items, sizes, prices, tables, choices (mixers, sides). Use <code>docs/sample-menu.json</code> as the pattern. If the owner wants stock from day one, add the stock items and recipes to the same file</td><td></td></tr>
   <tr><td>The <b>Xprinter Windows driver</b> (from the CD in the printer box, or downloaded from Xprinter's website beforehand). There is no internet on site</td><td></td></tr>
   <tr><td>The <b>Google Chrome offline installer</b> (<code>ChromeStandaloneSetup64.exe</code>), in case the PC's Microsoft Edge is old or missing</td><td></td></tr>
@@ -120,7 +120,7 @@
   <li><b>Browser.</b> Open Microsoft Edge. If it is the new Edge (blue-green wave icon) it is fine. If Edge is missing or very old, install Chrome from the offline installer you brought. Faida uses Chrome if it is installed, otherwise Edge.</li>
   <li><b>UPS.</b> The PC (and the router, if any) on the UPS.</li>
 </ol>
-<div class="box warn"><b>Never uninstall Python or PostgreSQL</b> from the counter PC, and tell the owner. They show up in Windows' list of programs, but they are parts of Faida: Python runs it and PostgreSQL holds every record. If one was removed anyway, run <code>FaidaSetup-0.3.3.exe</code> again: it puts Python back (the records in PostgreSQL can only come back from a backup).</div>
+<div class="box warn"><b>Never uninstall Python or PostgreSQL</b> from the counter PC, and tell the owner. They show up in Windows' list of programs, but they are parts of Faida: Python runs it and PostgreSQL holds every record. If one was removed anyway, run <code>FaidaSetup-0.3.4.exe</code> again: it puts Python back (the records in PostgreSQL can only come back from a backup).</div>
 <div class="box warn"><b>Windows 10 no longer receives security updates</b> (support ended October 2025). Tell the owner; if the Lenovo can take Windows 11, that upgrade is worth doing later. Until then, this PC is for Faida only: no web browsing, no email, no USB sticks from customers.</div>
 
 <h2>3. Set up the printer in Windows <span class="time">≈ 20 min</span></h2>
@@ -138,8 +138,8 @@
 <h2>4. Run FaidaSetup.exe <span class="time">≈ 20 min</span></h2>
 <ol class="steps">
   <li><b>Check the date and time first</b> (section 2, step 3). If the PC's date is behind, the setup stops and asks you to fix it.</li>
-  <li>Copy <code>FaidaSetup-0.3.3.exe</code> to the Desktop.</li>
-  <li><i>Optional, recommended:</i> check the file arrived whole. In PowerShell: <code>certutil -hashfile $HOME\Desktop\FaidaSetup-0.3.3.exe SHA256</code>. The long number must match the one in the <code>.sha256</code> file.</li>
+  <li>Copy <code>FaidaSetup-0.3.4.exe</code> to the Desktop.</li>
+  <li><i>Optional, recommended:</i> check the file arrived whole. In PowerShell: <code>certutil -hashfile $HOME\Desktop\FaidaSetup-0.3.4.exe SHA256</code>. The long number must match the one in the <code>.sha256</code> file.</li>
   <li>Right-click the file &gt; <b>Run as administrator</b> &gt; Yes.</li>
   <li>If a blue window says <b>"Windows protected your PC"</b>: click <b>More info</b> &gt; <b>Run anyway</b>. (The installer is not signed with a paid certificate; this is expected.)</li>
   <li>Read the welcome page and click <b>Install</b>. It unpacks for about a minute.</li>
@@ -160,11 +160,11 @@
   <tr><td>Menu file to load</td><td>The path to the menu file, e.g. <code>E:\chewaz-menu.json</code> (E: being your USB stick). Or press <kbd>Enter</kbd> to type the menu in Faida later</td></tr>
 </table>
 <ol class="steps" start="8">
-  <li>Wait for <b>"Faida 0.3.3 is installed and running"</b>, then <b>"Done."</b> in green. Press <kbd>Enter</kbd> to close the console, then <b>Finish</b>.</li>
+  <li>Wait for <b>"Faida 0.3.4 is installed and running"</b>, then <b>"Done."</b> in green. Press <kbd>Enter</kbd> to close the console, then <b>Finish</b>.</li>
   <li>A <b>Faida POS</b> icon (the orange and navy Faida mark) is now on the desktop. Double-clicking it opens the counter screen full-screen. Faida also opens by itself at sign-in, so the icon is for when someone has closed it.</li>
 </ol>
 <div class="box note"><b>"Waiting for Faida to start"</b> can take a few minutes the first time on a 4 GB PC. Be patient. If Faida still doesn't answer after 5 minutes, the setup checks why by itself, tries to start it, and shows the result.</div>
-<div class="box note"><b>If it stops with red text:</b> read the message; it says what is wrong (e.g. the passphrases didn't match). Fix it and run <code>FaidaSetup-0.3.3.exe</code> again: answers already saved are kept and it carries on. The full log is in <code>C:\Faida\setup-logs</code>. Stuck? Call support: +254 797 033 513.</div>
+<div class="box note"><b>If it stops with red text:</b> read the message; it says what is wrong (e.g. the passphrases didn't match). Fix it and run <code>FaidaSetup-0.3.4.exe</code> again: answers already saved are kept and it carries on. The full log is in <code>C:\Faida\setup-logs</code>. Stuck? Call support: +254 797 033 513.</div>
 
 <h2>5. Sign-in, restart and full screen <span class="time">≈ 10 min</span></h2>
 <ol class="steps">
@@ -258,10 +258,10 @@
 <table>
   <tr><th style="width:34%">What you see</th><th>What to do</th></tr>
   <tr><td>"Windows protected your PC" when starting the setup</td><td>More info &gt; Run anyway (section 4)</td></tr>
-  <tr><td>"The counter didn't start" or "Not healthy after … s"</td><td>Open Edge and go to <code>localhost:8000</code>. If the Faida PIN screen shows, it was only slow: run <code>FaidaSetup-0.3.3.exe</code> again to finish. If not, double-click <b>Faida-Check.bat</b> on the USB stick (see below)</td></tr>
+  <tr><td>"The counter didn't start" or "Not healthy after … s"</td><td>Open Edge and go to <code>localhost:8000</code>. If the Faida PIN screen shows, it was only slow: run <code>FaidaSetup-0.3.4.exe</code> again to finish. If not, double-click <b>Faida-Check.bat</b> on the USB stick (see below)</td></tr>
   <tr><td>Setup stops with red text</td><td>Read the message, fix it, run the setup again (it keeps what was saved). Log: <code>C:\Faida\setup-logs</code></td></tr>
-  <tr><td>Many Faida windows open and the PC freezes (version 0.3.1 only)</td><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Esc</kbd> for Task Manager: End task on every <b>Windows PowerShell</b>, then on <b>Google Chrome</b>. If the PC is too frozen for that: start in <b>Safe Mode</b> (at the sign-in screen hold <kbd>Shift</kbd> and click Power &gt; Restart &gt; Troubleshoot &gt; Advanced options &gt; Startup Settings &gt; Restart &gt; <kbd>4</kbd>), sign in, open PowerShell (Admin) and run <code>schtasks /Change /TN "Faida kiosk" /DISABLE</code>, then restart normally. Then run <code>FaidaSetup-0.3.3.exe</code>: it updates to the fixed version and switches the counter screen back on</td></tr>
-  <tr><td>The counter screen was closed and the desktop shows</td><td>Double-click the <b>Faida POS</b> icon on the desktop. If the icon is missing, run <code>FaidaSetup-0.3.3.exe</code> again: it puts the icon back and changes nothing else</td></tr>
+  <tr><td>Many Faida windows open and the PC freezes (version 0.3.1 only)</td><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Esc</kbd> for Task Manager: End task on every <b>Windows PowerShell</b>, then on <b>Google Chrome</b>. If the PC is too frozen for that: start in <b>Safe Mode</b> (at the sign-in screen hold <kbd>Shift</kbd> and click Power &gt; Restart &gt; Troubleshoot &gt; Advanced options &gt; Startup Settings &gt; Restart &gt; <kbd>4</kbd>), sign in, open PowerShell (Admin) and run <code>schtasks /Change /TN "Faida kiosk" /DISABLE</code>, then restart normally. Then run <code>FaidaSetup-0.3.4.exe</code>: it updates to the fixed version and switches the counter screen back on</td></tr>
+  <tr><td>The counter screen was closed and the desktop shows</td><td>Double-click the <b>Faida POS</b> icon on the desktop. If the icon is missing, run <code>FaidaSetup-0.3.4.exe</code> again: it puts the icon back and changes nothing else</td></tr>
   <tr><td>After a restart the desktop shows instead of Faida</td><td>Automatic sign-in is off (section 5), or the counter is still starting: wait 2 minutes. Check Task Scheduler has <b>Faida counter</b> and <b>Faida kiosk</b></td></tr>
   <tr><td>Top bar: "Counter not responding"</td><td>Restart the PC. If it stays, send the file <code>C:\Faida\data\logs\counter.log</code> to support</td></tr>
   <tr><td>Orange <b>Not printed</b>, or "Printer offline"</td><td>Paper, power, USB cable; the printer still shared as <code>POS80</code> (section 3); the "Print Spooler" service running. Then print again from Owner area &gt; Printer log</td></tr>
@@ -291,7 +291,7 @@
   <tr><td class="k">Client</td><td>Chewaz Bar and Restaurant</td></tr>
   <tr><td class="k">Install date</td><td></td></tr>
   <tr><td class="k">Technician</td><td></td></tr>
-  <tr><td class="k">Faida version</td><td>0.3.3 · counter only ☐ · linked to cloud ☐</td></tr>
+  <tr><td class="k">Faida version</td><td>0.3.4 · counter only ☐ · linked to cloud ☐</td></tr>
   <tr><td class="k">PC</td><td>Lenovo · Windows 10 Home ☐ Pro ☐ · 64-bit ☐ · serial no.: </td></tr>
   <tr><td class="k">Windows counter account</td><td></td></tr>
   <tr><td class="k">Disk encryption</td><td>BitLocker ☐ · Device encryption ☐ · none ☐ · recovery key in envelope ☐</td></tr>

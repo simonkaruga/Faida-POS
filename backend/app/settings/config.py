@@ -11,7 +11,7 @@ from typing import Literal
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-VERSION = "0.3.3"
+VERSION = "0.3.4"
 
 
 class Config(BaseSettings):

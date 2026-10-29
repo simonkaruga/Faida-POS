@@ -108,7 +108,10 @@ class WindowsPrinter(EscposPrinter):
 
         try:
             p = find_windows_printer(self.name, windows_printers())
-            if p.get("Attributes", 0) & PRINTER_ATTRIBUTE_WORK_OFFLINE or p.get("Status", 0) & PRINTER_STATUS_OFFLINE:
+            if p.get("Attributes", 0) & PRINTER_ATTRIBUTE_WORK_OFFLINE:
+                raise PrinterError(f"Windows has {p['pPrinterName']} set to 'Use Printer Offline': open its print queue "
+                                   "(Settings > Printers & scanners > Open queue) and untick it in the Printer menu")
+            if p.get("Status", 0) & PRINTER_STATUS_OFFLINE:
                 raise PrinterError(f"{p['pPrinterName']} is offline: check power, paper and the USB cable")
             handle = win32print.OpenPrinter(p["pPrinterName"])
             try:

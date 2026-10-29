@@ -74,4 +74,8 @@ def test_installed_counter_serves_the_screens_and_icons(config, printers, tmp_pa
         assert c.get("/assets/counter.js").text == "// app"
         assert "Faida POS" in c.get("/tables/anything").text  # app screens get the page
         assert "Faida POS" in c.get("/../backend/.env").text  # never a file outside the build
+        # The page is never kept: after an update it must name the new build's scripts.
+        assert c.get("/").headers["cache-control"] == "no-cache"
+        assert c.get("/index.html").headers["cache-control"] == "no-cache"
+        assert "cache-control" not in c.get("/favicon.png").headers
         assert c.get("/api/health").json()["mode"] == "local"
