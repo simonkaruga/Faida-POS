@@ -39,6 +39,20 @@ def test_backup_and_restore_round_trip(backup_config, tmp_path, business, menu):
             b.execute(text("DELETE FROM audit_entries"))
 
 
+def test_restore_replaces_everything_even_newer_tables(backup_config, tmp_path, business):
+    """An older backup on a newer counter: tables it doesn't have must go too, or its
+    migrations can't create them again (Restore-Backup.bat runs them after)."""
+    (tmp_path / "usb").mkdir()
+    path = backup.create(backup_config, str(tmp_path / "usb" / "faida"))
+    with create_engine(RESTORE_DB).begin() as conn:
+        conn.execute(text("CREATE SCHEMA IF NOT EXISTS public"))
+        conn.execute(text("CREATE TABLE IF NOT EXISTS left_behind (id int)"))
+    backup.restore(backup_config, str(path), RESTORE_DB)
+    with create_engine(RESTORE_DB).connect() as conn:
+        assert conn.execute(text("SELECT to_regclass('public.left_behind')")).scalar() is None
+        assert conn.execute(text("SELECT count(*) FROM businesses")).scalar() == 1
+
+
 def test_wrong_passphrase(backup_config, tmp_path, business):
     (tmp_path / "usb").mkdir()
     path = backup.create(backup_config, str(tmp_path / "usb" / "faida"))

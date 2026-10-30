@@ -54,7 +54,11 @@ class PrintService:
         self._workers[PrinterName.counter].submit(self._safe, printer.open_drawer)
 
     def status(self) -> str:
+        """"untested" until something has printed (since the counter started): at Chewaz the
+        screen said Printers OK while nothing could print."""
         with self._lock:
+            if not self.last_result:
+                return "untested"
             return "offline" if "offline" in self.last_result.values() else "ok"
 
     def flush(self) -> None:

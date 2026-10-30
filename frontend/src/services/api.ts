@@ -12,7 +12,7 @@ export type Health = {
   cloud: "not_linked" | "off" | "online" | "offline"; // off: a counter-only install, by choice
   waiting_to_sync: number | null;
   last_synced_at: string | null;
-  printers: "not_set_up" | "ok" | "offline";
+  printers: "not_set_up" | "untested" | "ok" | "offline";
 };
 
 export type Session = {

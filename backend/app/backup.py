@@ -25,6 +25,7 @@ import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import psycopg
 from cryptography.fernet import Fernet, InvalidToken
 
 from app.db import now
@@ -146,14 +147,20 @@ def open_backup(passphrase: str, file: str) -> dict[str, bytes]:
 
 
 def restore(config: Config, file: str, database_url: str) -> dict:
-    """Restore into `database_url` (replacing what is there). Returns the backup's info
-    and the secrets line to put in the restored counter's .env."""
+    """Restore into `database_url`, replacing everything there. Returns the backup's info
+    and the secrets line to put in the restored counter's .env. The database is emptied
+    first: a backup from an older version has fewer tables, and newer ones left behind
+    would stop its migrations running again."""
     parts = open_backup(config.backup_passphrase or "", file)
+    tool = _tool(config, "pg_restore")
+    with psycopg.connect(_libpq(database_url), autocommit=True) as conn:
+        conn.execute("DROP SCHEMA public CASCADE")
+        conn.execute("CREATE SCHEMA public")
     with tempfile.TemporaryDirectory() as tmp:
         dump = Path(tmp) / "database.dump"
         dump.write_bytes(parts["database.dump"])
-        result = subprocess.run([_tool(config, "pg_restore"), "--clean", "--if-exists", "--no-owner",
-                                 "--dbname", _libpq(database_url), str(dump)], capture_output=True, check=False)
+        result = subprocess.run([tool, "--no-owner", "--dbname", _libpq(database_url), str(dump)],
+                                capture_output=True, check=False)
     if result.returncode:
         raise BackupError(f"pg_restore failed: {result.stderr.decode(errors='replace')[:300]}")
     return {"info": json.loads(parts["info.json"]), "secrets": parts["secrets.env"].decode()}

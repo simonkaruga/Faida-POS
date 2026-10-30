@@ -70,6 +70,9 @@ cp "$ROOT/deploy/local/windows/check.ps1" "$USB/Faida-Check.ps1"
 # The sample menu, for a counter whose menu is still empty.
 cp "$ROOT/deploy/local/windows/Load-Demo-Menu.bat" "$USB/"
 cp "$ROOT/deploy/local/windows/load-demo-menu.ps1" "$USB/Load-Demo-Menu.ps1"
+# Putting a backup back, e.g. on a new or repaired PC.
+cp "$ROOT/deploy/local/windows/Restore-Backup.bat" "$USB/"
+cp "$ROOT/deploy/local/windows/restore-backup.ps1" "$USB/Restore-Backup.ps1"
 # A menu exported from another counter (backend: python -m app.cli export-menu
 # ../releases/menu/menu.json --pictures ../releases/menu/pictures), loaded instead of the sample.
 [ -f "$ROOT/releases/menu/menu.json" ] && cp -r "$ROOT/releases/menu/." "$USB/"

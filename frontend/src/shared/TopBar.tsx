@@ -65,7 +65,8 @@ export function TopBar({ health, reachable, staff }: Props) {
         <CloudIcon size={18} /> {cloud.label}
       </span>
       <span className={`status ${printerTone}`}>
-        <Printer size={18} /> {health?.printers === "ok" ? "Printers OK" : health?.printers === "offline" ? "Printer offline" : "No printer"}
+        <Printer size={18} />{" "}
+        {{ ok: "Printers OK", offline: "Printer offline", untested: "Printer: nothing printed yet", not_set_up: "No printer" }[health?.printers ?? "not_set_up"]}
       </span>
       <button
         className="status topbar-look"
