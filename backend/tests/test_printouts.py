@@ -17,7 +17,7 @@ def test_receipt_on_screen_matches_the_printout(client, owner, menu, add_staff):
     doc = client.get(f"/api/tickets/{receipt['id']}", headers=jane).json()
     assert doc["copies"] == [None, "COUNTER COPY"] and doc["title"].startswith("Tab - Kamau")
     texts = [row.get("text") or " ".join(row.get("cols", [])) for row in doc["content"]]
-    assert any("2 x Coke" in t for t in texts) and any("Not a KRA tax invoice" in t for t in texts)
+    assert any("2 x Coke" in t for t in texts) and not any("KRA" in t for t in texts)
     vendor, thanks = doc["content"][-2:]  # the thank-you line last, under the small print
     assert vendor["small"] and vendor["text"] == "Powered by Faida POS · Avinaya Solutions Ltd"
     assert not thanks.get("small") and thanks["text"]

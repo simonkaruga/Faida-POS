@@ -125,9 +125,7 @@ def bill(h: Header, items: list[ItemRow], gross: int, discount: int, paid: int, 
     doc = _head(h, "BILL") + _items(items) + _totals(gross, discount)
     if paid:
         doc += [cols("Already paid", ksh(paid)), cols("TO PAY", ksh(total - paid), bold=True)]
-    doc += _till(till)
-    doc.append(text("Not a KRA tax invoice", align="center"))
-    return doc + _foot(footer)
+    return doc + _till(till) + _foot(footer)
 
 
 def receipt(
@@ -141,8 +139,7 @@ def receipt(
             doc.append(cols("   Given / Change", f"{ksh(p.tendered)} / {ksh(p.tendered - p.amount)}"))
         if p.tip:
             doc.append(cols("   Tip (M-Pesa)", ksh(p.tip)))
-    doc += _till(till) + [rule(), text("Not a KRA tax invoice", bold=True, align="center")]
-    return doc + _foot(footer)
+    return doc + _till(till) + _foot(footer)
 
 
 def sold_by_method(cash: dict) -> dict[str, int]:
