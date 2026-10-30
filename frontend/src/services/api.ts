@@ -321,6 +321,8 @@ export type Handover = {
   created_at: string;
   shortage_status: "paid_back" | "deducted" | "forgiven" | null;
   printed: boolean;
+  declared: { cash: number; mpesa: number; credit: number } | null;
+  faida: { cash: number; mpesa: number; credit: number } | null;
 };
 export type ShiftRow = {
   shift: ShiftInfo;
@@ -338,6 +340,7 @@ export type CloseShift = {
   staff_pin: string;
   agree: boolean;
   staff_note?: string;
+  declared?: { cash: number; mpesa: number; credit: number };
 };
 export const getMyShift = () => api<MyShift>("/shifts/me");
 export const checkReceiver = (shiftId: string, pin: string) =>
@@ -385,7 +388,20 @@ export type StockItem = {
   value: number | null;
 };
 export type StockMovement = { kind: string; quantity: string; text: string; note: string | null; by: string | null; at: string };
-export type Variance = { stock_item_id: string; name: string; expected_text: string; counted_text: string; variance: string; message: string; value: number | null };
+export type Variance = {
+  stock_item_id: string;
+  name: string;
+  expected_text: string;
+  counted_text: string;
+  variance: string;
+  message: string;
+  value: number | null;
+  since: string | null;
+  opening_text: string | null;
+  received_text: string;
+  sold_text: string;
+  waste_text: string;
+};
 export type RecipeLine = { stock_item_id: string; quantity: string; in_tots: boolean; stock_item?: string; text?: string };
 export type Recipe = { sell_option_id: string; item_name: string; option_label: string; station: "bar" | "kitchen"; lines: RecipeLine[] };
 export type Supplier = { id: string; name: string; phone: string | null };
@@ -404,7 +420,7 @@ export const receiveDelivery = (body: {
 }) => api<{ id: string; lines: string[] }>("/stock/deliveries", { body });
 export const recordWaste = (body: { stock_item_id: string; quantity: number; tots: number; reason: string; approval_id?: string }) =>
   api<StockItem>("/stock/waste", { body });
-export const stockTake = (note: string | undefined, counts: { stock_item_id: string; full: number; open_tenths: number }[]) =>
+export const stockTake = (note: string | undefined, counts: { stock_item_id: string; full: number; open_tenths: number; open_ml?: number }[]) =>
   api<{ id: string; lines: Variance[]; total_value: number | null }>("/stock/takes", { body: { note, counts } });
 export const getRecipes = () => api<Recipe[]>("/stock/recipes");
 export const setRecipe = (optionId: string, lines: RecipeLine[]) =>

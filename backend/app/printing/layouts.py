@@ -145,6 +145,12 @@ def receipt(
     return doc + _foot(footer)
 
 
+def sold_by_method(cash: dict) -> dict[str, int]:
+    """Faida's figures to compare with what a waiter says they sold: cash paid on their
+    bills, M-Pesa and credit."""
+    return {"cash": cash["cash_due_from_sales"] - cash["unpaid_responsible"], "mpesa": cash["mpesa"], "credit": cash["credit"]}
+
+
 def handover_slip(
     business: str, staff: str, started: datetime, ended: datetime, cash: dict, received: int,
     receiver: str, agrees: bool | None, staff_note: str | None, receiver_note: str | None, forced: bool,
@@ -180,7 +186,15 @@ def handover_slip(
     ]
     difference = received - cash["cash_to_hand_over"]
     result = "BALANCED" if difference == 0 else f"SHORT {ksh(-difference)}" if difference < 0 else f"OVER {ksh(difference)}"
-    rows += [text(result, size=2, bold=True, align="center"), rule(), cols("Received by", receiver)]
+    rows += [text(result, size=2, bold=True, align="center")]
+    if said := cash.get("declared"):
+        # What the waiter said they sold, before seeing Faida's figures (cash paid on their bills).
+        faida = sold_by_method(cash)
+        rows += [rule(), cols("Sold by", f"{staff} / Faida / diff", bold=True)]
+        for key, label in (("cash", "Cash"), ("mpesa", "M-Pesa"), ("credit", "Credit")):
+            diff = said[key] - faida[key]
+            rows.append(cols(label, f"{ksh(said[key])} / {ksh(faida[key])} / {'+' if diff > 0 else ''}{ksh(diff)}"))
+    rows += [rule(), cols("Received by", receiver)]
     if receiver_note:
         rows.append(text(f"Note: {receiver_note}"))
     signed = "NOT PRESENT" if agrees is None else "AGREES" if agrees else "DISAGREES"

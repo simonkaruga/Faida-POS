@@ -72,8 +72,9 @@ def my_shift(client, headers):
     return client.get("/api/shifts/me", headers=headers).json()
 
 
-def close(client, headers, shift_id, received=None, notes=None, receiver=OWNER, staff_pin=JANE, agree=True, note=None):
-    body = {"receiver_pin": receiver, "staff_pin": staff_pin, "agree": agree, "staff_note": note}
+def close(client, headers, shift_id, received=None, notes=None, receiver=OWNER, staff_pin=JANE, agree=True, note=None,
+          declared=None):
+    body = {"receiver_pin": receiver, "staff_pin": staff_pin, "agree": agree, "staff_note": note, "declared": declared}
     if notes is not None:
         body["counted_notes"] = notes
     else:
@@ -409,3 +410,20 @@ def test_salaries_advances_deductions_and_shortages(client, owner, staff, items,
     assert client.post(f"/api/payroll/entries/{line['id']}/reverse", headers=owner).json()["balance"] == 0
     month = client.get("/api/expenses/summary", headers=owner).json()["this_month"]
     assert month["by_category"]["salaries"] == 2000 + 12300
+
+
+def test_waiter_says_what_they_sold_before_seeing_faidas_figures(client, owner, staff, items, tabs, printers):
+    jane = login(client, JANE)
+    pay(client, jane, tabs(jane, items, [8100]), method="cash", amount=8100)
+    pay(client, jane, tabs(jane, items, [9200]), method="mpesa", amount=9200, mpesa_code="P2QM")
+    bill = tabs(jane, items, [1200])
+    client.post(f"/api/bills/{bill['id']}/credit", headers=jane,
+                json={"customer_id": customer(client, owner)["id"], "approval_id": approve(client, jane, "approve_credit")})
+    r = close(client, jane, my_shift(client, jane)["shift"]["id"], received=8100,
+              declared={"cash": 8000, "mpesa": 9200, "credit": 1200})
+    assert r.status_code == 200, r.text
+    h = r.json()
+    assert h["declared"] == {"cash": 8000, "mpesa": 9200, "credit": 1200}
+    assert h["faida"] == {"cash": 8100, "mpesa": 9200, "credit": 1200}
+    owner_copy = printers[COUNTER].printed[-1]
+    assert "Sold by" in owner_copy and "8,000 / 8,100 / -100" in owner_copy

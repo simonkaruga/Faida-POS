@@ -23,7 +23,16 @@ describe("end my shift", () => {
       return Response.json({ shift: { id: "s1", staff: { id: "j", name: "Jane" }, business_day: "2026-10-16", started_at: "", float_amount: 500 }, cash_up: cash, open_bills: [] });
     });
     render(<EndShift session={session} onPay={vi.fn()} onBack={vi.fn()} onDone={vi.fn()} />);
+    // First the waiter says what they sold, before seeing Faida's figures.
+    await screen.findByText("Jane: what did you sell?");
+    const next = screen.getByRole("button", { name: "NEXT: SEE MY SUMMARY" }) as HTMLButtonElement;
+    expect(next.disabled).toBe(true);
+    for (const [label, value] of [["Cash", "8000"], ["M-Pesa", "9200"], ["Credit", "1200"]]) {
+      fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    }
+    fireEvent.click(next);
     expect(await screen.findByText("= CASH TO HAND OVER")).toBeTruthy();
+    expect(screen.getByText("−100")).toBeTruthy(); // said 8,000 cash, Faida 8,100
     expect(screen.getByText("8,400")).toBeTruthy();
 
     const tap = (name: string) => fireEvent.click(screen.getByRole("button", { name }));

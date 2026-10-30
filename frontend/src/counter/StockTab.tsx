@@ -292,10 +292,11 @@ function WasteDialog({ items, onDone, onClose }: { items: StockItem[]; onDone: (
   );
 }
 
-type Count = { full: string; tenths: number };
+type Count = { full: string; tenths: number; ml: string };
 
-/** Count sealed bottles (or kg, pieces) and the open bottle in tenths. Faida doesn't show
- * what it expects until the count is saved, so the count isn't nudged. */
+/** Count sealed bottles (or kg, pieces) and the open bottle in tenths, or the ml left in it
+ * as measured. Faida doesn't show what it expects until the count is saved, so the count
+ * isn't nudged. The result is the stock sheet since each item's last count. */
 function StockTakeView({ items, isOwner, onReload, onDone }: { items: StockItem[]; isOwner: boolean; onReload: () => void; onDone: () => void }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<StockItem | null>(null);
@@ -307,12 +308,12 @@ function StockTakeView({ items, isOwner, onReload, onDone }: { items: StockItem[
   const shown = useMemo(() => items.filter((i) => i.station === station && i.active), [items, station]);
   const counted = Object.keys(counts).length;
   const sel = items.find((i) => i.id === selected);
-  const set = (id: string, c: Partial<Count>) => setCounts({ ...counts, [id]: { ...{ full: "", tenths: 0 }, ...counts[id], ...c } });
+  const set = (id: string, c: Partial<Count>) => setCounts({ ...counts, [id]: { ...{ full: "", tenths: 0, ml: "" }, ...counts[id], ...c } });
 
   const save = () =>
     stockTake(
       undefined,
-      Object.entries(counts).map(([id, c]) => ({ stock_item_id: id, full: num(c.full), open_tenths: c.tenths })),
+      Object.entries(counts).map(([id, c]) => ({ stock_item_id: id, full: num(c.full), open_tenths: c.tenths, open_ml: c.ml ? num(c.ml) : undefined })),
     ).then((r) => setResult({ lines: r.lines, total: r.total_value }), (e) => setError(errorText(e)));
 
   if (result) {
@@ -324,18 +325,43 @@ function StockTakeView({ items, isOwner, onReload, onDone }: { items: StockItem[
             Variance at buying price: {result.total < 0 ? "−" : ""}KSh {formatKsh(Math.abs(result.total))}
           </p>
         )}
-        <div className="list-table">
-          {result.lines.map((l) => (
-            <div key={l.stock_item_id} className="shift-row">
-              <strong className="grow">{l.name}</strong>
-              <span className="muted">
-                expected {l.expected_text} · counted {l.counted_text}
-              </span>
-              <span className={Number(l.variance) < 0 ? "warn" : Number(l.variance) > 0 ? "" : "muted"} style={{ minWidth: 300, textAlign: "right" }}>
-                {l.message}
-              </span>
-            </div>
-          ))}
+        <p className="muted" style={{ marginTop: 0 }}>
+          Opening is the last count. Opening + received − sold − waste = expected. Use Print / PDF above to keep the stock sheet.
+        </p>
+        <div className="stock-sheet">
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Opening</th>
+                <th>+ Received</th>
+                <th>− Sold</th>
+                <th>− Waste</th>
+                <th>= Expected</th>
+                <th>Counted</th>
+                <th>Difference</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.lines.map((l) => (
+                <tr key={l.stock_item_id}>
+                  <td>
+                    <strong>{l.name}</strong>
+                    {l.since && <div className="muted">since {new Date(l.since).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>}
+                  </td>
+                  <td>{l.opening_text ?? "first count"}</td>
+                  <td>{l.received_text}</td>
+                  <td>{l.sold_text}</td>
+                  <td>{l.waste_text}</td>
+                  <td>{l.expected_text}</td>
+                  <td>
+                    <strong>{l.counted_text}</strong>
+                  </td>
+                  <td className={Number(l.variance) < 0 ? "warn" : ""}>{l.message}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
         <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={onDone}>
           DONE
@@ -375,14 +401,30 @@ function StockTakeView({ items, isOwner, onReload, onDone }: { items: StockItem[
                 <span>{i.name}</span>
                 <strong>
                   {c ? `${c.full || 0} ${plural(i.counting_unit)}` : "—"}
-                  {c && i.bottle_size ? ` + ${c.tenths}/10` : ""}
+                  {c && i.bottle_size ? (c.ml ? ` + ${c.ml} ml` : ` + ${c.tenths}/10`) : ""}
                 </strong>
               </button>
               {i.bottle_size !== null && (
                 <label className="tenths">
                   <span className="muted">open bottle</span>
-                  <input type="range" min={0} max={9} step={1} value={c?.tenths ?? 0} onChange={(e) => set(i.id, { tenths: Number(e.target.value) })} />
-                  <strong>{c?.tenths ?? 0}/10</strong>
+                  <input
+                    type="range"
+                    min={0}
+                    max={9}
+                    step={1}
+                    value={c?.tenths ?? 0}
+                    disabled={!!c?.ml}
+                    onChange={(e) => set(i.id, { tenths: Number(e.target.value) })}
+                  />
+                  <strong>{c?.ml ? "" : `${c?.tenths ?? 0}/10`}</strong>
+                  <span className="muted">or ml left</span>
+                  <input
+                    className="text-input take-ml"
+                    inputMode="numeric"
+                    placeholder={`0–${i.bottle_size}`}
+                    value={c?.ml ?? ""}
+                    onChange={(e) => set(i.id, { ml: e.target.value.replace(/\D/g, "").slice(0, 4) })}
+                  />
                 </label>
               )}
               {isOwner && (

@@ -30,7 +30,9 @@ const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Somethin
 /** End my shift (masterplan 4.6): 1 open bills, 2 summary, 3 receive cash, 4 sign-off. */
 export function EndShift({ session, onPay, onBack, onDone }: Props) {
   const [mine, setMine] = useState<MyShift | null>(null);
-  const [step, setStep] = useState<"bills" | "summary" | "receiver" | "count" | "sign" | "done">("bills");
+  const [step, setStep] = useState<"bills" | "declare" | "summary" | "receiver" | "count" | "sign" | "done">("bills");
+  // What the waiter says they sold, typed before Faida's figures are shown.
+  const [said, setSaid] = useState({ cash: "", mpesa: "", credit: "" });
   const [error, setError] = useState<string | null>(null);
   const [unpaidFor, setUnpaidFor] = useState<{ id: string; place: string; balance: number } | null>(null);
   const [receiverPin, setReceiverPin] = useState("");
@@ -50,7 +52,7 @@ export function EndShift({ session, onPay, onBack, onDone }: Props) {
   const load = () =>
     getMyShift().then((m) => {
       setMine(m);
-      setStep(m.open_bills.length ? "bills" : "summary");
+      setStep(m.open_bills.length ? "bills" : "declare");
     }, (e) => setError(errorText(e)));
   useEffect(() => {
     load();
@@ -106,6 +108,7 @@ export function EndShift({ session, onPay, onBack, onDone }: Props) {
         staff_pin: staffPin,
         agree: !disagree,
         staff_note: staffNote.trim() || undefined,
+        declared: { cash: Number(said.cash || 0), mpesa: Number(said.mpesa || 0), credit: Number(said.credit || 0) },
       });
       setResult(handover);
       setStep("done");
@@ -120,7 +123,7 @@ export function EndShift({ session, onPay, onBack, onDone }: Props) {
 
   const header = (title: string, n: number) => (
     <header className="shift-head">
-      <span className="step-badge">{n} / 4</span>
+      <span className="step-badge">{n} / 5</span>
       <h2>{title}</h2>
     </header>
   );
@@ -182,12 +185,72 @@ export function EndShift({ session, onPay, onBack, onDone }: Props) {
         </main>
       );
 
+    case "declare": {
+      const box = (k: keyof typeof said, label: string) => (
+        <label className="form-field" style={{ fontSize: 20 }}>
+          <span>{label}</span>
+          <input
+            className="text-input"
+            style={{ fontSize: 26 }}
+            inputMode="numeric"
+            placeholder="KSh"
+            value={said[k]}
+            onChange={(e) => setSaid({ ...said, [k]: e.target.value.replace(/\D/g, "") })}
+          />
+        </label>
+      );
+      return (
+        <main className="screen">
+          <div className="screen-scroll shift-body">
+            {header(`${name}: what did you sell?`, 2)}
+            <p className="muted" style={{ fontSize: 18 }}>
+              Before you see Faida's figures, type what you think you sold this shift. Type 0 if none.
+            </p>
+            <div className="row" style={{ alignItems: "flex-end", maxWidth: 820 }}>
+              {box("cash", "Cash")}
+              {box("mpesa", "M-Pesa")}
+              {box("credit", "Credit")}
+            </div>
+          </div>
+          <footer className="screen-actions">
+            <button className="btn btn-quiet" onClick={onBack}>
+              ‹ Back
+            </button>
+            <span className="grow" />
+            <button className="btn btn-primary" disabled={!said.cash || !said.mpesa || !said.credit} onClick={() => (setStep("summary"), setError(null))}>
+              NEXT: SEE MY SUMMARY
+            </button>
+          </footer>
+        </main>
+      );
+    }
+
     case "summary":
       return (
         <main className="screen">
           <div className="screen-scroll shift-body">
-            {header(`${name}: my shift summary`, 2)}
+            {header(`${name}: my shift summary`, 3)}
             <CashUpTable cash={cash} />
+            <h3 className="form-title">What you said you sold, and Faida's figures</h3>
+            <div className="cashup">
+              {(
+                [
+                  ["Cash", Number(said.cash || 0), cash.cash_due_from_sales - cash.unpaid_responsible],
+                  ["M-Pesa", Number(said.mpesa || 0), cash.mpesa],
+                  ["Credit", Number(said.credit || 0), cash.credit],
+                ] as const
+              ).map(([label, you, faida]) => (
+                <div key={label} className="cashup-row">
+                  <span>{label}</span>
+                  <span>
+                    you {formatKsh(you)} · Faida {formatKsh(faida)}{" "}
+                    <strong className={you === faida ? "ok-text" : "warn"}>
+                      {you === faida ? "✓" : `${you > faida ? "+" : "−"}${formatKsh(Math.abs(you - faida))}`}
+                    </strong>
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
           <footer className="screen-actions">
             <button className="btn btn-quiet" onClick={onBack}>
@@ -204,7 +267,7 @@ export function EndShift({ session, onPay, onBack, onDone }: Props) {
     case "receiver":
       return (
         <main className="screen-center">
-          {header("Receive cash", 3)}
+          {header("Receive cash", 4)}
           <p style={{ fontSize: 20, margin: 0 }}>
             Owner or Supervisor: enter your PIN to receive {name}'s cash
           </p>
@@ -221,7 +284,7 @@ export function EndShift({ session, onPay, onBack, onDone }: Props) {
       return (
         <main className="count">
           <section className="count-left">
-            {header(`Count ${name}'s cash`, 3)}
+            {header(`Count ${name}'s cash`, 4)}
             <div className="row">
               <button className={`btn ${byNote ? "btn-primary" : "btn-quiet"}`} onClick={() => setByNote(true)}>
                 By note
@@ -310,7 +373,7 @@ export function EndShift({ session, onPay, onBack, onDone }: Props) {
       return (
         <main className="count">
           <section className="count-left">
-            {header(`${name}: sign off`, 4)}
+            {header(`${name}: sign off`, 5)}
             <div className="count-result">
               <div>
                 Expected <strong>{formatKsh(expected)}</strong>

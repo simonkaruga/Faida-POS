@@ -407,6 +407,14 @@ function ShiftsTab({ session }: { session: Session }) {
                     {h.forced ? "Force-closed" : h.staff_agrees ? "Agreed" : "Disagreed"}
                     {h.staff_note ? `: "${h.staff_note}"` : ""}
                   </span>
+                  {h.declared && h.faida && (
+                    <span className="muted" title="What the waiter said they sold, against Faida's figures">
+                      said{" "}
+                      {(["cash", "mpesa", "credit"] as const)
+                        .map((k) => `${{ cash: "cash", mpesa: "M-Pesa", credit: "credit" }[k]} ${formatKsh(h.declared![k])}${h.declared![k] === h.faida![k] ? " ✓" : ` (Faida ${formatKsh(h.faida![k])})`}`)
+                        .join(" · ")}
+                    </span>
+                  )}
                   {h.difference < 0 && isOwner && (
                     <button className="btn btn-quiet" onClick={() => setShortage(r)}>
                       {h.shortage_status ? h.shortage_status.replace("_", " ") : "Set status"}

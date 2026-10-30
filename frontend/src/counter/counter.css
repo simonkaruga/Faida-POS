@@ -472,6 +472,11 @@
 .tenths { flex: 1 0 100%; order: 3; padding: 0 0 4px; display: flex; align-items: center; gap: 10px; font-size: 16px; }
 .tenths input { flex: 1; max-width: 320px; height: 40px; accent-color: var(--blue); }
 .take-edit { flex: none; min-height: 40px; padding: 0 10px; }
+.take-ml { width: 100px; min-height: 40px; padding: 4px 10px; font-size: 18px; }
+.stock-sheet { overflow-x: auto; }
+.stock-sheet table { width: 100%; border-collapse: collapse; font-size: 16px; font-variant-numeric: tabular-nums; }
+.stock-sheet th { text-align: left; color: var(--text-muted); font-weight: 650; padding: 8px 6px; border-bottom: 2px solid var(--border); }
+.stock-sheet td { padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
 .tenths strong { min-width: 44px; font-size: 20px; }
 .movements { max-height: 56vh; overflow: auto; }
 

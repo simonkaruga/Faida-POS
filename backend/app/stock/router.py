@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.audit import service as audit
 from app.auth import service as auth
@@ -444,6 +444,7 @@ class CountIn(BaseModel):
     stock_item_id: uuid.UUID
     full: Qty  # sealed bottles, kg, litres or pieces
     open_tenths: Annotated[int, Field(ge=0, le=9)] = 0  # the open bottle, in tenths (bottled spirits)
+    open_ml: Qty | None = None  # or what is left in it in ml, measured (then tenths are ignored)
 
 
 class StockTakeIn(BaseModel):
@@ -459,12 +460,38 @@ class VarianceOut(BaseModel):
     variance: Decimal
     message: str  # "Missing 0.6 bottles ≈ 18 tots ≈ KSh 2,700"
     value: int | None  # owner only; negative = missing
+    # The stock sheet since the last count of this item (None: never counted before)
+    since: datetime | None
+    opening_text: str | None
+    received_text: str
+    sold_text: str
+    waste_text: str
 
 
 class StockTakeOut(BaseModel):
     id: uuid.UUID
     lines: list[VarianceOut]
     total_value: int | None
+
+
+def _since_last_count(db: Db, item: StockItem) -> dict:
+    """Opening stock (the last count), and what came in, was sold and wasted since: the
+    daily stock sheet. Opening + received - sold - waste = what Faida expects now."""
+    last = db.execute(select(StockTakeLine.counted, StockTakeLine.created_at)
+                      .where(StockTakeLine.stock_item_id == item.id)
+                      .order_by(StockTakeLine.created_at.desc()).limit(1)).first()
+    q = select(StockMovement.kind, func.coalesce(func.sum(StockMovement.quantity), 0)).where(
+        StockMovement.stock_item_id == item.id)
+    if last:
+        q = q.where(StockMovement.created_at > last.created_at)
+    by_kind = {kind: total for kind, total in db.execute(q.group_by(StockMovement.kind))}
+    return {
+        "since": last.created_at if last else None,
+        "opening": last.counted if last else Decimal(0),
+        "received": by_kind.get(MovementKind.delivery, Decimal(0)),
+        "sold": -(by_kind.get(MovementKind.sale, Decimal(0)) + by_kind.get(MovementKind.sale_return, Decimal(0))),
+        "waste": -by_kind.get(MovementKind.waste, Decimal(0)),
+    }
 
 
 @router.post("/stock/takes", status_code=status.HTTP_201_CREATED)
@@ -480,10 +507,15 @@ def stock_take(body: StockTakeIn, actor: Stockist, request: Request, db: Db) -> 
     out, total = [], 0
     for c in body.counts:
         item = _item(db, actor, c.stock_item_id)
-        if c.open_tenths and not (item.unit is StockUnit.ml and item.bottle_size):
+        if (c.open_tenths or c.open_ml) and not (item.unit is StockUnit.ml and item.bottle_size):
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"{item.name} isn't counted by the open bottle.")
-        counted = c.full * factor(item) + Decimal(c.open_tenths * (item.bottle_size or 0)) / 10
+        if c.open_ml is not None and c.open_ml > (item.bottle_size or 0):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                f"{item.name}: the open bottle holds at most {item.bottle_size} ml.")
+        open_part = c.open_ml if c.open_ml is not None else Decimal(c.open_tenths * (item.bottle_size or 0)) / 10
+        counted = c.full * factor(item) + open_part
         expected = stock.level(db, item)
+        sheet = _since_last_count(db, item)
         variance = counted - expected
         db.add(StockTakeLine(business_id=actor.business_id, created_by=actor.staff.id, stock_take_id=take.id,
                              stock_item_id=item.id, expected=expected, counted=counted, unit_cost=item.unit_cost))
@@ -498,7 +530,11 @@ def stock_take(body: StockTakeIn, actor: Stockist, request: Request, db: Db) -> 
             message += f" ≈ KSh {abs(worth):,}"
         out.append(VarianceOut(stock_item_id=item.id, name=item.name, expected_text=stock.describe(item, expected, tot),
                                counted_text=stock.describe(item, counted, tot), variance=variance, message=message,
-                               value=worth if money else None))
+                               value=worth if money else None, since=sheet["since"],
+                               opening_text=stock.describe(item, sheet["opening"], tot) if sheet["since"] else None,
+                               received_text=stock.describe(item, sheet["received"], tot),
+                               sold_text=stock.describe(item, sheet["sold"], tot),
+                               waste_text=stock.describe(item, sheet["waste"], tot)))
     audit.record(db, business_id=actor.business_id, actor_id=actor.staff.id, action="stock.take",
                  entity_type="stock_take", entity_id=take.id,
                  details={"items": len(out), "value": total, "missing": [o.message for o in out if o.variance < 0]})

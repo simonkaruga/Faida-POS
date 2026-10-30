@@ -115,8 +115,19 @@ def check_receiver(shift_id: uuid.UUID, body: PinIn, actor: CurrentActor, reques
     return ReceiverOut(receiver=Person(id=receiver.id, name=receiver.name), cash_up=cash_up(db, shift).as_dict())
 
 
+Amount = Annotated[int, Field(ge=0, le=100_000_000)]
+
+
+class Declared(BaseModel):
+    """What the waiter says they sold, before seeing Faida's figures."""
+    cash: Amount
+    mpesa: Amount
+    credit: Amount
+
+
 class CloseIn(BaseModel):
     receiver_pin: Annotated[str, Field(min_length=1, max_length=12)]
+    declared: Declared | None = None
     counted_notes: dict[str, Annotated[int, Field(ge=0, le=100_000)]] | None = None
     received: Annotated[int, Field(ge=0, le=100_000_000)] | None = None
     receiver_note: Annotated[str, Field(max_length=200)] | None = None
@@ -156,6 +167,8 @@ class HandoverOut(BaseModel):
     created_at: datetime
     shortage_status: ShortageOutcome | None
     printed: bool
+    declared: dict[str, int] | None = None  # what the waiter said they sold
+    faida: dict[str, int] | None = None  # Faida's figures for the same
 
 
 def _handover_out(db: Db, h: Handover) -> HandoverOut:
@@ -170,21 +183,24 @@ def _handover_out(db: Db, h: Handover) -> HandoverOut:
         difference=h.difference, staff_agrees=h.staff_agrees, staff_note=h.staff_note,
         receiver_note=h.receiver_note, forced=h.forced, created_at=h.created_at, shortage_status=latest,
         printed=ticket is not None and ticket.status.value == "printed",
+        declared=h.summary.get("declared"), faida=layouts.sold_by_method(h.summary) if h.summary.get("declared") else None,
     )
 
 
 def _close(
     db: Db, request: Request, shift: Shift, receiver: Staff, received: int, counted: dict | None,
     receiver_note: str | None, agrees: bool | None, staff_note: str | None, forced: bool,
+    declared: Declared | None = None,
 ) -> tuple[Handover, Ticket]:
     """Record the hand-over, put the cash in the box, close the shift, make the slips."""
     cash = cash_up(db, shift)
+    summary = cash.as_dict() | ({"declared": declared.model_dump()} if declared else {})
     ended = now()
     handover = Handover(
         business_id=shift.business_id, created_by=receiver.id, shift_id=shift.id, staff_id=shift.staff_id,
         expected=cash.cash_to_hand_over, counted_notes=counted, received=received,
         difference=received - cash.cash_to_hand_over, receiver_note=receiver_note or None,
-        staff_agrees=agrees, staff_note=staff_note or None, forced=forced, summary=cash.as_dict(),
+        staff_agrees=agrees, staff_note=staff_note or None, forced=forced, summary=summary,
     )
     db.add(handover)
     db.flush()
@@ -222,7 +238,7 @@ def close_shift(shift_id: uuid.UUID, body: CloseIn, actor: CurrentActor, request
     if signer.id != shift.staff_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, f"That isn't {db.get(Staff, shift.staff_id).name}'s PIN.")
     handover, ticket = _close(db, request, shift, receiver, body.total(), body.counted_notes, body.receiver_note,
-                              body.agree, body.staff_note, forced=False)
+                              body.agree, body.staff_note, forced=False, declared=body.declared)
     audit.record(db, business_id=actor.business_id, actor_id=receiver.id, action="shift.closed",
                  entity_type="shift", entity_id=shift.id,
                  details={"staff": signer.name, "expected": handover.expected, "received": handover.received,

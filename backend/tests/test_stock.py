@@ -272,3 +272,20 @@ def test_stock_item_bottle_size_name_and_removal(client, owner, menu):
     assert client.patch(f"/api/stock/items/{stock(client, owner)['Coke 500ml']['id']}", headers=owner,
                         json={"bottle_size": 500}).status_code == 422
     assert client.patch(f"/api/stock/items/{s['id']}", headers=owner, json={"active": False}).json()["active"] is False
+
+
+def test_daily_stock_sheet_and_the_open_bottle_in_ml(client, owner, opts):
+    """Opening (the last count) + received - sold - waste = expected; the open spirit
+    bottle can be measured in ml (Chewaz measures it with a ruler)."""
+    jw = stock(client, owner)["Johnnie Walker Red 750ml"]
+    take = lambda **c: client.post("/api/stock/takes", headers=owner, json={"counts": [{"stock_item_id": jw["id"], **c}]})  # noqa: E731
+    first = take(full=2, open_ml=300).json()["lines"][0]  # opening: 1,800 ml
+    assert first["since"] is None and first["counted_text"].startswith("2.4 bottles")
+    deliver(client, owner, jw["id"], units=1)  # +750
+    sell(client, owner, (opts["Johnnie Walker Red - Single tot"], 4))  # -100 (25 ml tots)
+    client.post("/api/stock/waste", headers=owner, json={"stock_item_id": jw["id"], "tots": 2, "reason": "Spilt"})  # -50
+    line = take(full=3, open_ml=350).json()["lines"][0]  # 2,600 counted, 2,400 expected
+    assert line["since"] and (line["opening_text"], line["received_text"], line["sold_text"], line["waste_text"]) == (
+        "2.4 bottles ≈ 72 tots", "1 bottle ≈ 30 tots", "0.1 bottles ≈ 4 tots", "0.1 bottles ≈ 2 tots")
+    assert line["expected_text"] == "3.2 bottles ≈ 96 tots" and Decimal(line["variance"]) == 200  # 2,600 - 2,400
+    assert take(full=1, open_ml=800).status_code == 422  # more than the bottle holds
