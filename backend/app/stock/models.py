@@ -79,13 +79,23 @@ class DeliveryLine(Record, Base):
     cost: Mapped[int | None] = mapped_column(Integer)  # what was paid for this line, if known
 
 
+class TakeKind(enum.StrEnum):
+    count = "count"  # a spot check, or the first count at install
+    opening = "opening"  # at the start of someone's shift: what they take over
+    closing = "closing"  # at their hand-over: what they hand over (the next opening)
+
+
 class StockTake(Record, Base):
-    """A count of some or all stock. The first one at install is the opening stock. Permanent."""
+    """A count of some or all stock. The first one at install is the opening stock. An
+    opening or closing count belongs to someone's shift. Permanent."""
 
     __tablename__ = "stock_takes"
 
     note: Mapped[str | None] = mapped_column(String(200))
     business_day: Mapped[date] = mapped_column(Date)
+    kind: Mapped[TakeKind] = mapped_column(str_enum(TakeKind, "stock_take_kind"), default=TakeKind.count,
+                                           server_default="count")
+    shift_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shifts.id"), index=True)
 
 
 class StockTakeLine(Record, Base):

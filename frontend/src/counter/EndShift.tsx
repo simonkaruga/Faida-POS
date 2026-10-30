@@ -211,6 +211,11 @@ export function EndShift({ session, onPay, onBack, onDone }: Props) {
               {box("mpesa", "M-Pesa")}
               {box("credit", "Credit")}
             </div>
+            {mine.stock_counted === false && (
+              <p className="warn" style={{ fontSize: 18 }}>
+                No closing stock count yet. The owner or supervisor can count it now (Stock › STOCK TAKE › Closing stock) before the cash hand-over.
+              </p>
+            )}
           </div>
           <footer className="screen-actions">
             <button className="btn btn-quiet" onClick={onBack}>

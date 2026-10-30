@@ -3,7 +3,7 @@
 import os
 
 import pytest
-from conftest import TEST_DB
+from conftest import OWNER_PIN, TEST_DB
 from sqlalchemy import create_engine, text
 
 from app import backup
@@ -104,3 +104,32 @@ def test_pg_tools_are_found_on_windows(config, tmp_path, monkeypatch):
     monkeypatch.setattr(backup.shutil, "which", lambda name: None)
     monkeypatch.setenv("ProgramFiles", str(tmp_path))
     assert backup._tool(config.model_copy(update={"pg_bin": None}), "pg_dump", windows=True) == str(bin_dir / "pg_dump.exe")
+
+
+def test_start_afresh_after_trying_faida(client, owner, waiter, menu, backup_config, tmp_path, monkeypatch):
+    """Owner only, with their PIN and DELETE typed: every sale, shift, stock movement and
+    the log go; the menu, stock items and staff stay. A backup is taken first."""
+    monkeypatch.setattr(client.app.state, "config", backup_config)
+    cat = client.get("/api/menu", headers=owner).json()["categories"]
+    option = next(o["id"] for c in cat for i in c["items"] for o in i["options"] if i["name"] == "Tusker")
+    tusker = next(s for s in client.get("/api/stock", headers=owner).json() if s["name"] == "Tusker 500ml")
+    client.post("/api/stock/deliveries", headers=owner, json={"lines": [{"stock_item_id": tusker["id"], "units": 10}]})
+    bill = client.post("/api/bills", json={"tab_name": "Trial"}, headers=waiter).json()
+    client.post(f"/api/bills/{bill['id']}/send", headers=waiter, json={"items": [{"sell_option_id": option}]})
+    url, ok = "/api/settings/start-afresh", {"pin": OWNER_PIN, "confirm": "DELETE"}
+
+    assert client.post(url, headers=waiter, json={"pin": "1357", "confirm": "DELETE"}).status_code == 403
+    assert client.post(url, headers=owner, json={**ok, "confirm": "delete"}).status_code == 422
+    assert client.post(url, headers=owner, json={**ok, "pin": "1357"}).status_code == 403
+    r = client.post(url, headers=owner, json=ok)
+    assert r.status_code == 200, r.text
+    saved = r.json()["backup"]
+    assert saved.endswith(".fbk") and os.path.exists(saved) and "update-backups" in saved
+
+    with create_engine(TEST_DB).connect() as conn:
+        counts = conn.execute(text("SELECT (SELECT count(*) FROM bills), (SELECT count(*) FROM stock_movements), "
+                                   "(SELECT count(*) FROM shifts), (SELECT count(*) FROM sell_options) > 0, "
+                                   "(SELECT count(*) FROM staff), (SELECT action FROM audit_entries)")).one()
+    assert tuple(counts) == (0, 0, 0, True, 2, "records.started_afresh")
+    assert next(s for s in client.get("/api/stock", headers=owner).json() if s["name"] == "Tusker 500ml")["level"] == "0"
+    assert client.post("/api/bills", json={"tab_name": "Real"}, headers=waiter).json()["number"] == 1

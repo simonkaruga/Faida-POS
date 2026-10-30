@@ -41,6 +41,8 @@ import {
   getShifts,
   getSettings,
   giveFloat,
+  floatBack,
+  getStockCount,
   ownerCash,
   recordPayout,
   updateCustomer,
@@ -52,6 +54,7 @@ import {
   type Session,
   type ShiftRow,
   type SlipKind,
+  type StockCount,
 } from "../services/api";
 import { SUPPORT_PHONE } from "../shared/Brand";
 import { PrintPageButton, SlipButton } from "../shared/PrintButtons";
@@ -66,7 +69,7 @@ import { Dashboard } from "./Dashboard";
 import { ClosingTab, ExpensesTab, ReportsTab } from "./OwnerReports";
 import { SalariesTab } from "./Salaries";
 import { ChoicesEditor, MenuEditor, SettingsEditor, StaffEditor, TablesEditor } from "./OwnerSetup";
-import { StockTab } from "./StockTab";
+import { StockSheet, StockTab } from "./StockTab";
 
 type Tab =
   | "dashboard"
@@ -354,6 +357,8 @@ function ShiftsTab({ session }: { session: Session }) {
   const [pickFloat, setPickFloat] = useState(false);
   const [forcing, setForcing] = useState<ShiftRow | null>(null);
   const [shortage, setShortage] = useState<ShiftRow | null>(null);
+  const [back, setBack] = useState<ShiftRow | null>(null);
+  const [sheet, setSheet] = useState<StockCount | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
@@ -395,7 +400,22 @@ function ShiftsTab({ session }: { session: Session }) {
                   {r.shift.float_amount ? ` · float ${formatKsh(r.shift.float_amount)}` : ""}
                 </span>
               </span>
-              {h ? (
+              {(["opening", "closing"] as const).map((k) => {
+                const id = k === "opening" ? r.opening_count_id : r.closing_count_id;
+                return id ? (
+                  <button key={k} className="btn btn-quiet" onClick={() => getStockCount(id).then(setSheet, (e) => setError(errorText(e)))}>
+                    {k === "opening" ? "Opening stock ✓" : "Closing stock ✓"}
+                  </button>
+                ) : null;
+              })}
+              {r.status === "open" && r.shift.float_amount > 0 && (
+                <button className="btn btn-quiet" onClick={() => setBack(r)}>
+                  Float back
+                </button>
+              )}
+              {!h && r.status === "closed" ? (
+                <span className="muted">Ended: float taken back, nothing sold</span>
+              ) : h ? (
                 <>
                   <span>
                     {formatKsh(h.received)} of {formatKsh(h.expected)}
@@ -457,6 +477,35 @@ function ShiftsTab({ session }: { session: Session }) {
             it is added to the cash they must hand over.
           </p>
         </AmountDialog>
+      )}
+      {back && (
+        <AmountDialog
+          title={`Float back from ${back.shift.staff.name}`}
+          submitLabel="FLOAT BACK IN THE BOX"
+          initial={back.shift.float_amount}
+          extra={(n) => n <= back.shift.float_amount}
+          onSubmit={(n) => floatBack(back.shift.id, n).then(load)}
+          onClose={() => setBack(null)}
+        >
+          <p className="muted" style={{ margin: 0 }}>
+            {back.shift.staff.name} gives back the float ({formatKsh(back.shift.float_amount)}), or part of it. It goes back in the cash box and is no
+            longer added to what they must hand over. If they sold nothing, their shift ends here.
+          </p>
+        </AmountDialog>
+      )}
+      {sheet && (
+        <Modal
+          title={`${sheet.kind === "opening" ? "Opening" : "Closing"} stock: ${sheet.staff}, ${time(sheet.at)}${sheet.by ? ` (counted by ${sheet.by})` : ""}`}
+          onClose={() => setSheet(null)}
+          wide
+        >
+          {sheet.total_value !== null && sheet.total_value !== 0 && (
+            <p className={sheet.total_value < 0 ? "warn" : ""} style={{ fontWeight: 700, margin: 0 }}>
+              Difference at buying price: {sheet.total_value < 0 ? "−" : ""}KSh {formatKsh(Math.abs(sheet.total_value))}
+            </p>
+          )}
+          <StockSheet lines={sheet.lines} />
+        </Modal>
       )}
       {forcing && <ForceCloseDialog row={forcing} onDone={() => (setForcing(null), load())} onClose={() => setForcing(null)} />}
       {shortage?.handover && (

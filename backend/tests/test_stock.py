@@ -289,3 +289,30 @@ def test_daily_stock_sheet_and_the_open_bottle_in_ml(client, owner, opts):
         "2.4 bottles ≈ 72 tots", "1 bottle ≈ 30 tots", "0.1 bottles ≈ 4 tots", "0.1 bottles ≈ 2 tots")
     assert line["expected_text"] == "3.2 bottles ≈ 96 tots" and Decimal(line["variance"]) == 200  # 2,600 - 2,400
     assert take(full=1, open_ml=800).status_code == 422  # more than the bottle holds
+
+
+def test_opening_and_closing_counts_for_a_shift(client, owner, people, opts):
+    """Count at the start of Jane's shift and at her hand-over: the sheet shows what she
+    took over, what came in, what was sold, and what she handed over."""
+    tusker = stock(client, owner)["Tusker 500ml"]
+    jane = next(s["id"] for s in client.get("/api/staff", headers=owner).json() if s["name"] == "Jane")
+    count = lambda kind, full: client.post("/api/stock/takes", headers=owner, json={  # noqa: E731
+        "kind": kind, "staff_id": jane, "counts": [{"stock_item_id": tusker["id"], "full": full}]})
+    assert client.post("/api/stock/takes", headers=owner, json={
+        "kind": "closing", "counts": [{"stock_item_id": tusker["id"], "full": 1}]}).status_code == 422  # whose?
+    assert count("closing", 5).status_code == 409  # no shift open yet
+    opening = count("opening", 30).json()
+    assert opening["kind"] == "opening" and opening["staff"] == "Jane"
+    sell(client, login(client, JANE), (opts["Tusker"], 4))
+    deliver(client, owner, tusker["id"], units=24)
+    closing = count("closing", 49).json()  # 30 + 24 - 4 = 50 expected
+    line = closing["lines"][0]
+    assert (line["opening_text"], line["received_text"], line["sold_text"], line["counted_text"]) == (
+        "30 bottles", "24 bottles", "4 bottles", "49 bottles")
+    assert line["message"].startswith("Missing 1 bottle")
+
+    row = next(r for r in client.get("/api/shifts", headers=owner).json() if r["shift"]["staff"]["name"] == "Jane")
+    assert (row["opening_count_id"], row["closing_count_id"]) == (opening["id"], closing["id"])
+    assert client.get("/api/shifts/me", headers=login(client, JANE)).json()["stock_counted"] is True
+    again = client.get(f"/api/stock/takes/{closing['id']}", headers=owner).json()  # the same sheet, later
+    assert again["lines"] == closing["lines"] and again["staff"] == "Jane"

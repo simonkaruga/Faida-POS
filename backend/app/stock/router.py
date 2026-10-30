@@ -18,8 +18,10 @@ from app.stock import service as stock
 from app.stock.service import factor
 from app.stock.models import (
     Delivery, DeliveryLine, MovementKind, RecipeLine, StockItem, StockMovement, StockTake, StockTakeLine,
-    StockUnit, Supplier,
+    StockUnit, Supplier, TakeKind,
 )
+from app.shifts.models import Shift
+from app.shifts.service import current_shift, open_shift
 
 router = APIRouter(tags=["stock"])
 
@@ -449,7 +451,15 @@ class CountIn(BaseModel):
 
 class StockTakeIn(BaseModel):
     note: Annotated[str, Field(max_length=200)] | None = None
+    kind: TakeKind = TakeKind.count
+    staff_id: uuid.UUID | None = None  # whose shift an opening or closing count is for
     counts: list[CountIn] = Field(min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def whose(self):
+        if self.kind is not TakeKind.count and not self.staff_id:
+            raise ValueError("Say whose shift this count is for.")
+        return self
 
 
 class VarianceOut(BaseModel):
@@ -470,20 +480,28 @@ class VarianceOut(BaseModel):
 
 class StockTakeOut(BaseModel):
     id: uuid.UUID
+    kind: TakeKind
+    staff: str | None  # whose shift
+    by: str | None
+    at: datetime
     lines: list[VarianceOut]
     total_value: int | None
 
 
-def _since_last_count(db: Db, item: StockItem) -> dict:
+def _since_last_count(db: Db, item: StockItem, before: datetime | None = None) -> dict:
     """Opening stock (the last count), and what came in, was sold and wasted since: the
-    daily stock sheet. Opening + received - sold - waste = what Faida expects now."""
-    last = db.execute(select(StockTakeLine.counted, StockTakeLine.created_at)
-                      .where(StockTakeLine.stock_item_id == item.id)
-                      .order_by(StockTakeLine.created_at.desc()).limit(1)).first()
+    daily stock sheet. Opening + received - sold - waste = what Faida expects now.
+    `before`: as it was for a count made then (to show a saved count again)."""
+    q = select(StockTakeLine.counted, StockTakeLine.created_at).where(StockTakeLine.stock_item_id == item.id)
+    if before:
+        q = q.where(StockTakeLine.created_at < before)
+    last = db.execute(q.order_by(StockTakeLine.created_at.desc()).limit(1)).first()
     q = select(StockMovement.kind, func.coalesce(func.sum(StockMovement.quantity), 0)).where(
         StockMovement.stock_item_id == item.id)
     if last:
         q = q.where(StockMovement.created_at > last.created_at)
+    if before:
+        q = q.where(StockMovement.created_at < before)
     by_kind = {kind: total for kind, total in db.execute(q.group_by(StockMovement.kind))}
     return {
         "since": last.created_at if last else None,
@@ -494,17 +512,64 @@ def _since_last_count(db: Db, item: StockItem) -> dict:
     }
 
 
+def _variance(db: Db, item: StockItem, expected: Decimal, counted: Decimal, unit_cost: Decimal, tot: int | None,
+              money: bool, before: datetime | None = None) -> VarianceOut:
+    sheet = _since_last_count(db, item, before)
+    variance = counted - expected
+    worth = stock.value(variance, unit_cost)
+    word = "Missing" if variance < 0 else "Extra" if variance > 0 else "Correct"
+    message = word if not variance else f"{word} {stock.describe(item, abs(variance), tot)}"
+    if variance and money:
+        message += f" ≈ KSh {abs(worth):,}"
+    return VarianceOut(stock_item_id=item.id, name=item.name, expected_text=stock.describe(item, expected, tot),
+                       counted_text=stock.describe(item, counted, tot), variance=variance, message=message,
+                       value=worth if money else None, since=sheet["since"],
+                       opening_text=stock.describe(item, sheet["opening"], tot) if sheet["since"] else None,
+                       received_text=stock.describe(item, sheet["received"], tot),
+                       sold_text=stock.describe(item, sheet["sold"], tot),
+                       waste_text=stock.describe(item, sheet["waste"], tot))
+
+
+def _take_out(db: Db, take: StockTake, lines: list[VarianceOut], money: bool) -> StockTakeOut:
+    shift = db.get(Shift, take.shift_id) if take.shift_id else None
+    by = db.get(Staff, take.created_by) if take.created_by else None
+    return StockTakeOut(id=take.id, kind=take.kind, staff=db.get(Staff, shift.staff_id).name if shift else None,
+                        by=by.name if by else None, at=take.created_at, lines=lines,
+                        total_value=sum(l.value or 0 for l in lines) if money else None)
+
+
+def _shift_for(db: Db, actor: Actor, body: StockTakeIn, tz) -> Shift | None:
+    """An opening count starts the person's shift if it hasn't started; a closing count
+    needs it open (it is made before the cash hand-over)."""
+    if body.kind is TakeKind.count:
+        return None
+    staff = db.get(Staff, body.staff_id)
+    if staff is None or staff.business_id != actor.business_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Staff member not found.")
+    if body.kind is TakeKind.opening:
+        return current_shift(db, actor.business_id, staff.id, tz)
+    shift = open_shift(db, actor.business_id, staff.id)
+    if shift is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"{staff.name} has no shift open to close.")
+    return shift
+
+
 @router.post("/stock/takes", status_code=status.HTTP_201_CREATED)
 def stock_take(body: StockTakeIn, actor: Stockist, request: Request, db: Db) -> StockTakeOut:
     """Count some or all items. Faida compares each count with what it expected, shows the
-    variance in units (and shillings for the owner), then sets stock to the count."""
-    day = today(db, actor.business_id, request.app.state.tz)
+    variance in units (and shillings for the owner), then sets stock to the count. An
+    opening or closing count is for someone's shift: the closing count at one hand-over
+    is the opening stock of whoever counts next."""
+    tz = request.app.state.tz
+    day = today(db, actor.business_id, tz)
     tot = get_settings(db, actor.business_id).tot_size_ml
     money = sees_money(actor)
-    take = StockTake(business_id=actor.business_id, created_by=actor.staff.id, note=body.note, business_day=day)
+    shift = _shift_for(db, actor, body, tz)
+    take = StockTake(business_id=actor.business_id, created_by=actor.staff.id, note=body.note, business_day=day,
+                     kind=body.kind, shift_id=shift.id if shift else None)
     db.add(take)
     db.flush()
-    out, total = [], 0
+    out = []
     for c in body.counts:
         item = _item(db, actor, c.stock_item_id)
         if (c.open_tenths or c.open_ml) and not (item.unit is StockUnit.ml and item.bottle_size):
@@ -515,28 +580,32 @@ def stock_take(body: StockTakeIn, actor: Stockist, request: Request, db: Db) -> 
         open_part = c.open_ml if c.open_ml is not None else Decimal(c.open_tenths * (item.bottle_size or 0)) / 10
         counted = c.full * factor(item) + open_part
         expected = stock.level(db, item)
-        sheet = _since_last_count(db, item)
-        variance = counted - expected
+        out.append(_variance(db, item, expected, counted, item.unit_cost, tot, money))
         db.add(StockTakeLine(business_id=actor.business_id, created_by=actor.staff.id, stock_take_id=take.id,
                              stock_item_id=item.id, expected=expected, counted=counted, unit_cost=item.unit_cost))
-        if variance:
-            stock.move(db, item, MovementKind.stock_take, variance, actor_id=actor.staff.id, day=day,
+        if counted != expected:
+            stock.move(db, item, MovementKind.stock_take, counted - expected, actor_id=actor.staff.id, day=day,
                        reference_id=take.id, note=body.note)
-        worth = stock.value(variance, item.unit_cost)
-        total += worth
-        word = "Missing" if variance < 0 else "Extra" if variance > 0 else "Correct"
-        message = word if not variance else f"{word} {stock.describe(item, abs(variance), tot)}"
-        if variance and money:
-            message += f" ≈ KSh {abs(worth):,}"
-        out.append(VarianceOut(stock_item_id=item.id, name=item.name, expected_text=stock.describe(item, expected, tot),
-                               counted_text=stock.describe(item, counted, tot), variance=variance, message=message,
-                               value=worth if money else None, since=sheet["since"],
-                               opening_text=stock.describe(item, sheet["opening"], tot) if sheet["since"] else None,
-                               received_text=stock.describe(item, sheet["received"], tot),
-                               sold_text=stock.describe(item, sheet["sold"], tot),
-                               waste_text=stock.describe(item, sheet["waste"], tot)))
+    result = _take_out(db, take, out, money)
     audit.record(db, business_id=actor.business_id, actor_id=actor.staff.id, action="stock.take",
                  entity_type="stock_take", entity_id=take.id,
-                 details={"items": len(out), "value": total, "missing": [o.message for o in out if o.variance < 0]})
+                 details={"kind": body.kind.value, "staff": result.staff, "items": len(out), "value": result.total_value,
+                          "missing": [o.message for o in out if o.variance < 0]})
     db.commit()
-    return StockTakeOut(id=take.id, lines=out, total_value=total if money else None)
+    return result
+
+
+@router.get("/stock/takes/{take_id}")
+def get_stock_take(take_id: uuid.UUID, actor: Stockist, db: Db) -> StockTakeOut:
+    """A saved count's stock sheet, as it was when it was counted."""
+    take = db.get(StockTake, take_id)
+    if take is None or take.business_id != actor.business_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Stock count not found.")
+    tot = get_settings(db, actor.business_id).tot_size_ml
+    money = sees_money(actor)
+    lines = [_variance(db, item, line.expected, line.counted, line.unit_cost, tot, money, before=line.created_at)
+             for line, item in db.execute(select(StockTakeLine, StockItem)
+                                          .join(StockItem, StockItem.id == StockTakeLine.stock_item_id)
+                                          .where(StockTakeLine.stock_take_id == take.id)
+                                          .order_by(StockItem.station, StockItem.name))]
+    return _take_out(db, take, lines, money)

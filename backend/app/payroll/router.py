@@ -188,6 +188,26 @@ def update_employee(employee_id: uuid.UUID, body: EmployeePatch, actor: Owner, d
     return _out(db, e)
 
 
+class RemovedOut(BaseModel):
+    deleted: bool  # False: they have a pay history, so they are kept as "no longer works here"
+
+
+@router.delete("/employees/{employee_id}")
+def remove_employee(employee_id: uuid.UUID, actor: Owner, db: Db) -> RemovedOut:
+    """Someone added by mistake (nothing in their pay account) is deleted; anyone with a
+    pay history is kept, marked as no longer working here, so the history adds up."""
+    e = _employee(db, actor, employee_id)
+    history = db.scalar(select(EmployeeEntry.id).where(EmployeeEntry.employee_id == e.id).limit(1)) is not None
+    if history:
+        e.active = False
+    else:
+        db.delete(e)
+    audit.record(db, business_id=actor.business_id, actor_id=actor.staff.id, action="payroll.employee_removed",
+                 entity_type="employee", entity_id=e.id, details={"employee": e.name, "deleted": not history})
+    db.commit()
+    return RemovedOut(deleted=not history)
+
+
 # The pay account
 
 

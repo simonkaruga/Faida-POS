@@ -3,6 +3,7 @@ import {
   addSupplier,
   ApiError,
   createStockItem,
+  getActiveStaff,
   getManageMenu,
   getMovements,
   getRecipes,
@@ -19,6 +20,7 @@ import {
   type Session,
   type StockItem,
   type StockMovement,
+  type TakeKind,
   type Supplier,
   type Variance,
 } from "../services/api";
@@ -41,7 +43,7 @@ export function StockTab({ session }: { session: Session }) {
   const isOwner = session.permissions.manage_business === "allow";
   const [items, setItems] = useState<StockItem[] | null>(null);
   const [view, setView] = useState<View>("list");
-  const [dialog, setDialog] = useState<null | "delivery" | "waste" | "new">(null);
+  const [dialog, setDialog] = useState<null | "delivery" | "waste" | "new" | "clear">(null);
   const [open, setOpen] = useState<StockItem | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +85,9 @@ export function StockTab({ session }: { session: Session }) {
             <button className="btn btn-quiet" onClick={() => setDialog("new")}>
               New item
             </button>
+            <button className="btn btn-quiet" onClick={() => setDialog("clear")}>
+              Clear all to 0
+            </button>
           </>
         )}
       </div>
@@ -120,6 +125,33 @@ export function StockTab({ session }: { session: Session }) {
       {dialog === "waste" && (
         <WasteDialog items={items} onDone={(t) => (setDialog(null), setMessage(t), load())} onClose={() => setDialog(null)} />
       )}
+      {dialog === "clear" && (
+        <Modal title="Clear all stock to 0?" onClose={() => setDialog(null)}>
+          <p style={{ margin: 0, fontSize: 18 }}>
+            Every item's stock becomes 0, to start counting afresh. The items, prices and recipes stay, and so do the sales. Then put the stock in again
+            with DELIVERY or a STOCK TAKE. This is recorded as a stock count, so it shows in each item's history.
+          </p>
+          <div className="row row-end">
+            <button className="btn btn-quiet" onClick={() => setDialog(null)}>
+              Keep the stock
+            </button>
+            <button
+              className="btn btn-red"
+              onClick={() =>
+                stockTake(
+                  "Cleared to 0 to start afresh",
+                  items.filter((i) => i.active).map((i) => ({ stock_item_id: i.id, full: 0, open_tenths: 0 })),
+                ).then(
+                  () => (setDialog(null), setMessage("All stock is 0 now. Put it in with DELIVERY or STOCK TAKE."), load()),
+                  (e) => (setDialog(null), setError(errorText(e))),
+                )
+              }
+            >
+              CLEAR ALL TO 0
+            </button>
+          </div>
+        </Modal>
+      )}
       {dialog === "new" && <NewItemDialog onDone={() => (setDialog(null), load())} onClose={() => setDialog(null)} />}
       {open && <ItemDialog item={open} isOwner={isOwner} onChanged={() => (setOpen(null), load())} onClose={() => setOpen(null)} />}
     </>
@@ -144,25 +176,36 @@ function ItemPicker({ items, onPick }: { items: StockItem[]; onPick: (i: StockIt
 }
 
 type DeliveryLine = { item: StockItem; packs: string; units: string; cost: string };
+type DeliveryKey = "packs" | "units" | "cost";
 
+/** Counting units per stock unit: a bottle of a spirit in ml, a litre, a kg. */
+const per = (i: StockItem) => i.bottle_size ?? (i.unit === "ml" || i.unit === "g" ? 1000 : 1);
+const round = (n: number) => Math.round(n * 10) / 10;
+
+/** Stock in, item by item: whole crates (or cartons) and single bottles that came without
+ * a crate, in any mix, and what was paid. Each line shows what it adds up to and the stock
+ * after, so 5 in stock + 2 crates + 2 bottles = 55 is visible before saving. */
 function DeliveryDialog({ items, onDone, onClose }: { items: StockItem[]; onDone: (lines: string[]) => void; onClose: () => void }) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [supplier, setSupplier] = useState<string | null>(null);
   const [newSupplier, setNewSupplier] = useState("");
   const [lines, setLines] = useState<DeliveryLine[]>([]);
   const [picking, setPicking] = useState(true);
-  const [field, setField] = useState<{ index: number; key: "packs" | "units" | "cost" } | null>(null);
+  const [field, setField] = useState<{ index: number; key: DeliveryKey } | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     getSuppliers().then(setSuppliers, () => {});
   }, []);
 
   const add = (item: StockItem) => {
-    setLines([...lines, { item, packs: "", units: "", cost: "" }]);
-    setField({ index: lines.length, key: item.pack_size ? "packs" : "units" });
+    const at = lines.findIndex((l) => l.item.id === item.id);
+    if (at < 0) setLines([...lines, { item, packs: "", units: "", cost: "" }]);
+    setField({ index: at < 0 ? lines.length : at, key: item.pack_size ? "packs" : "units" });
     setPicking(false);
   };
+  const drop = (index: number) => (setLines(lines.filter((_, i) => i !== index)), setField(null));
   const setValue = (v: string) => field && setLines(lines.map((l, i) => (i === field.index ? { ...l, [field.key]: v } : l)));
+  const total = (l: DeliveryLine) => num(l.packs) * (l.item.pack_size ?? 0) + num(l.units);
   const save = async () => {
     try {
       let supplierId = supplier ?? undefined;
@@ -177,16 +220,24 @@ function DeliveryDialog({ items, onDone, onClose }: { items: StockItem[]; onDone
     }
   };
 
-  const cell = (index: number, key: "packs" | "units" | "cost", label: string, value: string) => (
-    <button className={`field-box small ${field?.index === index && field.key === key ? "active" : ""}`} onClick={() => setField({ index, key })}>
-      <span className="muted">{label}</span>
-      <strong>{value || "—"}</strong>
-    </button>
-  );
+  const unitName = (i: StockItem) => (i.counting_unit === "bottle" ? "single bottles" : plural(i.counting_unit));
+  const label = (l: DeliveryLine, key: DeliveryKey) =>
+    key === "packs" ? `${l.item.pack_name ?? "Crate"}s (${l.item.pack_size} each)` : key === "units" ? (l.item.pack_size ? `${unitName(l.item)} (no ${(l.item.pack_name ?? "crate").toLowerCase()})` : unitName(l.item)) : "Total paid, KSh (optional)";
+  const cell = (index: number, key: DeliveryKey) => {
+    const l = lines[index];
+    const value = key === "cost" ? (l.cost ? formatKsh(num(l.cost)) : "") : l[key];
+    return (
+      <button className={`field-box small ${field?.index === index && field.key === key ? "active" : ""}`} style={{ flex: 1 }} onClick={() => setField({ index, key })}>
+        <span className="muted">{label(l, key)}</span>
+        <strong>{value || "—"}</strong>
+      </button>
+    );
+  };
   const current = field ? lines[field.index] : null;
+  const ready = lines.length > 0 && lines.every((l) => total(l) > 0);
 
   return (
-    <Modal title="Delivery" onClose={onClose} wide>
+    <Modal title="Delivery: stock that came in" onClose={onClose} wide>
       <div className="row" style={{ flexWrap: "wrap" }}>
         <span className="muted">Supplier:</span>
         {suppliers.map((s) => (
@@ -197,37 +248,67 @@ function DeliveryDialog({ items, onDone, onClose }: { items: StockItem[]; onDone
         {!supplier && <input className="text-input" placeholder="New supplier (optional)" value={newSupplier} onChange={(e) => setNewSupplier(e.target.value)} />}
       </div>
       {picking ? (
-        <ItemPicker items={items} onPick={add} />
+        <>
+          <p className="muted" style={{ margin: 0 }}>
+            Tap what came in. {lines.length > 0 && <button className="btn btn-quiet" onClick={() => setPicking(false)}>‹ Back to the delivery</button>}
+          </p>
+          <ItemPicker items={items} onPick={add} />
+        </>
       ) : (
         <div className="row" style={{ alignItems: "flex-start", gap: 20 }}>
           <div className="choice-list grow">
-            {lines.map((l, i) => (
-              <div key={i} className="delivery-row">
-                <strong className="grow">{l.item.name}</strong>
-                {l.item.pack_size && cell(i, "packs", `${l.item.pack_name ?? "pack"}s of ${l.item.pack_size}`, l.packs)}
-                {cell(i, "units", `loose ${plural(l.item.counting_unit)}`, l.units)}
-                {cell(i, "cost", "cost (KSh)", l.cost ? formatKsh(num(l.cost)) : "")}
-              </div>
-            ))}
+            {lines.map((l, i) => {
+              const now = Number(l.item.level) / per(l.item);
+              const came = total(l);
+              const unit = plural(l.item.counting_unit);
+              return (
+                <div key={l.item.id} className="delivery-card">
+                  <div className="row">
+                    <strong className="grow" style={{ fontSize: 20 }}>
+                      {l.item.name}
+                    </strong>
+                    <button className="btn btn-quiet" onClick={() => drop(i)} aria-label={`Take ${l.item.name} off`}>
+                      ✕
+                    </button>
+                  </div>
+                  <div className="row" style={{ flexWrap: "wrap" }}>
+                    {l.item.pack_size && cell(i, "packs")}
+                    {cell(i, "units")}
+                    {cell(i, "cost")}
+                  </div>
+                  <div className={came ? "" : "muted"}>
+                    {came
+                      ? `Came in: ${round(came)} ${unit}${l.cost && came ? ` (KSh ${formatKsh(num(l.cost) / came)} each)` : ""} · in stock now ${round(now)} → after ${round(now + came)} ${unit}`
+                      : `In stock now: ${l.item.level_text}. Type how many came in.`}
+                  </div>
+                </div>
+              );
+            })}
             <div className="row">
               <button className="btn btn-quiet" onClick={() => setPicking(true)}>
-                + Add item
+                + Add another item
               </button>
               <span className="grow" />
-              <button className="btn btn-primary" onClick={save} disabled={!lines.length}>
+              <button className="btn btn-primary" onClick={save} disabled={!ready}>
                 SAVE DELIVERY
               </button>
             </div>
             <p className="error-text">{error ?? ""}</p>
           </div>
           {current && field && (
-            <Keypad
-              value={current[field.key]}
-              onChange={(v) => setValue(v.replace(/^0+(?=\d)/, ""))}
-              onEnter={() => setField(null)}
-              decimal={field.key === "units" && current.item.counting_unit !== "bottle" && current.item.counting_unit !== "piece"}
-              maxLength={9}
-            />
+            <div>
+              <p style={{ fontSize: 18, margin: "0 0 8px", textAlign: "center", maxWidth: 300 }}>
+                {current.item.name}:<br />
+                <strong>{label(current, field.key)}</strong>
+              </p>
+              <Keypad
+                value={current[field.key]}
+                onChange={(v) => setValue(v.replace(/^0+(?=\d)/, ""))}
+                onEnter={() => setField(field.key === "packs" ? { index: field.index, key: "units" } : null)}
+                decimal={field.key === "units" && current.item.counting_unit !== "bottle" && current.item.counting_unit !== "piece"}
+                maxLength={9}
+              />
+            </div>
           )}
         </div>
       )}
@@ -292,6 +373,48 @@ function WasteDialog({ items, onDone, onClose }: { items: StockItem[]; onDone: (
   );
 }
 
+/** The stock sheet of a count: opening (the last count) + received − sold − waste =
+ * expected, against what was counted. */
+export function StockSheet({ lines }: { lines: Variance[] }) {
+  return (
+    <div className="stock-sheet">
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Opening</th>
+            <th>+ Received</th>
+            <th>− Sold</th>
+            <th>− Waste</th>
+            <th>= Expected</th>
+            <th>Counted</th>
+            <th>Difference</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((l) => (
+            <tr key={l.stock_item_id}>
+              <td>
+                <strong>{l.name}</strong>
+                {l.since && <div className="muted">since {new Date(l.since).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>}
+              </td>
+              <td>{l.opening_text ?? "first count"}</td>
+              <td>{l.received_text}</td>
+              <td>{l.sold_text}</td>
+              <td>{l.waste_text}</td>
+              <td>{l.expected_text}</td>
+              <td>
+                <strong>{l.counted_text}</strong>
+              </td>
+              <td className={Number(l.variance) < 0 ? "warn" : ""}>{l.message}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 type Count = { full: string; tenths: number; ml: string };
 
 /** Count sealed bottles (or kg, pieces) and the open bottle in tenths, or the ml left in it
@@ -304,7 +427,13 @@ function StockTakeView({ items, isOwner, onReload, onDone }: { items: StockItem[
   const [counts, setCounts] = useState<Record<string, Count>>({});
   const [selected, setSelected] = useState<string | null>(null);
   const [result, setResult] = useState<{ lines: Variance[]; total: number | null } | null>(null);
+  const [kind, setKind] = useState<TakeKind | null>(null);
+  const [whose, setWhose] = useState<{ id: string; name: string } | null>(null);
+  const [staff, setStaff] = useState<{ id: string; name: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    getActiveStaff().then(setStaff, () => {});
+  }, []);
   const shown = useMemo(() => items.filter((i) => i.station === station && i.active), [items, station]);
   const counted = Object.keys(counts).length;
   const sel = items.find((i) => i.id === selected);
@@ -314,12 +443,50 @@ function StockTakeView({ items, isOwner, onReload, onDone }: { items: StockItem[
     stockTake(
       undefined,
       Object.entries(counts).map(([id, c]) => ({ stock_item_id: id, full: num(c.full), open_tenths: c.tenths, open_ml: c.ml ? num(c.ml) : undefined })),
+      kind ?? "count",
+      whose?.id,
     ).then((r) => setResult({ lines: r.lines, total: r.total_value }), (e) => setError(errorText(e)));
+
+  const title = kind === "opening" ? `Opening stock: ${whose?.name}'s shift` : kind === "closing" ? `Closing stock: ${whose?.name}'s hand-over` : "Stock take";
+  if (!kind || (kind !== "count" && !whose)) {
+    return (
+      <div style={{ maxWidth: 720 }}>
+        <h2 className="section-title">{kind ? (kind === "opening" ? "Opening count: whose shift is starting?" : "Closing count: who is handing over?") : "What are you counting?"}</h2>
+        {!kind ? (
+          <div className="choice-list">
+            <button className="choice" onClick={() => setKind("opening")}>
+              <strong>Opening stock</strong>
+              <div className="muted">At the start of someone's shift: what they take over.</div>
+            </button>
+            <button className="choice" onClick={() => setKind("closing")}>
+              <strong>Closing stock (hand-over)</strong>
+              <div className="muted">Before their cash hand-over: what they hand over. It is also the next person's opening.</div>
+            </button>
+            <button className="choice" onClick={() => setKind("count")}>
+              <strong>Spot check / full stock take</strong>
+              <div className="muted">Any other time, or the first count of everything.</div>
+            </button>
+          </div>
+        ) : (
+          <div className="choice-grid">
+            {staff.map((p) => (
+              <button key={p.id} className="choice" onClick={() => setWhose(p)}>
+                {p.name}
+              </button>
+            ))}
+          </div>
+        )}
+        <button className="btn btn-quiet" style={{ marginTop: 16 }} onClick={kind ? () => setKind(null) : onDone}>
+          {kind ? "Back" : "Cancel"}
+        </button>
+      </div>
+    );
+  }
 
   if (result) {
     return (
       <>
-        <h2 className="section-title">Stock take: {result.lines.length} {result.lines.length === 1 ? "item" : "items"} counted</h2>
+        <h2 className="section-title">{title}: {result.lines.length} {result.lines.length === 1 ? "item" : "items"} counted</h2>
         {result.total !== null && (
           <p style={{ fontSize: 22, fontWeight: 700 }} className={result.total < 0 ? "warn" : ""}>
             Variance at buying price: {result.total < 0 ? "−" : ""}KSh {formatKsh(Math.abs(result.total))}
@@ -328,41 +495,7 @@ function StockTakeView({ items, isOwner, onReload, onDone }: { items: StockItem[
         <p className="muted" style={{ marginTop: 0 }}>
           Opening is the last count. Opening + received − sold − waste = expected. Use Print / PDF above to keep the stock sheet.
         </p>
-        <div className="stock-sheet">
-          <table>
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th>Opening</th>
-                <th>+ Received</th>
-                <th>− Sold</th>
-                <th>− Waste</th>
-                <th>= Expected</th>
-                <th>Counted</th>
-                <th>Difference</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.lines.map((l) => (
-                <tr key={l.stock_item_id}>
-                  <td>
-                    <strong>{l.name}</strong>
-                    {l.since && <div className="muted">since {new Date(l.since).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>}
-                  </td>
-                  <td>{l.opening_text ?? "first count"}</td>
-                  <td>{l.received_text}</td>
-                  <td>{l.sold_text}</td>
-                  <td>{l.waste_text}</td>
-                  <td>{l.expected_text}</td>
-                  <td>
-                    <strong>{l.counted_text}</strong>
-                  </td>
-                  <td className={Number(l.variance) < 0 ? "warn" : ""}>{l.message}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <StockSheet lines={result.lines} />
         <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={onDone}>
           DONE
         </button>
@@ -379,7 +512,9 @@ function StockTakeView({ items, isOwner, onReload, onDone }: { items: StockItem[
               {s === "bar" ? "Bar" : "Kitchen"}
             </button>
           ))}
-          <span className="grow muted">{counted} counted</span>
+          <span className="grow muted">
+            <strong>{title}</strong> · {counted} counted
+          </span>
           {isOwner && (
             <button className="btn btn-quiet" onClick={() => setAdding(true)}>
               + New item

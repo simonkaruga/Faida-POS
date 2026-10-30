@@ -2,11 +2,13 @@ from datetime import time
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, text
 
+from app import backup
 from app.audit import service as audit
+from app.auth import service as auth
 from app.auth.deps import Actor, CurrentActor, Db, require
 from app.auth.permissions import Action
 from app.db import now
@@ -87,3 +89,47 @@ def exit_screen(actor: Owner, request: Request, db: Db) -> None:
     path.write_text(now().isoformat())
     audit.record(db, business_id=actor.business_id, actor_id=actor.staff.id, action="screen.exited")
     db.commit()
+
+
+# Everything that happened (sales, money, stock movements, the log). Kept: the menu, stock
+# items, tables, staff and PINs, employees, credit customers, suppliers and settings.
+RECORDS = (
+    "bill_handovers", "bill_lines", "payments", "tickets", "bills", "cash_movements", "shortage_statuses",
+    "employee_entries", "handovers", "stock_take_lines", "stock_takes", "delivery_lines", "deliveries",
+    "stock_movements", "shifts", "credit_collections", "expenses", "daily_closings", "audit_entries", "approvals",
+    "sync_queue", "email_outbox", "sequences",
+)
+
+
+class AfreshIn(BaseModel):
+    pin: Annotated[str, Field(min_length=1, max_length=12)]
+    confirm: str
+
+
+class AfreshOut(BaseModel):
+    backup: str  # where everything was saved first
+
+
+@router.post("/start-afresh")
+def start_afresh(body: AfreshIn, actor: Owner, request: Request, db: Db) -> AfreshOut:
+    """Owner only, after trying Faida out: delete every sale, payment, shift, hand-over,
+    expense, salary entry, delivery, stock count and the log, so the business starts at
+    nothing (stock at 0, bills from #1). A backup is taken first; Restore-Backup brings
+    it all back. Permanent records can't be deleted one by one: they are emptied as a whole."""
+    state = request.app.state
+    if state.config.mode != "local":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only a counter can start afresh.")
+    if body.confirm != "DELETE":
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Type DELETE to confirm.")
+    if auth.find_staff_by_pin(db, state.keypad, state.config.pin_secret, actor.business_id, body.pin).id != actor.staff.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "That is not your PIN.")
+    to = Path(state.config.state_dir).resolve().parent / "update-backups"
+    try:
+        saved = backup.create(state.config, str(to), keep=10)
+    except backup.BackupError as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Nothing was deleted: the backup first failed ({e}).") from e
+    db.execute(text(f"TRUNCATE {', '.join(RECORDS)}"))
+    audit.record(db, business_id=actor.business_id, actor_id=actor.staff.id, action="records.started_afresh",
+                 details={"backup": str(saved)})
+    db.commit()
+    return AfreshOut(backup=str(saved))

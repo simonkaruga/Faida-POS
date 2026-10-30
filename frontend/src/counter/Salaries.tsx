@@ -11,6 +11,7 @@ import {
   paySalary,
   reversePayEntry,
   setShortageStatus,
+  removeEmployee,
   updateEmployee,
   type Employee,
   type PaidHow,
@@ -92,7 +93,7 @@ export function SalariesTab() {
           History
         </button>
         <button className="btn btn-quiet" onClick={() => setDialog({ kind: "edit", e })}>
-          Change
+          Change / remove
         </button>
       </div>
     );
@@ -181,11 +182,13 @@ function EmployeeDialog({ employee, onDone, onClose }: { employee?: Employee; on
   const [payType, setPayType] = useState<PayType>(employee?.pay_type ?? "monthly");
   const [staffId, setStaffId] = useState<string | null>(employee?.staff_id ?? null);
   const [staff, setStaff] = useState<{ id: string; name: string }[]>([]);
+  const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     getActiveStaff().then(setStaff, () => {});
   }, []);
   const set = (k: keyof typeof f) => (v: string) => setF({ ...f, [k]: v });
+  const remove = () => employee && removeEmployee(employee.id).then(onDone, (e) => setError(errorText(e)));
   const body = { name: f.name.trim(), job: f.job.trim() || null, phone: f.phone.trim() || null, staff_id: staffId, pay_type: payType, pay_rate: Number(f.rate || 0) };
   const save = (extra: { active?: boolean } = {}) =>
     (employee ? updateEmployee(employee.id, { ...body, ...extra }) : addEmployee(body)).then(onDone, (e) => setError(errorText(e)));
@@ -227,16 +230,36 @@ function EmployeeDialog({ employee, onDone, onClose }: { employee?: Employee; on
         ))}
       </div>
       <p className="error-text">{error ?? ""}</p>
-      <div className="row row-end">
-        {employee && (
-          <button className="btn btn-quiet" onClick={() => save({ active: !employee.active })}>
-            {employee.active ? "No longer works here" : "Works here again"}
+      {removing && employee ? (
+        <div className="row">
+          <span className="warn grow">
+            Remove {employee.name}? Added by mistake (nothing paid yet): deleted. Otherwise kept under "No longer working here", with their pay
+            history.
+          </span>
+          <button className="btn btn-quiet" onClick={() => setRemoving(false)}>
+            Keep
           </button>
-        )}
-        <button className="btn btn-primary" disabled={!f.name.trim() || !f.rate} onClick={() => save()}>
-          {employee ? "SAVE" : "ADD EMPLOYEE"}
-        </button>
-      </div>
+          <button className="btn btn-red" onClick={remove}>
+            REMOVE
+          </button>
+        </div>
+      ) : (
+        <div className="row row-end">
+          {employee?.active && (
+            <button className="btn btn-quiet" onClick={() => setRemoving(true)}>
+              Remove employee
+            </button>
+          )}
+          {employee && !employee.active && (
+            <button className="btn btn-quiet" onClick={() => save({ active: true })}>
+              Works here again
+            </button>
+          )}
+          <button className="btn btn-primary" disabled={!f.name.trim() || !f.rate} onClick={() => save()}>
+            {employee ? "SAVE" : "ADD EMPLOYEE"}
+          </button>
+        </div>
+      )}
     </Modal>
   );
 }

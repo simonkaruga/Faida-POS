@@ -39,6 +39,7 @@ import {
   type StaffRow,
   type StockItem,
   type TableRow,
+  startAfresh,
 } from "../services/api";
 import { getStartScreen, setStartScreen } from "../shared/device";
 import { Keypad } from "../shared/Keypad";
@@ -835,6 +836,70 @@ export function SettingsEditor() {
           SAVE SETTINGS
         </button>
       </div>
+      <StartAfresh />
     </div>
+  );
+}
+
+/** After trying Faida out: delete every trial sale, shift, expense, salary entry and stock
+ * movement (stock goes to 0, bills start at #1). The menu, stock items, tables, staff,
+ * employees, customers and settings stay. Faida takes a backup first. */
+function StartAfresh() {
+  const [open, setOpen] = useState(false);
+  const [pin, setPin] = useState("");
+  const [typed, setTyped] = useState("");
+  const [done, setDone] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const go = () => {
+    setBusy(true);
+    startAfresh(pin, typed).then(
+      (r) => (setDone(r.backup), setBusy(false)),
+      (e) => (setError(errorText(e)), setBusy(false)),
+    );
+  };
+  return (
+    <section className="rp-section">
+      <h3 className="form-title">Start afresh (after trying Faida out)</h3>
+      <p className="muted" style={{ margin: 0 }}>
+        Deletes every sale, payment, shift and hand-over, float, expense, salary entry, delivery, stock count and the activity log. Stock goes to 0 and
+        bills start again at #1. Kept: the menu and prices, stock items, tables, staff and PINs, employees, credit customers, suppliers and settings.
+      </p>
+      {done ? (
+        <p className="ok-text">
+          Done: everything starts from nothing now. Put the stock in (Stock › STOCK TAKE). What was deleted is saved in {done}; Restore-Backup on the
+          USB stick can bring it back.
+        </p>
+      ) : !open ? (
+        <div className="row">
+          <button className="btn btn-red" onClick={() => setOpen(true)}>
+            <Trash2 size={18} /> Delete trial records…
+          </button>
+        </div>
+      ) : (
+        <>
+          <p className="warn" style={{ margin: 0 }}>
+            Only do this before the business starts using Faida for real. A backup is taken first.
+          </p>
+          <div className="row" style={{ alignItems: "flex-end", flexWrap: "wrap" }}>
+            <label className="form-field">
+              <span>Your owner PIN</span>
+              <input className="text-input" type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 12))} />
+            </label>
+            <label className="form-field">
+              <span>Type DELETE</span>
+              <input className="text-input" value={typed} onChange={(e) => setTyped(e.target.value)} />
+            </label>
+            <button className="btn btn-quiet" onClick={() => (setOpen(false), setPin(""), setTyped(""), setError(null))}>
+              Keep everything
+            </button>
+            <button className="btn btn-red" disabled={busy || !pin || typed !== "DELETE"} onClick={go}>
+              {busy ? "Backing up, then deleting…" : "DELETE TRIAL RECORDS"}
+            </button>
+          </div>
+          <p className="error-text">{error ?? ""}</p>
+        </>
+      )}
+    </section>
   );
 }

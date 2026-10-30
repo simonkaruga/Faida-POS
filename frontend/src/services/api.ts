@@ -305,6 +305,7 @@ export type MyShift = {
   shift: ShiftInfo | null;
   cash_up: CashUp | null;
   open_bills: { id: string; number: number; place: string; balance: number }[];
+  stock_counted?: boolean;
 };
 export type Handover = {
   id: string;
@@ -331,6 +332,8 @@ export type ShiftRow = {
   open_bills: number;
   expected: number;
   handover: Handover | null;
+  opening_count_id?: string | null;
+  closing_count_id?: string | null;
 };
 export type CloseShift = {
   receiver_pin: string;
@@ -349,6 +352,7 @@ export const closeShift = (shiftId: string, body: CloseShift) => api<Handover>(`
 export const forceClose = (shiftId: string, received: number, note: string) =>
   api<Handover>(`/shifts/${shiftId}/force-close`, { body: { received, note } });
 export const giveFloat = (staffId: string, amount: number) => api<ShiftInfo>("/shifts/float", { body: { staff_id: staffId, amount } });
+export const floatBack = (shiftId: string, amount: number) => api<ShiftInfo>(`/shifts/${shiftId}/float-back`, { body: { amount } });
 export const getShifts = () => api<ShiftRow[]>("/shifts");
 export const getAlerts = () => api<{ staff: Person; times: number; total_short: number; message: string }[]>("/shifts/alerts");
 export const setShortageStatus = (handoverId: string, outcome: string, note?: string) =>
@@ -420,8 +424,15 @@ export const receiveDelivery = (body: {
 }) => api<{ id: string; lines: string[] }>("/stock/deliveries", { body });
 export const recordWaste = (body: { stock_item_id: string; quantity: number; tots: number; reason: string; approval_id?: string }) =>
   api<StockItem>("/stock/waste", { body });
-export const stockTake = (note: string | undefined, counts: { stock_item_id: string; full: number; open_tenths: number; open_ml?: number }[]) =>
-  api<{ id: string; lines: Variance[]; total_value: number | null }>("/stock/takes", { body: { note, counts } });
+export type TakeKind = "count" | "opening" | "closing";
+export type StockCount = { id: string; kind: TakeKind; staff: string | null; by: string | null; at: string; lines: Variance[]; total_value: number | null };
+export const stockTake = (
+  note: string | undefined,
+  counts: { stock_item_id: string; full: number; open_tenths: number; open_ml?: number }[],
+  kind: TakeKind = "count",
+  staffId?: string,
+) => api<StockCount>("/stock/takes", { body: { note, counts, kind, staff_id: staffId } });
+export const getStockCount = (id: string) => api<StockCount>(`/stock/takes/${id}`);
 export const getRecipes = () => api<Recipe[]>("/stock/recipes");
 export const setRecipe = (optionId: string, lines: RecipeLine[]) =>
   api<Recipe>(`/stock/recipes/${optionId}`, { method: "PUT", body: { lines } });
@@ -653,6 +664,7 @@ export const deactivateStaff = (id: string) => api<StaffRow>(`/staff/${id}/deact
 
 export const updateSettings = (body: Partial<Settings>) => api<Settings>("/settings", { method: "PATCH", body });
 export const exitScreen = () => api<void>("/settings/exit-screen", { method: "POST" });
+export const startAfresh = (pin: string, confirm: string) => api<{ backup: string }>("/settings/start-afresh", { body: { pin, confirm } });
 
 // Audit log (owner only): every void, discount, approval, price change...
 export type AuditEntry = {
@@ -705,6 +717,7 @@ export type PayEntry = {
 export type EmployeeIn = { name: string; job: string | null; phone: string | null; staff_id: string | null; pay_type: PayType; pay_rate: number };
 export const getEmployees = () => api<Employee[]>("/payroll/employees");
 export const addEmployee = (body: EmployeeIn) => api<Employee>("/payroll/employees", { body });
+export const removeEmployee = (id: string) => api<{ deleted: boolean }>(`/payroll/employees/${id}`, { method: "DELETE" });
 export const updateEmployee = (id: string, body: Partial<EmployeeIn & { active: boolean }>) =>
   api<Employee>(`/payroll/employees/${id}`, { method: "PATCH", body });
 export const getPayEntries = (id: string) => api<PayEntry[]>(`/payroll/employees/${id}/entries`);

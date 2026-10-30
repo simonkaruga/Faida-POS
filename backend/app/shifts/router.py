@@ -15,6 +15,7 @@ from app.floor.models import BillStatus
 from app.floor.schemas import Person
 from app.floor.service import amounts, cancel_untouched, finish_bill, place
 from app.printing import layouts
+from app.payments.models import Payment
 from app.printing.models import PrinterName, Ticket, TicketKind
 from app.sequences import next_number
 from app.payroll import router as payroll
@@ -24,6 +25,7 @@ from app.shifts.models import (
 )
 from app.shifts.service import cash_up, current_shift, open_bills_of, open_shift
 from app.staff.models import Role, Staff
+from app.stock.models import StockTake
 
 router = APIRouter(tags=["shifts"])
 
@@ -52,6 +54,7 @@ class MyShift(BaseModel):
     shift: ShiftOut | None
     cash_up: dict | None
     open_bills: list[OpenBillOut]
+    stock_counted: bool = False  # a closing stock count was made for this shift
 
 
 def _shift_out(db: Db, shift: Shift) -> ShiftOut:
@@ -80,7 +83,8 @@ def my_shift(actor: CurrentActor, db: Db) -> MyShift:
     shift = open_shift(db, actor.business_id, actor.staff.id)
     if shift is None:
         return MyShift(shift=None, cash_up=None, open_bills=[])
-    return MyShift(shift=_shift_out(db, shift), cash_up=cash_up(db, shift).as_dict(), open_bills=_open_bills(db, shift))
+    return MyShift(shift=_shift_out(db, shift), cash_up=cash_up(db, shift).as_dict(), open_bills=_open_bills(db, shift),
+                   stock_counted="closing_count_id" in _counts(db, shift))
 
 
 def _check_receiver(receiver: Staff, shift: Shift) -> None:
@@ -305,6 +309,38 @@ def give_float(body: FloatIn, actor: Receiver, request: Request, db: Db) -> Shif
     return _shift_out(db, shift)
 
 
+class FloatBackIn(BaseModel):
+    amount: Annotated[int, Field(ge=1, le=1_000_000)]
+
+
+@router.post("/shifts/{shift_id}/float-back")
+def float_back(shift_id: uuid.UUID, body: FloatBackIn, actor: Receiver, request: Request, db: Db) -> ShiftOut:
+    """The float (or part of it) came back to the cash box before the hand-over: it is no
+    longer part of what they must hand over. A shift with nothing else in it (only the
+    float) ends here, so it doesn't stay open."""
+    shift = _get_shift(db, actor, shift_id)
+    if body.amount > shift.float_amount:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"The float is only KSh {shift.float_amount:,}.")
+    tz = request.app.state.tz
+    staff = db.get(Staff, shift.staff_id)
+    shift.float_amount -= body.amount
+    db.add(CashMovement(business_id=actor.business_id, created_by=actor.staff.id, kind=CashMovementKind.float,
+                        amount=body.amount, business_day=today(db, actor.business_id, tz), shift_id=shift.id,
+                        note=f"{staff.name}: float back"))
+    empty = (not shift.float_amount and not cash_up(db, shift).bills
+             and db.scalar(select(Payment.id).where(Payment.shift_id == shift.id).limit(1)) is None
+             and not open_bills_of(db, shift.business_id, shift.staff_id))
+    if empty:
+        cancel_untouched(db, shift.business_id, shift.staff_id)
+        shift.status, shift.ended_at = ShiftStatus.closed, now()
+    audit.record(db, business_id=actor.business_id, actor_id=actor.staff.id, action="shift.float_back",
+                 entity_type="shift", entity_id=shift.id,
+                 details={"staff": staff.name, "amount": body.amount, "float_now": shift.float_amount, "shift_ended": empty})
+    db.commit()
+    request.app.state.printing.open_drawer()
+    return _shift_out(db, shift)
+
+
 class ShiftRow(BaseModel):
     shift: ShiftOut
     status: ShiftStatus
@@ -312,6 +348,17 @@ class ShiftRow(BaseModel):
     open_bills: int
     expected: int  # live for an open shift
     handover: HandoverOut | None
+    opening_count_id: uuid.UUID | None = None  # the stock counted at the start of the shift
+    closing_count_id: uuid.UUID | None = None  # and at the hand-over
+
+
+def _counts(db: Db, shift: Shift) -> dict[str, uuid.UUID | None]:
+    """The shift's latest opening and closing stock counts."""
+    found = {}
+    for take_id, kind in db.execute(select(StockTake.id, StockTake.kind).where(StockTake.shift_id == shift.id)
+                                    .order_by(StockTake.created_at)):
+        found[f"{kind.value}_count_id"] = take_id
+    return found
 
 
 @router.get("/shifts")
@@ -330,7 +377,7 @@ def list_shifts(actor: Receiver, request: Request, db: Db) -> list[ShiftRow]:
             shift=_shift_out(db, shift), status=shift.status, ended_at=shift.ended_at,
             open_bills=len(open_bills_of(db, shift.business_id, shift.staff_id)) if shift.status is ShiftStatus.open else 0,
             expected=handover.expected if handover else cash_up(db, shift).cash_to_hand_over,
-            handover=_handover_out(db, handover) if handover else None,
+            handover=_handover_out(db, handover) if handover else None, **_counts(db, shift),
         ))
     return rows
 

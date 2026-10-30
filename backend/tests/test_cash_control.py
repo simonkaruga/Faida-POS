@@ -427,3 +427,36 @@ def test_waiter_says_what_they_sold_before_seeing_faidas_figures(client, owner, 
     assert h["faida"] == {"cash": 8100, "mpesa": 9200, "credit": 1200}
     owner_copy = printers[COUNTER].printed[-1]
     assert "Sold by" in owner_copy and "8,000 / 8,100 / -100" in owner_copy
+
+
+def test_removing_an_employee(client, owner, staff):
+    """Added by mistake: deleted. With a pay history: kept as no longer working here."""
+    add = lambda name: client.post("/api/payroll/employees", headers=owner, json={  # noqa: E731
+        "name": name, "pay_type": "monthly", "pay_rate": 10000}).json()
+    typo, paid = add("Jnae"), add("Otieno")
+    client.post(f"/api/payroll/employees/{paid['id']}/advances", headers=owner, json={"amount": 500, "paid_how": "mpesa"})
+    assert client.delete(f"/api/payroll/employees/{typo['id']}", headers=login(client, SAM)).status_code == 403
+    assert client.delete(f"/api/payroll/employees/{typo['id']}", headers=owner).json() == {"deleted": True}
+    assert client.delete(f"/api/payroll/employees/{paid['id']}", headers=owner).json() == {"deleted": False}
+    rows = client.get("/api/payroll/employees", headers=owner).json()
+    assert [(e["name"], e["active"], e["balance"]) for e in rows] == [("Otieno", False, -500)]
+
+
+def test_float_taken_back(client, owner, staff, items, tabs):
+    """Back in the box, no longer due at hand-over; a shift with only a float ends."""
+    jane, peter = staff_id(client, owner, "Jane"), staff_id(client, owner, "Peter")
+    s = client.post("/api/shifts/float", json={"staff_id": jane, "amount": 1000}, headers=owner).json()
+    assert client.post(f"/api/shifts/{s['id']}/float-back", json={"amount": 1500}, headers=owner).status_code == 409
+    assert client.post(f"/api/shifts/{s['id']}/float-back", json={"amount": 400}, headers=login(client, JANE)).status_code == 403
+    assert client.post(f"/api/shifts/{s['id']}/float-back", json={"amount": 400}, headers=owner).json()["float_amount"] == 600
+    j = login(client, JANE)
+    pay(client, j, tabs(j, items, [500]), method="cash", amount=500)
+    assert my_shift(client, j)["cash_up"]["cash_to_hand_over"] == 1100
+    client.post(f"/api/shifts/{s['id']}/float-back", json={"amount": 600}, headers=owner)
+    assert my_shift(client, j)["cash_up"]["cash_to_hand_over"] == 500  # still open: she sold something
+
+    p = client.post("/api/shifts/float", json={"staff_id": peter, "amount": 1000}, headers=owner).json()
+    client.post(f"/api/shifts/{p['id']}/float-back", json={"amount": 1000}, headers=owner)
+    rows = {r["shift"]["staff"]["name"]: r for r in client.get("/api/shifts", headers=owner).json()}
+    assert rows["Peter"]["status"] == "closed" and rows["Jane"]["status"] == "open"
+    assert client.get("/api/cashbox", headers=owner).json()["expected"] == 0  # all of it came back
