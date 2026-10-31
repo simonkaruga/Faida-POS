@@ -136,7 +136,7 @@ export function ClosingView({ report }: { report: ClosingReport }) {
         {box.payouts.map((p, i) => (
           <Row key={i} label={`Pay-out: ${p.note ?? ""} (${p.by})`} value={formatKsh(p.amount)} />
         ))}
-        {(box.today.owner ?? 0) !== 0 && <Row label="Owner in/out" value={formatKsh(box.today.owner)} />}
+        {(box.today.owner ?? 0) !== 0 && <Row label="Expenses, salaries, owner cash in/out" value={formatKsh(box.today.owner)} />}
         <Row label="Should be in the box now" value={formatKsh(box.expected_now)} strong />
       </Section>
 

@@ -112,6 +112,8 @@ def describe(item: StockItem, quantity: Decimal, tot_size: int | None) -> str:
     """A quantity as people count it: "1.4 bottles ≈ 42 tots", "24 bottles", "2.5 kg"."""
     q = Decimal(quantity)
     if item.unit is StockUnit.ml and item.bottle_size:
+        if q and abs(q / item.bottle_size) < Decimal("0.05"):  # less than a tenth of a bottle: "1 tot", not "0 bottles"
+            return _counted(q / tot_size, 0, "tot", "tots") + f" ({_fmt(q, 0)} ml)" if tot_size else f"{_fmt(q, 0)} ml"
         text = _counted(q / item.bottle_size, 1, "bottle", "bottles")
         if tot_size:
             text += f" ≈ {_counted(q / tot_size, 0, 'tot', 'tots')}"

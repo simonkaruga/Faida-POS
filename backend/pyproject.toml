@@ -1,6 +1,6 @@
 [project]
 name = "faida-backend"
-version = "0.3.7"
+version = "0.3.8"
 description = "Faida POS backend: rules, money logic and data (local and cloud modes)"
 requires-python = ">=3.11"
 

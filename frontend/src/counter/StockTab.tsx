@@ -200,7 +200,8 @@ function DeliveryDialog({ items, onDone, onClose }: { items: StockItem[]; onDone
   const add = (item: StockItem) => {
     const at = lines.findIndex((l) => l.item.id === item.id);
     if (at < 0) setLines([...lines, { item, packs: "", units: "", cost: "" }]);
-    setField({ index: at < 0 ? lines.length : at, key: item.pack_size ? "packs" : "units" });
+    // Beer comes by the crate; spirits mostly by the single bottle, even with a carton size set.
+    setField({ index: at < 0 ? lines.length : at, key: item.pack_size && !item.bottle_size ? "packs" : "units" });
     setPicking(false);
   };
   const drop = (index: number) => (setLines(lines.filter((_, i) => i !== index)), setField(null));
